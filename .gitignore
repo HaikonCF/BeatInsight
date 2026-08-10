@@ -1,0 +1,36 @@
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Build
+[Bb]in/
+[Oo]bj/
+
+# Visual Studio cache
+.vscode/
+
+# Rider
+.idea/
+
+# NuGet
+packages/
+
+# Test results
+TestResults/
+
+# Logs
+*.log
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Publish
+publish/
+
+# Temporary files
+*.tmp
+*.temp
