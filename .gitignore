@@ -34,3 +34,8 @@ publish/
 # Temporary files
 *.tmp
 *.temp
+
+# Builds / releases
+publish/
+test-release/
+*.zip
