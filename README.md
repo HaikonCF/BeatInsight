@@ -2,135 +2,72 @@
 
 BeatInsight is a gameplay analysis tool for osu! beatmaps.
 
-The goal is to analyze a beatmap and produce a readable gameplay profile describing
-the main characteristics of the map.
+The goal of BeatInsight is to describe the gameplay characteristics of a beatmap rather than simply giving it a difficulty rating.
 
-## Features
+> ⚠️ BeatInsight is currently in an early public testing phase.
+> The analysis and classification systems are still being calibrated.
 
-### Gameplay detection
+---
 
-BeatInsight currently analyzes:
+## 🚀 Current Version
 
-- Streams
-- Jumps
-- Bursts
+**v0.1.0 — Public Testing**
+
+This release is intended for testing and feedback.
+
+---
+
+## 📦 Installation
+
+1. Download the latest `.zip` from the Releases page.
+2. Extract the archive somewhere on your computer.
+3. Launch:
+
+`BeatInsight.exe`
+
+No installation is required.
+
+### Requirements
+
+- Windows x64
+- No additional installation should be required for the published version.
+
+---
+
+# 🎮 Gameplay Analysis
+
+BeatInsight currently analyses several gameplay characteristics.
+
+### Pattern Detection
+
+- Stream
+- Jump
+- Burst
+
+### Gameplay Difficulty Signals
+
 - Tech
-- Reading
+- Read
 - Speed
 - Aim
 
-Each category produces independent signals and scores.
+The application combines these signals to determine the general gameplay profile of a beatmap.
 
-### Gameplay Identity
+---
 
-BeatInsight attempts to classify the overall gameplay identity of a map.
+# 🧠 Gameplay Identity
 
-Examples:
+BeatInsight also attempts to describe the overall identity of a map.
 
-- Stream Speed
-- Jump Aim
-- Jump Reading
-- Stream Speed Aim
-- Jump / Stream Speed Aim
-- Classic / Mixed
+For example:
 
-The classification is not intended to be perfect.
+```text
+IDENTITY = Jump / Stream Speed Aim
+CONFIDENCE = 87%
 
-It is currently being calibrated using real beatmaps and player feedback.
-
-### Confidence
-
-Each classification includes a confidence value.
-
-Example:
-
-    IDENTITY = Jump / Stream Speed Aim
-    CONFIDENCE = 87%
-
-The confidence represents how strongly the current analysis supports the
-classification.
-
-### Traits
-
-BeatInsight also exposes the characteristics detected in the map.
-
-Example:
-
-    TRAITS =
-    - High Speed Pressure
-    - High Aim Pressure
-    - Jump Heavy
-    - Stream Heavy
-    - Reading Influence
-
-These traits are intentionally visible to testers so that incorrect
-classifications can be identified and reported.
-
-## Current analysis
-
-Example gameplay profile:
-
-    PRIMARY TYPE = Stream
-
-    SPEED = 75/100
-    AIM = 53/100
-    TECH = 16/100
-    READ = 63/100
-
-    IDENTITY = Stream Speed Aim
-    CONFIDENCE = 62%
-
-    TRAITS =
-    - High Speed Pressure
-    - High Reading Demand
-    - Stream Heavy
-
-## Why this project?
-
-The goal of BeatInsight is not simply to give a single difficulty number.
-
-It aims to describe **how a map plays**.
-
-For example, two maps with similar difficulty can have very different
-gameplay characteristics:
-
-- one may focus on streams and speed,
-- another on jumps and aim,
-- another on reading and tech patterns.
-
-BeatInsight attempts to make these differences explicit.
-
-## Feedback
-
-This project is currently in development.
-
-If the classification of a map seems incorrect, please open an Issue and
-include:
-
-- Beatmap name
-- Difficulty
-- BeatInsight classification
-- Confidence
-- Traits
-- What you believe the classification should be
-- Optional explanation
-
-Example:
-
-    Beatmap: Ange du Blanc Pur
-    BeatInsight: Stream Speed
-    Confidence: 73%
-
-    Expected:
-    Stream Speed
-
-    Notes:
-    The map contains some bursts, but the majority of the gameplay is stream.
-
-Feedback is especially useful for improving the classification system.
-
-## Status
-
-🚧 Early development / testing
-
-The gameplay analysis system is actively being calibrated.
+TRAITS =
+- High Speed Pressure
+- High Aim Pressure
+- Jump Heavy
+- Stream Heavy
+- Reading Influence
