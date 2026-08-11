@@ -30,7 +30,8 @@ No installation is required.
 ### Requirements
 
 - Windows x64
-- No additional installation should be required for the published version.
+- Tosu is required for beatInsight
+Here the link to how to download tosu => https://www.youtube.com/watch?v=KxqJkqlyym4
 
 ---
 
