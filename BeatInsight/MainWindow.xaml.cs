@@ -223,22 +223,22 @@ namespace BeatInsight
         }
 
         private void ReportClassification_Click(object sender, RoutedEventArgs e)
-        {
-            if (DataContext is not Beatmap beatmap)
-                return;
+{
+    if (DataContext is not Beatmap beatmap)
+        return;
 
-            GameplayProfile profile = beatmap.GameplayProfile;
+    GameplayProfile profile = beatmap.GameplayProfile;
 
-            string traits = profile.Identity.Traits.Count == 0
-                ? "None"
-                : string.Join(
-                    "\n",
-                    profile.Identity.Traits
-                        .Distinct()
-                        .Select(t => $"- {t}")
-                );
+    string traits = profile.Identity.Traits.Count == 0
+        ? "None"
+        : string.Join(
+            "\n",
+            profile.Identity.Traits
+                .Distinct()
+                .Select(t => $"- {t}")
+        );
 
-            string body = $"""
+    string body = $"""
 ## Beatmap
 
 **Title:** {beatmap.Title}
@@ -284,20 +284,20 @@ namespace BeatInsight
 <!-- Any other useful information? -->
 """;
 
-            string title =
-                $"Classification incorrecte - {beatmap.Title} [{beatmap.Version}]";
+    string title =
+        $"Classification incorrecte - {beatmap.Title} [{beatmap.Version}]";
 
-            string url =
-                "https://github.com/HaikonCF/BeatInsight/issues/new" +
-                $"?title={Uri.EscapeDataString(title)}" +
-                $"&body={Uri.EscapeDataString(body)}";
+    string url =
+        "https://github.com/HaikonCF/BeatInsight/issues/new" +
+        $"?title={Uri.EscapeDataString(title)}" +
+        $"&body={Uri.EscapeDataString(body)}";
 
-            Process.Start(new ProcessStartInfo
-            {
-                FileName = url,
-                UseShellExecute = true
-            });
-        }
+    Process.Start(new ProcessStartInfo
+    {
+        FileName = url,
+        UseShellExecute = true
+    });
+}
 
         private async Task UpdateMap()
         {
@@ -336,14 +336,16 @@ namespace BeatInsight
 
             // On assemble le dossier Songs, le dossier de la beatmap et le fichier .osu pour obtenir son chemin complet.
 
-            string bg =
-                document.RootElement
+            string? bg = null;
+
+            if (document.RootElement
                 .GetProperty("menu")
                 .GetProperty("bm")
                 .GetProperty("path")
-                .GetProperty("bg")
-                // Si le chemin est identique à celui de la dernière map traitée, rien n'a changé : on évite donc de recharger et recalculer la map.
-                .GetString()!;
+                .TryGetProperty("bg", out JsonElement bgElement))
+            {
+                bg = bgElement.GetString();
+            }
 
             int beatmapId =
                 document.RootElement
@@ -374,29 +376,46 @@ namespace BeatInsight
             Debug.WriteLine($"----- New Map -----");
 
 
-            // On passe le fichier .osu au parser pour transformer ses données brutes en objet Beatmap utilisable par le reste du programme.
-            string backgroundPath = System.IO.Path.Combine(
-                // On affiche le titre récupéré par le parser afin de vérifier rapidement dans le debug que la bonne map a été chargée.
-                songs,
-                folder,
-                bg
-            );
-
-
-
-
-
-            // On donne la Beatmap à l'interface comme DataContext afin que les contrôles WPF puissent afficher automatiquement ses propriétés.
-            BackgroundImage.Source =
-                new BitmapImage(new Uri(backgroundPath));
-
             Beatmap beatmap = BeatmapParser.Load(chemin);
+
             Debug.WriteLine($"MAP = {beatmap.Title}");
 
 
+            // ============================================================
+            // BACKGROUND
+            // ============================================================
 
+            if (!string.IsNullOrWhiteSpace(bg))
+            {
+                string backgroundPath = System.IO.Path.Combine(
+                    songs,
+                    folder,
+                    bg
+                );
 
-            DataContext = beatmap;
+                if (System.IO.File.Exists(backgroundPath))
+                {
+                    try
+                    {
+                        BackgroundImage.Source =
+                            new BitmapImage(new Uri(backgroundPath));
+                    }
+                    catch
+                    {
+                        BackgroundImage.Source = null;
+                    }
+                }
+                else
+                {
+                    BackgroundImage.Source = null;
+                }
+            }
+            else
+            {
+                BackgroundImage.Source = null;
+            }
+           
+    DataContext = beatmap;
         }
     }
 }
