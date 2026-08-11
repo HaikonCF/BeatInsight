@@ -3,6 +3,7 @@
 BeatInsight is a gameplay analysis tool for osu! beatmaps.
 
 The goal of BeatInsight is to describe the gameplay characteristics of a beatmap rather than simply giving it a difficulty rating.
+je construis ça et j'ai besoin de joueurs pour me dire si mon algo raconte n'importe quoi Mdr
 
 > ⚠️ BeatInsight is currently in an early public testing phase.
 > The analysis and classification systems are still being calibrated.
