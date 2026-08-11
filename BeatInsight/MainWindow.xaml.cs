@@ -7,6 +7,9 @@ using System.Text.Json;
 using System.Windows;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
+using System.Linq;
+using System.Text;
+using System.Reflection;
 
 // Cette classe représente la fenêtre principale de BeatInsight et contient la logique qui surveille la map actuellement sélectionnée.
 
@@ -24,6 +27,7 @@ namespace BeatInsight
         // Le constructeur prépare la fenêtre et démarre la surveillance automatique de la map.
         private string? currentMapPath;
         private bool isUpdating;
+        private string? currentBeatmapUrl;
 
         // On initialise les composants graphiques générés par WPF avant de manipuler l'interface.
 
@@ -46,7 +50,11 @@ namespace BeatInsight
 
             // Cette méthode est appelée automatiquement à chaque déclenchement du DispatcherTimer.
             _ = UpdateMap();
+
+
         }
+
+        public string AppVersion => $"BeatInsight v{Assembly.GetExecutingAssembly().GetName().Version?.ToString(3)}";
 
         // Si une mise à jour précédente n'est pas terminée, on quitte immédiatement pour éviter deux traitements simultanés.
 
@@ -71,6 +79,224 @@ namespace BeatInsight
                 isUpdating = false;
             }
             // On récupère le dossier de la beatmap sélectionnée dans les informations envoyées par osu!.
+        }
+
+        private void CopyAnalysis_Click(object sender, RoutedEventArgs e)
+        {
+            if (DataContext is not Beatmap beatmap)
+                return;
+
+            GameplayProfile profile = beatmap.GameplayProfile;
+
+            StringBuilder text = new();
+
+            // ============================================================
+            // MAP
+            // ============================================================
+
+            text.AppendLine($"MAP = {beatmap.Title}");
+
+            if (!string.IsNullOrWhiteSpace(beatmap.Version))
+                text.AppendLine($"DIFFICULTY = {beatmap.Version}");
+
+            text.AppendLine();
+
+            // ============================================================
+            // IDENTITY
+            // ============================================================
+
+            text.AppendLine("GAMEPLAY IDENTITY");
+            text.AppendLine(profile.Identity.FullName);
+
+            text.AppendLine();
+
+            text.AppendLine("CONFIDENCE");
+            text.AppendLine($"{profile.Identity.Confidence:F0}%");
+
+            text.AppendLine();
+
+            // ============================================================
+            // TRAITS
+            // ============================================================
+
+            text.AppendLine("TRAITS");
+
+            var traits = profile.Identity.Traits
+                .Distinct()
+                .ToList();
+
+            if (traits.Count == 0)
+            {
+                text.AppendLine("None");
+            }
+            else
+            {
+                foreach (string trait in traits)
+                    text.AppendLine($"• {trait}");
+            }
+
+            text.AppendLine();
+
+            // ============================================================
+            // PATTERNS
+            // ============================================================
+
+            text.AppendLine("PATTERNS");
+
+            text.AppendLine(
+                $"Stream: {profile.StreamRatio * 100:F2}%");
+
+            text.AppendLine(
+                $"Jump: {profile.JumpRatio * 100:F2}%");
+
+            text.AppendLine(
+                $"Burst: {profile.BurstRatio * 100:F2}%");
+
+            text.AppendLine();
+
+            // ============================================================
+            // SCORES
+            // ============================================================
+
+            text.AppendLine("SCORES");
+
+            text.AppendLine(
+                $"Tech: {profile.TechScore:F0}/100");
+
+            text.AppendLine(
+                $"Read: {profile.ReadScore:F0}/100");
+
+            text.AppendLine(
+                $"Speed: {profile.SpeedScore:F0}/100");
+
+            text.AppendLine(
+                $"Aim: {profile.AimScore:F0}/100");
+
+            text.AppendLine();
+
+            // ============================================================
+            // SIGNALS
+            // ============================================================
+
+            text.AppendLine("SIGNALS");
+
+            text.AppendLine(
+                $"Tech: Transition {profile.TechTransitionSignal:F0}% / " +
+                $"Structure {profile.TechStructureSignal:F0}% / " +
+                $"Spatial {profile.TechSpatialSignal:F0}% / " +
+                $"Temporal {profile.TechTemporalSignal:F0}%");
+
+            text.AppendLine(
+                $"Read: Density {profile.ReadDensitySignal:F0}% / " +
+                $"Clutter {profile.ReadClutterSignal:F0}% / " +
+                $"Persistence {profile.ReadPersistenceSignal:F0}% / " +
+                $"CS {profile.ReadCSSignal:F0}%");
+
+            text.AppendLine(
+                $"Speed: Fast {profile.SpeedFastObjectRatio * 100:F0}% / " +
+                $"Density {profile.SpeedDensitySignal:F0}% / " +
+                $"AR {profile.SpeedARSignal:F0}%");
+
+            text.AppendLine(
+                $"Aim: Distance {profile.AimDistanceSignal:F0}% / " +
+                $"Speed {profile.AimSpeedSignal:F0}% / " +
+                $"Angle {profile.AimAngleSignal:F0}% / " +
+                $"Temporal {profile.AimTemporalSignal:F0}%");
+
+            // ============================================================
+            // COPY
+            // ============================================================
+
+            Clipboard.SetText(text.ToString());
+        }
+
+        private void OpenBeatmap_Click(object sender, RoutedEventArgs e)
+        {
+            if (string.IsNullOrWhiteSpace(currentBeatmapUrl))
+                return;
+
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = currentBeatmapUrl,
+                UseShellExecute = true
+            });
+        }
+
+        private void ReportClassification_Click(object sender, RoutedEventArgs e)
+        {
+            if (DataContext is not Beatmap beatmap)
+                return;
+
+            GameplayProfile profile = beatmap.GameplayProfile;
+
+            string traits = profile.Identity.Traits.Count == 0
+                ? "None"
+                : string.Join(
+                    "\n",
+                    profile.Identity.Traits
+                        .Distinct()
+                        .Select(t => $"- {t}")
+                );
+
+            string body = $"""
+## Beatmap
+
+**Title:** {beatmap.Title}
+
+**Difficulty:** {beatmap.Version}
+
+## BeatInsight
+
+**Version:** {AppVersion}
+
+**Identity:** {profile.Identity.FullName}
+
+**Confidence:** {profile.Identity.Confidence:F0}%
+
+### Traits
+
+{traits}
+
+### Gameplay
+
+- Stream: {profile.StreamRatio * 100:F2}%
+- Jump: {profile.JumpRatio * 100:F2}%
+- Burst: {profile.BurstRatio * 100:F2}%
+
+### Scores
+
+- Tech: {profile.TechScore:F0}/100
+- Read: {profile.ReadScore:F0}/100
+- Speed: {profile.SpeedScore:F0}/100
+- Aim: {profile.AimScore:F0}/100
+
+## Expected classification
+
+<!-- What should BeatInsight classify this map as? -->
+
+
+## Why?
+
+<!-- Explain why you think the classification is incorrect. -->
+
+## Additional information
+
+<!-- Any other useful information? -->
+""";
+
+            string title =
+                $"Classification incorrecte - {beatmap.Title} [{beatmap.Version}]";
+
+            string url =
+                "https://github.com/HaikonCF/BeatInsight/issues/new" +
+                $"?title={Uri.EscapeDataString(title)}" +
+                $"&body={Uri.EscapeDataString(body)}";
+
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = url,
+                UseShellExecute = true
+            });
         }
 
         private async Task UpdateMap()
@@ -119,6 +345,15 @@ namespace BeatInsight
                 // Si le chemin est identique à celui de la dernière map traitée, rien n'a changé : on évite donc de recharger et recalculer la map.
                 .GetString()!;
 
+            int beatmapId =
+                document.RootElement
+                .GetProperty("menu")
+                .GetProperty("bm")
+                .GetProperty("id")
+                .GetInt32();
+
+            currentBeatmapUrl = $"https://osu.ppy.sh/b/{beatmapId}";
+
             string chemin = System.IO.Path.Combine(
                 songs,
                 // Une nouvelle map a été détectée : on mémorise son chemin pour les prochaines vérifications.
@@ -146,6 +381,10 @@ namespace BeatInsight
                 folder,
                 bg
             );
+
+
+
+
 
             // On donne la Beatmap à l'interface comme DataContext afin que les contrôles WPF puissent afficher automatiquement ses propriétés.
             BackgroundImage.Source =

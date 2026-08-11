@@ -36,7 +36,7 @@
         <!-- ========================= -->
 
         <Grid Panel.ZIndex="2"
-              Margin="35">
+      Margin="28">
 
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
@@ -45,79 +45,128 @@
             </Grid.RowDefinitions>
 
 
-            <!-- ========================= -->
-            <!-- HEADER                     -->
-            <!-- ========================= -->
+            <!-- ===================================================== -->
+            <!-- HEADER                                                -->
+            <!-- ===================================================== -->
 
-            <StackPanel Grid.Row="0"
-                        HorizontalAlignment="Center">
+            <Grid Grid.Row="0">
 
-                <TextBlock Text="{Binding Title}"
-                           FontSize="38"
-                           FontWeight="Bold"
-                           Foreground="White"
-                           HorizontalAlignment="Center"
-                           TextAlignment="Center"/>
+                <!-- TITRE CENTRAL -->
 
-                <TextBlock Text="{Binding Artist}"
-                           FontSize="18"
-                           Foreground="#DDFFFFFF"
-                           HorizontalAlignment="Center"
-                           Margin="0,5,0,0"/>
+                <StackPanel HorizontalAlignment="Center">
 
-                <TextBlock Text="{Binding Creator}"
-                           FontSize="14"
-                           Foreground="#AAFFFFFF"
-                           HorizontalAlignment="Center"
-                           Margin="0,2,0,0"/>
+                    <TextBlock Text="{Binding Title}"
+                       FontSize="38"
+                       FontWeight="Bold"
+                       Foreground="White"
+                       HorizontalAlignment="Center"
+                       TextAlignment="Center"/>
 
-            </StackPanel>
+                    <TextBlock Text="{Binding Artist}"
+                       FontSize="18"
+                       Foreground="#DDFFFFFF"
+                       HorizontalAlignment="Center"
+                       Margin="0,3,0,0"/>
+
+                    <TextBlock Text="{Binding Creator}"
+                       FontSize="14"
+                       Foreground="#AAFFFFFF"
+                       HorizontalAlignment="Center"
+                       Margin="0,1,0,0"/>
+
+                    <TextBlock Text="{Binding Version}"
+                       FontSize="14"
+                       Foreground="#AAFFFFFF"
+                       HorizontalAlignment="Center"
+                       Margin="0,1,0,4"/>
+
+                </StackPanel>
 
 
-            <!-- ========================= -->
-            <!-- CENTRE                     -->
-            <!-- ========================= -->
+                <!-- ACTIONS GAUCHE -->
+
+                <StackPanel HorizontalAlignment="Left"
+                    VerticalAlignment="Top">
+
+                    <Button Content="Open Beatmap ↗"
+                    Click="OpenBeatmap_Click"
+                    Padding="12,6"/>
+
+                    <Button Content="📋 Copy Analysis"
+                    Click="CopyAnalysis_Click"
+                    Padding="12,6"
+                    Margin="0,7,0,0"/>
+
+                </StackPanel>
+
+
+                <!-- VERSION / REPORT DROITE -->
+
+                <StackPanel HorizontalAlignment="Right"
+                    VerticalAlignment="Top">
+
+                    <TextBlock
+                Text="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=AppVersion}"
+                FontSize="11"
+                Foreground="#88FFFFFF"
+                HorizontalAlignment="Right"
+                Margin="0,4,0,10"/>
+
+                    <Button Content="⚠ Classification incorrecte ?"
+                    Click="ReportClassification_Click"
+                    Padding="12,6"/>
+
+                </StackPanel>
+
+            </Grid>
+
+
+            <!-- ===================================================== -->
+            <!-- CENTRE                                                -->
+            <!-- ===================================================== -->
 
             <Grid Grid.Row="1"
-                  Margin="0,20,0,15">
+          Margin="0,8,0,5">
 
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
 
 
-                <!-- ========================= -->
-                <!-- BEATINSIGHT STAR RATING   -->
-                <!-- ========================= -->
+                <!-- ================================================= -->
+                <!-- BEATINSIGHT RATING                                -->
+                <!-- ================================================= -->
 
                 <StackPanel Grid.Row="0"
-                            HorizontalAlignment="Center"
-                            Margin="0,0,0,15">
+                    HorizontalAlignment="Center"
+                    Margin="0,0,0,8">
 
                     <TextBlock Text="BEATINSIGHT RATING"
-                               FontSize="12"
-                               FontWeight="SemiBold"
-                               Foreground="#AAFFFFFF"
-                               HorizontalAlignment="Center"/>
+                       FontSize="12"
+                       FontWeight="SemiBold"
+                       Foreground="#AAFFFFFF"
+                       HorizontalAlignment="Center"/>
 
                     <TextBlock Text="{Binding StarRating, StringFormat={}{0:F2}★}"
-                               FontSize="34"
-                               FontWeight="Bold"
-                               Foreground="White"
-                               HorizontalAlignment="Center"
-                               Margin="0,2,0,0"/>
+                       FontSize="34"
+                       FontWeight="Bold"
+                       Foreground="White"
+                       HorizontalAlignment="Center"
+                       Margin="0,1,0,0"/>
 
                 </StackPanel>
 
 
-                <!-- ========================= -->
-                <!-- MAIN STATS                 -->
-                <!-- ========================= -->
+                <!-- ================================================= -->
+                <!-- BPM / DURÉE / COMBO                               -->
+                <!-- ================================================= -->
 
                 <Grid Grid.Row="1"
-                      HorizontalAlignment="Center">
+              HorizontalAlignment="Center">
 
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="180"/>
@@ -126,90 +175,84 @@
                     </Grid.ColumnDefinitions>
 
 
-                    <!-- BPM -->
-
                     <Border Grid.Column="0"
-                            Background="#660D0D18"
-                            BorderBrush="#55FFFFFF"
-                            BorderThickness="1"
-                            CornerRadius="16"
-                            Margin="8"
-                            Padding="18">
+                    Background="#660D0D18"
+                    BorderBrush="#55FFFFFF"
+                    BorderThickness="1"
+                    CornerRadius="16"
+                    Margin="6"
+                    Padding="15">
 
                         <StackPanel>
 
                             <TextBlock Text="BPM"
-                                       FontSize="13"
-                                       FontWeight="SemiBold"
-                                       Foreground="#BFFFFFFF"
-                                       HorizontalAlignment="Center"/>
+                               FontSize="13"
+                               FontWeight="SemiBold"
+                               Foreground="#BFFFFFFF"
+                               HorizontalAlignment="Center"/>
 
                             <TextBlock Text="{Binding BPM}"
-                                       FontSize="30"
-                                       FontWeight="Bold"
-                                       Foreground="White"
-                                       HorizontalAlignment="Center"
-                                       Margin="0,3,0,0"/>
+                               FontSize="30"
+                               FontWeight="Bold"
+                               Foreground="White"
+                               HorizontalAlignment="Center"
+                               Margin="0,2,0,0"/>
 
                         </StackPanel>
 
                     </Border>
 
 
-                    <!-- DURÉE -->
-
                     <Border Grid.Column="1"
-                            Background="#660D0D18"
-                            BorderBrush="#55FFFFFF"
-                            BorderThickness="1"
-                            CornerRadius="16"
-                            Margin="8"
-                            Padding="18">
+                    Background="#660D0D18"
+                    BorderBrush="#55FFFFFF"
+                    BorderThickness="1"
+                    CornerRadius="16"
+                    Margin="6"
+                    Padding="15">
 
                         <StackPanel>
 
                             <TextBlock Text="DURÉE"
-                                       FontSize="13"
-                                       FontWeight="SemiBold"
-                                       Foreground="#BFFFFFFF"
-                                       HorizontalAlignment="Center"/>
+                               FontSize="13"
+                               FontWeight="SemiBold"
+                               Foreground="#BFFFFFFF"
+                               HorizontalAlignment="Center"/>
 
                             <TextBlock Text="{Binding LengthDisplay}"
-                                       FontSize="30"
-                                       FontWeight="Bold"
-                                       Foreground="White"
-                                       HorizontalAlignment="Center"
-                                       Margin="0,3,0,0"/>
+                               FontSize="30"
+                               FontWeight="Bold"
+                               Foreground="White"
+                               HorizontalAlignment="Center"
+                               Margin="0,2,0,0"/>
 
                         </StackPanel>
 
                     </Border>
 
 
-                    <!-- MAX COMBO -->
-
                     <Border Grid.Column="2"
-                            Background="#660D0D18"
-                            BorderBrush="#55FFFFFF"
-                            BorderThickness="1"
-                            CornerRadius="16"
-                            Margin="8"
-                            Padding="18">
+                    Background="#660D0D18"
+                    BorderBrush="#55FFFFFF"
+                    BorderThickness="1"
+                    CornerRadius="16"
+                    Margin="6"
+                    Padding="15">
 
                         <StackPanel>
 
                             <TextBlock Text="MAX COMBO"
-                                       FontSize="13"
-                                       FontWeight="SemiBold"
-                                       Foreground="#BFFFFFFF"
-                                       HorizontalAlignment="Center"/>
+                               FontSize="13"
+                               FontWeight="SemiBold"
+                               Foreground="#BFFFFFFF"
+                               HorizontalAlignment="Center"/>
 
                             <TextBlock Text="{Binding MaxCombo}"
-                                       FontSize="30"
-                                       FontWeight="Bold"
-                                       Foreground="White"
-                                       HorizontalAlignment="Center"
-                                       Margin="0,3,0,0"/>
+                               FontSize="30"
+                               FontWeight="Bold"
+                               Foreground="White"
+                               HorizontalAlignment="Center"
+                               Margin="0,2,0,0"/>
 
                         </StackPanel>
 
@@ -218,269 +261,252 @@
                 </Grid>
 
 
-                <!-- ========================= -->
-                <!-- DIFFICULTÉ + PROFIL        -->
-                <!-- ========================= -->
+                <!-- ================================================= -->
+                <!-- AR / OD / CS / HP                                 -->
+                <!-- ================================================= -->
 
                 <Grid Grid.Row="2"
-                      HorizontalAlignment="Center"
-                      Margin="0,18,0,0">
-
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                    </Grid.RowDefinitions>
-
-
-                    <!-- ========================= -->
-                    <!-- AR / OD / CS / HP         -->
-                    <!-- ========================= -->
-
-                    <Grid Grid.Row="0">
-
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="90"/>
-                            <ColumnDefinition Width="90"/>
-                            <ColumnDefinition Width="90"/>
-                            <ColumnDefinition Width="90"/>
-                        </Grid.ColumnDefinitions>
-
-
-                        <!-- AR -->
-
-                        <StackPanel Grid.Column="0">
-
-                            <TextBlock Text="AR"
-                                       Foreground="#AAFFFFFF"
-                                       HorizontalAlignment="Center"/>
-
-                            <TextBlock Text="{Binding AR}"
-                                       FontSize="22"
-                                       FontWeight="Bold"
-                                       Foreground="White"
-                                       HorizontalAlignment="Center"/>
-
-                        </StackPanel>
-
-
-                        <!-- OD -->
-
-                        <StackPanel Grid.Column="1">
-
-                            <TextBlock Text="OD"
-                                       Foreground="#AAFFFFFF"
-                                       HorizontalAlignment="Center"/>
-
-                            <TextBlock Text="{Binding OD}"
-                                       FontSize="22"
-                                       FontWeight="Bold"
-                                       Foreground="White"
-                                       HorizontalAlignment="Center"/>
-
-                        </StackPanel>
-
-
-                        <!-- CS -->
-
-                        <StackPanel Grid.Column="2">
-
-                            <TextBlock Text="CS"
-                                       Foreground="#AAFFFFFF"
-                                       HorizontalAlignment="Center"/>
-
-                            <TextBlock Text="{Binding CS}"
-                                       FontSize="22"
-                                       FontWeight="Bold"
-                                       Foreground="White"
-                                       HorizontalAlignment="Center"/>
-
-                        </StackPanel>
-
-
-                        <!-- HP -->
-
-                        <StackPanel Grid.Column="3">
-
-                            <TextBlock Text="HP"
-                                       Foreground="#AAFFFFFF"
-                                       HorizontalAlignment="Center"/>
-
-                            <TextBlock Text="{Binding HP}"
-                                       FontSize="22"
-                                       FontWeight="Bold"
-                                       Foreground="White"
-                                       HorizontalAlignment="Center"/>
-
-                        </StackPanel>
-
-                    </Grid>
-
-
-                    <!-- ========================= -->
-                    <!-- GAMEPLAY PROFILE           -->
-                    <!-- ========================= -->
-
-                    <Grid Grid.Row="1"
-                          Margin="0,15,0,0">
-
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="140"/>
-                            <ColumnDefinition Width="140"/>
-                            <ColumnDefinition Width="140"/>
-                            <ColumnDefinition Width="140"/>
-                        </Grid.ColumnDefinitions>
-
-
-                        <!-- STREAM -->
-
-                        <StackPanel Grid.Column="0">
-
-                            <TextBlock Text="STREAM"
-                                       FontSize="13"
-                                       FontWeight="SemiBold"
-                                       Foreground="#BFFFFFFF"
-                                       HorizontalAlignment="Center"/>
-
-                            <TextBlock Text="{Binding GameplayProfile.StreamRatio, StringFormat={}{0:P0}}"
-                                       FontSize="23"
-                                       FontWeight="Bold"
-                                       Foreground="#C9A0FFFF"
-                                       HorizontalAlignment="Center"/>
-
-                        </StackPanel>
-
-
-                        <!-- JUMP -->
-
-                        <StackPanel Grid.Column="1">
-
-                            <TextBlock Text="JUMP"
-                                       FontSize="13"
-                                       FontWeight="SemiBold"
-                                       Foreground="#BFFFFFFF"
-                                       HorizontalAlignment="Center"/>
-
-                            <TextBlock Text="{Binding GameplayProfile.JumpRatio, StringFormat={}{0:P0}}"
-                                       FontSize="23"
-                                       FontWeight="Bold"
-                                       Foreground="#7EC8FFFF"
-                                       HorizontalAlignment="Center"/>
-
-                        </StackPanel>
-
-
-                        <!-- BURST -->
-
-                        <StackPanel Grid.Column="2">
-
-                            <TextBlock Text="BURST"
-                                       FontSize="13"
-                                       FontWeight="SemiBold"
-                                       Foreground="#BFFFFFFF"
-                                       HorizontalAlignment="Center"/>
-
-                            <TextBlock Text="{Binding GameplayProfile.BurstRatio, StringFormat={}{0:P0}}"
-                                       FontSize="23"
-                                       FontWeight="Bold"
-                                       Foreground="#FFE28AFF"
-                                       HorizontalAlignment="Center"/>
-
-                        </StackPanel>
-
-
-                        <!-- TECH -->
-
-                        <StackPanel Grid.Column="3">
-
-                            <TextBlock Text="TECH"
-                                       FontSize="13"
-                                       FontWeight="SemiBold"
-                                       Foreground="#BFFFFFFF"
-                                       HorizontalAlignment="Center"/>
-
-                            <TextBlock Text="{Binding GameplayProfile.TechScore, StringFormat={}{0:F0}/100}"
-                                       FontSize="23"
-                                       FontWeight="Bold"
-                                       Foreground="#FFB36BFF"
-                                       HorizontalAlignment="Center"/>
-
-                        </StackPanel>
-
-                    </Grid>
-
-
-                    <!-- ========================= -->
-                    <!-- GAMEPLAY IDENTITY          -->
-                    <!-- ========================= -->
-
-                    <StackPanel Grid.Row="2"
-                                HorizontalAlignment="Center"
-                                Margin="0,15,0,0"
-                                MaxWidth="850">
-
-                        <!-- TITRE -->
-
-                        <TextBlock Text="GAMEPLAY IDENTITY"
-                                   FontSize="11"
-                                   FontWeight="SemiBold"
-                                   Foreground="#99FFFFFF"
-                                   HorizontalAlignment="Center"/>
-
-
-                        <!-- IDENTITY -->
-
-                        <TextBlock Text="{Binding GameplayProfile.Identity.FullName}"
-                                   FontSize="21"
-                                   FontWeight="Bold"
-                                   Foreground="White"
-                                   HorizontalAlignment="Center"
-                                   TextAlignment="Center"
-                                   TextWrapping="Wrap"
-                                   MaxWidth="800"
-                                   Margin="0,2,0,0"/>
-
-
-                        <!-- CONFIDENCE -->
-
-                        <TextBlock Text="{Binding GameplayProfile.Identity.Confidence,
-                                                   StringFormat=Confidence {0:F0}%}"
-                                   FontSize="12"
-                                   Foreground="#AAFFFFFF"
-                                   HorizontalAlignment="Center"
-                                   Margin="0,2,0,0"/>
-
-
-                        <!-- TRAITS -->
-
-                        <TextBlock Text="TRAITS"
-                                   FontSize="10"
-                                   FontWeight="SemiBold"
-                                   Foreground="#88FFFFFF"
-                                   HorizontalAlignment="Center"
-                                   Margin="0,5,0,1"/>
-
-                        <TextBlock Text="{Binding GameplayProfile.Identity.TraitsDisplay}"
-                                   FontSize="12"
-                                   Foreground="#DDFFFFFF"
-                                   HorizontalAlignment="Center"
-                                   TextAlignment="Center"
-                                   TextWrapping="Wrap"
-                                   MaxWidth="800"/>
+              HorizontalAlignment="Center"
+              Margin="0,7,0,0">
+
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="90"/>
+                        <ColumnDefinition Width="90"/>
+                        <ColumnDefinition Width="90"/>
+                        <ColumnDefinition Width="90"/>
+                    </Grid.ColumnDefinitions>
+
+
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="AR"
+                           Foreground="#AAFFFFFF"
+                           HorizontalAlignment="Center"/>
+                        <TextBlock Text="{Binding AR}"
+                           FontSize="22"
+                           FontWeight="Bold"
+                           Foreground="White"
+                           HorizontalAlignment="Center"/>
+                    </StackPanel>
+
+
+                    <StackPanel Grid.Column="1">
+                        <TextBlock Text="OD"
+                           Foreground="#AAFFFFFF"
+                           HorizontalAlignment="Center"/>
+                        <TextBlock Text="{Binding OD}"
+                           FontSize="22"
+                           FontWeight="Bold"
+                           Foreground="White"
+                           HorizontalAlignment="Center"/>
+                    </StackPanel>
+
+
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="CS"
+                           Foreground="#AAFFFFFF"
+                           HorizontalAlignment="Center"/>
+                        <TextBlock Text="{Binding CS}"
+                           FontSize="22"
+                           FontWeight="Bold"
+                           Foreground="White"
+                           HorizontalAlignment="Center"/>
+                    </StackPanel>
+
+
+                    <StackPanel Grid.Column="3">
+                        <TextBlock Text="HP"
+                           Foreground="#AAFFFFFF"
+                           HorizontalAlignment="Center"/>
+                        <TextBlock Text="{Binding HP}"
+                           FontSize="22"
+                           FontWeight="Bold"
+                           Foreground="White"
+                           HorizontalAlignment="Center"/>
+                    </StackPanel>
+
+                </Grid>
+
+
+                <!-- ================================================= -->
+                <!-- GAMEPLAY PROFILE                                  -->
+                <!-- ================================================= -->
+
+                <Grid Grid.Row="3"
+              HorizontalAlignment="Center"
+              Margin="0,7,0,0">
+
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="140"/>
+                        <ColumnDefinition Width="140"/>
+                        <ColumnDefinition Width="140"/>
+                        <ColumnDefinition Width="140"/>
+                    </Grid.ColumnDefinitions>
+
+
+                    <StackPanel Grid.Column="0">
+
+                        <TextBlock Text="STREAM"
+                           FontSize="13"
+                           FontWeight="SemiBold"
+                           Foreground="#BFFFFFFF"
+                           HorizontalAlignment="Center"/>
+
+                        <TextBlock
+                    Text="{Binding GameplayProfile.StreamRatio, StringFormat={}{0:P0}}"
+                    FontSize="23"
+                    FontWeight="Bold"
+                    Foreground="#C9A0FFFF"
+                    HorizontalAlignment="Center"/>
+
+                    </StackPanel>
+
+
+                    <StackPanel Grid.Column="1">
+
+                        <TextBlock Text="JUMP"
+                           FontSize="13"
+                           FontWeight="SemiBold"
+                           Foreground="#BFFFFFFF"
+                           HorizontalAlignment="Center"/>
+
+                        <TextBlock
+                    Text="{Binding GameplayProfile.JumpRatio, StringFormat={}{0:P0}}"
+                    FontSize="23"
+                    FontWeight="Bold"
+                    Foreground="#7EC8FFFF"
+                    HorizontalAlignment="Center"/>
+
+                    </StackPanel>
+
+
+                    <StackPanel Grid.Column="2">
+
+                        <TextBlock Text="BURST"
+                           FontSize="13"
+                           FontWeight="SemiBold"
+                           Foreground="#BFFFFFFF"
+                           HorizontalAlignment="Center"/>
+
+                        <TextBlock
+                    Text="{Binding GameplayProfile.BurstRatio, StringFormat={}{0:P0}}"
+                    FontSize="23"
+                    FontWeight="Bold"
+                    Foreground="#FFE28AFF"
+                    HorizontalAlignment="Center"/>
+
+                    </StackPanel>
+
+
+                    <StackPanel Grid.Column="3">
+
+                        <TextBlock Text="TECH"
+                           FontSize="13"
+                           FontWeight="SemiBold"
+                           Foreground="#BFFFFFFF"
+                           HorizontalAlignment="Center"/>
+
+                        <TextBlock
+                    Text="{Binding GameplayProfile.TechScore, StringFormat={}{0:F0}/100}"
+                    FontSize="23"
+                    FontWeight="Bold"
+                    Foreground="#FFB36BFF"
+                    HorizontalAlignment="Center"/>
 
                     </StackPanel>
 
                 </Grid>
 
+
+                <!-- ================================================= -->
+                <!-- GAMEPLAY IDENTITY                                 -->
+                <!-- ================================================= -->
+
+                <StackPanel Grid.Row="4"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Top"
+                    Margin="0,5,0,0"
+                    MaxWidth="850">
+
+                    <TextBlock Text="GAMEPLAY IDENTITY"
+                       FontSize="11"
+                       FontWeight="SemiBold"
+                       Foreground="#99FFFFFF"
+                       HorizontalAlignment="Center"/>
+
+                    <TextBlock
+                Text="{Binding GameplayProfile.Identity.FullName}"
+                FontSize="21"
+                FontWeight="Bold"
+                Foreground="White"
+                HorizontalAlignment="Center"
+                TextAlignment="Center"
+                TextWrapping="Wrap"
+                MaxWidth="800"
+                Margin="0,1,0,0"/>
+
+                    <TextBlock
+                Text="{Binding GameplayProfile.Identity.Confidence,
+                               StringFormat=Confidence {0:F0}%}"
+                FontSize="12"
+                Foreground="#AAFFFFFF"
+                HorizontalAlignment="Center"
+                Margin="0,1,0,0"/>
+
+                    <TextBlock Text="TRAITS"
+                       FontSize="10"
+                       FontWeight="SemiBold"
+                       Foreground="#88FFFFFF"
+                       HorizontalAlignment="Center"
+                       Margin="0,3,0,1"/>
+
+                    <TextBlock
+                Text="{Binding GameplayProfile.Identity.TraitsDisplay}"
+                FontSize="12"
+                Foreground="#DDFFFFFF"
+                HorizontalAlignment="Center"
+                TextAlignment="Center"
+                TextWrapping="Wrap"
+                MaxWidth="800"/>
+                    <TextBlock 
+                Text="WHY THIS CLASSIFICATION?"
+                FontSize="10"
+                FontWeight="SemiBold"
+                Foreground="#88FFFFFF"
+                HorizontalAlignment="Center"
+                Margin="0,7,0,2"/>
+                    <ItemsControl
+    ItemsSource="{Binding GameplayProfile.ClassificationReasons}"
+    MaxWidth="850"
+    HorizontalAlignment="Center">
+
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+
+                                <TextBlock
+                Text="{Binding}"
+                FontSize="11"
+                Foreground="#CCFFFFFF"
+                TextAlignment="Center"
+                HorizontalAlignment="Center"
+                TextWrapping="Wrap"
+                Margin="0,1,0,1"/>
+
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+
+                    </ItemsControl>
+
+                </StackPanel>
+
             </Grid>
 
 
-            <!-- ========================= -->
-            <!-- OBJECTS                    -->
-            <!-- ========================= -->
+            <!-- ===================================================== -->
+            <!-- OBJECTS                                               -->
+            <!-- ===================================================== -->
 
             <Grid Grid.Row="2"
-                  HorizontalAlignment="Center">
+          HorizontalAlignment="Center">
 
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="160"/>
@@ -489,51 +515,44 @@
                 </Grid.ColumnDefinitions>
 
 
-                <!-- CIRCLES -->
-
                 <TextBlock Grid.Column="0"
-                           FontSize="18"
-                           Foreground="White"
-                           HorizontalAlignment="Center">
+                   FontSize="18"
+                   Foreground="White"
+                   HorizontalAlignment="Center">
 
-                    <Run Text="○  "/>
-                    <Run Text="{Binding CircleCount}"/>
-                    <Run Text=" Circles"/>
+            <Run Text="○  "/>
+            <Run Text="{Binding CircleCount}"/>
+            <Run Text=" Circles"/>
 
                 </TextBlock>
 
-
-                <!-- SLIDERS -->
 
                 <TextBlock Grid.Column="1"
-                           FontSize="18"
-                           Foreground="White"
-                           HorizontalAlignment="Center">
+                   FontSize="18"
+                   Foreground="White"
+                   HorizontalAlignment="Center">
 
-                    <Run Text="▬  "/>
-                    <Run Text="{Binding SliderCount}"/>
-                    <Run Text=" Sliders"/>
+            <Run Text="▬  "/>
+            <Run Text="{Binding SliderCount}"/>
+            <Run Text=" Sliders"/>
 
                 </TextBlock>
 
 
-                <!-- SPINNERS -->
-
                 <TextBlock Grid.Column="2"
-                           FontSize="18"
-                           Foreground="White"
-                           HorizontalAlignment="Center">
+                   FontSize="18"
+                   Foreground="White"
+                   HorizontalAlignment="Center">
 
-                    <Run Text="◉  "/>
-                    <Run Text="{Binding SpinnerCount}"/>
-                    <Run Text=" Spinners"/>
+            <Run Text="◉  "/>
+            <Run Text="{Binding SpinnerCount}"/>
+            <Run Text=" Spinners"/>
 
                 </TextBlock>
 
             </Grid>
 
         </Grid>
-
     </Grid>
 
 </Window>

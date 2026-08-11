@@ -265,6 +265,118 @@ public sealed class GameplayProfile
     public string PrimaryType { get; init; } = "Classic / Mixed";
     public string GameplayIdentity { get; set; } = "";
 
+    /// <summary>
+    /// Explications automatiques utilisées par l'interface
+    /// pour expliquer les principaux signaux ayant influencé
+    /// la classification gameplay.
+    /// </summary>
+    public IReadOnlyList<string> ClassificationReasons =>
+        BuildClassificationReasons()
+            .Take(3)
+            .ToList();
+
+    private List<string> BuildClassificationReasons()
+    {
+        List<string> reasons = [];
+
+        // ============================================================
+        // PATTERNS
+        // ============================================================
+
+        if (JumpRatio >= 0.40)
+        {
+            reasons.Add(
+                $"Jump presence is high ({JumpRatio:P0})");
+        }
+        else if (JumpRatio >= 0.20)
+        {
+            reasons.Add(
+                $"Jump presence is significant ({JumpRatio:P0})");
+        }
+
+        if (StreamRatio >= 0.40)
+        {
+            reasons.Add(
+                $"Stream presence is high ({StreamRatio:P0})");
+        }
+        else if (StreamRatio >= 0.20)
+        {
+            reasons.Add(
+                $"Stream presence is significant ({StreamRatio:P0})");
+        }
+        else if (StreamRatio <= 0.05)
+        {
+            reasons.Add(
+                $"Stream presence is very low ({StreamRatio:P0})");
+        }
+
+        if (BurstRatio >= 0.08)
+        {
+            reasons.Add(
+                $"Burst presence is significant ({BurstRatio:P0})");
+        }
+
+        // ============================================================
+        // GAMEPLAY SIGNALS
+        // ============================================================
+
+        if (SpeedScore >= 60)
+        {
+            reasons.Add(
+                $"Speed pressure is high ({SpeedScore:F0}/100)");
+        }
+        else if (SpeedScore >= 40)
+        {
+            reasons.Add(
+                $"Speed pressure is moderate ({SpeedScore:F0}/100)");
+        }
+        else
+        {
+            reasons.Add(
+                $"Speed pressure is low ({SpeedScore:F0}/100)");
+        }
+
+        if (AimScore >= 60)
+        {
+            reasons.Add(
+                $"Aim pressure is high ({AimScore:F0}/100)");
+        }
+        else if (AimScore >= 40)
+        {
+            reasons.Add(
+                $"Aim pressure is moderate ({AimScore:F0}/100)");
+        }
+
+        if (ReadScore >= 60)
+        {
+            reasons.Add(
+                $"Reading demand is high ({ReadScore:F0}/100)");
+        }
+        else if (ReadScore >= 40)
+        {
+            reasons.Add(
+                $"Reading demand is moderate ({ReadScore:F0}/100)");
+        }
+        else
+        {
+            reasons.Add(
+                $"Reading demand is low ({ReadScore:F0}/100)");
+        }
+
+        if (TechScore >= 60)
+        {
+            reasons.Add(
+                $"Technical pressure is high ({TechScore:F0}/100)");
+        }
+        else if (TechScore >= 40)
+        {
+            reasons.Add(
+                $"Technical influence is moderate ({TechScore:F0}/100)");
+        }
+
+        return reasons;
+    }
+
 
     // ============================================================
     // 10. DONNÉES CONSERVÉES POUR DEBUG / FUTURS ÉCRANS

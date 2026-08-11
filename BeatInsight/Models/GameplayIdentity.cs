@@ -18,5 +18,5 @@ public sealed class GameplayIdentity
     public string TraitsDisplay =>
     Traits.Count == 0
         ? "None"
-        : string.Join(" • ", Traits);
+        : string.Join(" • ", Traits.Distinct());
 }
