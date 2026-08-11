@@ -56,6 +56,17 @@ The application combines these signals to determine the general gameplay profile
 
 ---
 
+⚠️ Windows SmartScreen
+
+Lors du premier lancement, Windows peut afficher
+"Windows a protégé votre ordinateur".
+
+Cliquez sur "Informations complémentaires",
+puis sur "Exécuter quand même".
+
+Cette alerte est liée à la réputation de l'application,
+pas à une détection de malware.
+
 # 🧠 Gameplay Identity
 
 BeatInsight also attempts to describe the overall identity of a map.
