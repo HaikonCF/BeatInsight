@@ -14,6 +14,7 @@ public static class GameplayDebug
     public static bool SpeedEnabled = false;
     public static bool AimEnabled = false;
     public static bool SummaryEnabled = false;
+    public static bool CommunityTagsEnabled = true;
 
     // ============================================================
     // IDENTITY
@@ -119,6 +120,16 @@ public static class GameplayDebug
 
         DebugLogger.Log(
             $"READ INTENSITY = {profile.ReadIntensity}");
+
+        DebugLogger.Log(
+            $"READ PREDICTABILITY = {profile.ReadPredictability:P0} / " +
+            $"Novelty {profile.ReadNovelty:P0}");
+
+        DebugLogger.Log(
+            $"READ REGULARITY = " +
+            $"Temporal {profile.ReadTemporalRegularity:P0} / " +
+            $"Spacing {profile.ReadSpacingRegularity:P0} / " +
+            $"Trajectory {profile.ReadTrajectoryRepetition:P0}");
     }
 
     // ============================================================

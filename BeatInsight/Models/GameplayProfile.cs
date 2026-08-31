@@ -218,6 +218,33 @@ public sealed class GameplayProfile
     /// </summary>
     public double ReadCSSignal { get; init; }
 
+    /// <summary>
+    /// Prévisibilité moyenne des séquences Reading qualifiées.
+    /// Cette métrique d'observation ne contribue pas au ReadScore.
+    /// </summary>
+    public double ReadPredictability { get; init; }
+
+    /// <summary>
+    /// Complément de la prévisibilité Reading : 1 - ReadPredictability.
+    /// Cette métrique d'observation ne contribue pas au ReadScore.
+    /// </summary>
+    public double ReadNovelty { get; init; }
+
+    /// <summary>
+    /// Régularité temporelle moyenne des séquences Reading qualifiées.
+    /// </summary>
+    public double ReadTemporalRegularity { get; init; }
+
+    /// <summary>
+    /// Régularité spatiale moyenne des séquences Reading qualifiées.
+    /// </summary>
+    public double ReadSpacingRegularity { get; init; }
+
+    /// <summary>
+    /// Répétition directionnelle moyenne des trajectoires Reading qualifiées.
+    /// </summary>
+    public double ReadTrajectoryRepetition { get; init; }
+
 
     // ============================================================
     // 7. SPEED

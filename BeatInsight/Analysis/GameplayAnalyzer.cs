@@ -634,6 +634,17 @@ public static class GameplayAnalyzer
             ReadCSSignal =
                 read.CSSignal,
 
+            ReadPredictability =
+                read.ReadPredictability,
+            ReadNovelty =
+                read.ReadNovelty,
+            ReadTemporalRegularity =
+                read.ReadTemporalRegularity,
+            ReadSpacingRegularity =
+                read.ReadSpacingRegularity,
+            ReadTrajectoryRepetition =
+                read.ReadTrajectoryRepetition,
+
             ReadCoverage =
                 readCoverage,
             ReadProfile =
@@ -2160,6 +2171,11 @@ public static class GameplayAnalyzer
                 0,
                 0,
                 0,
+                0,
+                0,
+                0,
+                0,
+                0,
                 Array.Empty<GameplaySection>());
 
         double approachTime =
@@ -2179,6 +2195,11 @@ public static class GameplayAnalyzer
                 0,
                 0,
                 0,
+                0,
+                0,
+                0,
+                0,
+                0,
                 Array.Empty<GameplaySection>());
 
         int readObjectCount = 0;
@@ -2187,6 +2208,16 @@ public static class GameplayAnalyzer
         double totalDensitySignal = 0;
         double totalClutterSignal = 0;
         double totalIntensity = 0;
+
+        double totalPredictability = 0;
+        double totalTemporalRegularity = 0;
+        double totalSpacingRegularity = 0;
+        double totalTrajectoryRepetition = 0;
+
+        int predictabilitySampleCount = 0;
+        int temporalRegularitySampleCount = 0;
+        int spacingRegularitySampleCount = 0;
+        int trajectoryRepetitionSampleCount = 0;
 
         // --------------------------------------------------------
         // Analyse objet par objet.
@@ -2280,6 +2311,35 @@ public static class GameplayAnalyzer
 
                 totalIntensity +=
                     localIntensity;
+
+                ReadPredictabilitySignals predictability =
+                    CalculateReadPredictability(
+                        objects[i],
+                        visibleFutureObjects);
+
+                if (predictability.Predictability is double localPredictability)
+                {
+                    totalPredictability += localPredictability;
+                    predictabilitySampleCount++;
+                }
+
+                if (predictability.TemporalRegularity is double temporalRegularity)
+                {
+                    totalTemporalRegularity += temporalRegularity;
+                    temporalRegularitySampleCount++;
+                }
+
+                if (predictability.SpacingRegularity is double spacingRegularity)
+                {
+                    totalSpacingRegularity += spacingRegularity;
+                    spacingRegularitySampleCount++;
+                }
+
+                if (predictability.TrajectoryRepetition is double trajectoryRepetition)
+                {
+                    totalTrajectoryRepetition += trajectoryRepetition;
+                    trajectoryRepetitionSampleCount++;
+                }
             }
         }
 
@@ -2300,6 +2360,11 @@ public static class GameplayAnalyzer
         double averageClutterSignal = 0;
         double averagePersistenceSignal = 0;
         double readIntensity = 0;
+        double readPredictability = 0;
+        double readNovelty = 0;
+        double readTemporalRegularity = 0;
+        double readSpacingRegularity = 0;
+        double readTrajectoryRepetition = 0;
 
         if (readObjectCount > 0)
         {
@@ -2311,6 +2376,33 @@ public static class GameplayAnalyzer
 
             readIntensity =
                 totalIntensity / readObjectCount;
+        }
+
+        if (predictabilitySampleCount > 0)
+        {
+            readPredictability =
+                totalPredictability / predictabilitySampleCount;
+
+            readNovelty =
+                1.0 - readPredictability;
+        }
+
+        if (temporalRegularitySampleCount > 0)
+        {
+            readTemporalRegularity =
+                totalTemporalRegularity / temporalRegularitySampleCount;
+        }
+
+        if (spacingRegularitySampleCount > 0)
+        {
+            readSpacingRegularity =
+                totalSpacingRegularity / spacingRegularitySampleCount;
+        }
+
+        if (trajectoryRepetitionSampleCount > 0)
+        {
+            readTrajectoryRepetition =
+                totalTrajectoryRepetition / trajectoryRepetitionSampleCount;
         }
 
         // --------------------------------------------------------
@@ -2355,6 +2447,11 @@ public static class GameplayAnalyzer
             averageClutterSignal,
             averagePersistenceSignal,
             0.0,
+            readPredictability,
+            readNovelty,
+            readTemporalRegularity,
+            readSpacingRegularity,
+            readTrajectoryRepetition,
             readSections);
     }
 
@@ -2405,6 +2502,221 @@ public static class GameplayAnalyzer
                 (double)clutteredPairCount / pairCount,
                 0,
                 1);
+    }
+
+    /// <summary>
+    /// Mesure la prévisibilité d'une fenêtre Reading avec trois signaux
+    /// indépendants du score actuel : régularité temporelle, régularité
+    /// du spacing et répétition directionnelle de la trajectoire.
+    ///
+    /// Les signaux qui ne disposent pas de suffisamment de données sont
+    /// exclus de la moyenne plutôt que ramenés artificiellement à zéro.
+    /// </summary>
+    private static ReadPredictabilitySignals CalculateReadPredictability(
+        HitObject current,
+        IReadOnlyList<HitObject> visibleFutureObjects)
+    {
+        List<HitObject> readingWindow =
+            new(visibleFutureObjects.Count + 1)
+            {
+                current
+            };
+
+        foreach (HitObject future in visibleFutureObjects)
+            readingWindow.Add(future);
+
+        List<double> intervals = [];
+        List<double> distances = [];
+        List<(double X, double Y)> vectors = [];
+
+        for (int index = 1;
+             index < readingWindow.Count;
+             index++)
+        {
+            HitObject previous =
+                readingWindow[index - 1];
+
+            HitObject next =
+                readingWindow[index];
+
+            intervals.Add(next.Time - previous.Time);
+
+            double x = next.X - previous.X;
+            double y = next.Y - previous.Y;
+
+            distances.Add(
+                Math.Sqrt(x * x + y * y));
+
+            vectors.Add((x, y));
+        }
+
+        double? temporalRegularity =
+            CalculateReadRobustRegularity(
+                intervals,
+                requireStrictlyPositiveValues: true);
+
+        double? spacingRegularity =
+            CalculateReadRobustRegularity(
+                distances,
+                requireStrictlyPositiveValues: false);
+
+        double? trajectoryRepetition =
+            CalculateReadTrajectoryRepetition(vectors);
+
+        List<double> validComponents = [];
+
+        if (temporalRegularity is double temporal)
+            validComponents.Add(temporal);
+
+        if (spacingRegularity is double spacing)
+            validComponents.Add(spacing);
+
+        if (trajectoryRepetition is double trajectory)
+            validComponents.Add(trajectory);
+
+        double? predictability =
+            validComponents.Count == 0
+                ? null
+                : Math.Clamp(
+                    validComponents.Average(),
+                    0,
+                    1);
+
+        return new ReadPredictabilitySignals(
+            predictability,
+            temporalRegularity,
+            spacingRegularity,
+            trajectoryRepetition);
+    }
+
+    /// <summary>
+    /// Calcule 1 - clamp(MAD(values) / median(values), 0, 1).
+    /// Le signal est indisponible lorsque l'échantillon est insuffisant,
+    /// contient une valeur non finie ou possède une médiane non positive.
+    /// </summary>
+    private static double? CalculateReadRobustRegularity(
+        IReadOnlyList<double> values,
+        bool requireStrictlyPositiveValues)
+    {
+        if (values.Count < 2
+            || values.Any(value => !double.IsFinite(value))
+            || (requireStrictlyPositiveValues
+                && values.Any(value => value <= 0)))
+        {
+            return null;
+        }
+
+        double median =
+            CalculateReadMedian(values);
+
+        if (!double.IsFinite(median)
+            || median <= 0)
+        {
+            return null;
+        }
+
+        List<double> absoluteDeviations =
+            values
+                .Select(value => Math.Abs(value - median))
+                .ToList();
+
+        double mad =
+            CalculateReadMedian(absoluteDeviations);
+
+        if (!double.IsFinite(mad))
+            return null;
+
+        return 1.0 - Math.Clamp(
+            mad / median,
+            0,
+            1);
+    }
+
+    /// <summary>
+    /// Mesure la répétition directionnelle des mouvements avec les décalages
+    /// 1, 2 et 3. Pour chaque décalage, les cosinus des vecteurs normalisés
+    /// sont convertis de [-1, 1] vers [0, 1], puis le meilleur décalage est
+    /// retenu. Une longueur de spacing identique sans direction répétée ne
+    /// peut donc pas produire un score maximal.
+    /// </summary>
+    private static double? CalculateReadTrajectoryRepetition(
+        IReadOnlyList<(double X, double Y)> vectors)
+    {
+        double? bestLagScore = null;
+
+        for (int lag = 1;
+             lag <= 3;
+             lag++)
+        {
+            List<double> similarities = [];
+
+            for (int index = lag;
+                 index < vectors.Count;
+                 index++)
+            {
+                (double X, double Y) previous =
+                    vectors[index - lag];
+
+                (double X, double Y) current =
+                    vectors[index];
+
+                double previousLength =
+                    Math.Sqrt(
+                        previous.X * previous.X
+                        + previous.Y * previous.Y);
+
+                double currentLength =
+                    Math.Sqrt(
+                        current.X * current.X
+                        + current.Y * current.Y);
+
+                if (!double.IsFinite(previousLength)
+                    || !double.IsFinite(currentLength)
+                    || previousLength <= 0
+                    || currentLength <= 0)
+                {
+                    continue;
+                }
+
+                double cosine =
+                    (previous.X * current.X
+                     + previous.Y * current.Y)
+                    / (previousLength * currentLength);
+
+                double directionSimilarity =
+                    (Math.Clamp(cosine, -1, 1) + 1.0) / 2.0;
+
+                similarities.Add(directionSimilarity);
+            }
+
+            if (similarities.Count == 0)
+                continue;
+
+            double lagScore =
+                Math.Clamp(
+                    similarities.Average(),
+                    0,
+                    1);
+
+            bestLagScore = bestLagScore is null
+                ? lagScore
+                : Math.Max(bestLagScore.Value, lagScore);
+        }
+
+        return bestLagScore;
+    }
+
+    private static double CalculateReadMedian(
+        IReadOnlyList<double> values)
+    {
+        List<double> sortedValues =
+            values.OrderBy(value => value).ToList();
+
+        int middle = sortedValues.Count / 2;
+
+        return sortedValues.Count % 2 == 0
+            ? (sortedValues[middle - 1] + sortedValues[middle]) / 2.0
+            : sortedValues[middle];
     }
 
     private static double CalculateReadIntensity(
@@ -4614,7 +4926,18 @@ public static class GameplayAnalyzer
     double ClutterSignal,
     double PersistenceSignal,
     double CSSignal,
+    double ReadPredictability,
+    double ReadNovelty,
+    double ReadTemporalRegularity,
+    double ReadSpacingRegularity,
+    double ReadTrajectoryRepetition,
     IReadOnlyList<GameplaySection> ReadSections);
+
+    private sealed record ReadPredictabilitySignals(
+    double? Predictability,
+    double? TemporalRegularity,
+    double? SpacingRegularity,
+    double? TrajectoryRepetition);
 
     private static string GetReadPresenceProfile(double readRatio)
     {

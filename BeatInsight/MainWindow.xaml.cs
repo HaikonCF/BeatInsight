@@ -226,6 +226,15 @@ namespace BeatInsight
                 $"Sections {profile.ReadSections.Count}");
 
             text.AppendLine(
+                $"Read: Predictability {profile.ReadPredictability:P0} / " +
+                $"Novelty {profile.ReadNovelty:P0}");
+
+            text.AppendLine(
+                $"Read: Regularity Temporal {profile.ReadTemporalRegularity:P0} / " +
+                $"Spacing {profile.ReadSpacingRegularity:P0} / " +
+                $"Trajectory {profile.ReadTrajectoryRepetition:P0}");
+
+            text.AppendLine(
                 $"Speed: Fast {profile.SpeedFastObjectRatio * 100:F0}% / " +
                 $"Density {profile.SpeedDensitySignal:F0}% / " +
                 $"AR {profile.SpeedARSignal:F0}%");
@@ -693,35 +702,38 @@ namespace BeatInsight
             // Community
             // ------------------------------------------------------------
 
-            DebugLogger.Log(
+            if (GameplayDebug.CommunityTagsEnabled)
+            {
+                DebugLogger.Log(
                     "===== COMMUNITY TAG COMPARISON =====");
 
-            if (!tagComparison.HasTags)
-            {
-                DebugLogger.Log(
-                    "TAG COMPARISON = Unavailable | No community tags");
-            }
-            else
-            {
-                DebugLogger.Log(
-                    $"TAG CONSISTENCY = {tagComparison.Score * 100:F1}%");
-
-                DebugLogger.Log(
-                    $"TAG STATUS = {tagComparison.Status}");
-
-                DebugLogger.Log(
-                    $"TOTAL COMMUNITY VOTES = {tagComparison.TotalVotes}");
-
-                foreach (GameplayTagComparison match
-                         in tagComparison.Matches)
+                if (!tagComparison.HasTags)
                 {
-                    DebugLogger.Detailed(
-                        $"TAG = {match.Tag} | " +
-                        $"VOTES = {match.Votes} | " +
-                        $"STATUS = {match.Status} | " +
-                        $"SCORE = {match.Score * 100:F1}% | " +
-                        $"WEIGHT = {match.VoteWeight:F3} | " +
-                        $"CONCEPTS = {string.Join(", ", match.Concepts)}");
+                    DebugLogger.Log(
+                        "TAG COMPARISON = Unavailable | No community tags");
+                }
+                else
+                {
+                    DebugLogger.Log(
+                        $"TAG CONSISTENCY = {tagComparison.Score * 100:F1}%");
+
+                    DebugLogger.Log(
+                        $"TAG STATUS = {tagComparison.Status}");
+
+                    DebugLogger.Log(
+                        $"TOTAL COMMUNITY VOTES = {tagComparison.TotalVotes}");
+
+                    foreach (GameplayTagComparison match
+                             in tagComparison.Matches)
+                    {
+                        DebugLogger.Log(
+                            $"TAG = {match.Tag} | " +
+                            $"VOTES = {match.Votes} | " +
+                            $"STATUS = {match.Status} | " +
+                            $"SCORE = {match.Score * 100:F1}% | " +
+                            $"WEIGHT = {match.VoteWeight:F3} | " +
+                            $"CONCEPTS = {string.Join(", ", match.Concepts)}");
+                    }
                 }
             }
 
