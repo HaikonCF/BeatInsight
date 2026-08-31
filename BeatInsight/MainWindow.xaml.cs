@@ -64,8 +64,7 @@ namespace BeatInsight
 
             InitializeComponent();
 
-            BeatInsight.Diagnostics.DebugLogger.DebugMode = false;
-            BeatInsight.Diagnostics.DebugLogger.DetailedDebug = true;
+            
 
 
             mapTimer = new DispatcherTimer
@@ -210,10 +209,15 @@ namespace BeatInsight
                 $"Temporal {profile.TechTemporalSignal:F0}%");
 
             text.AppendLine(
-                $"Read: Density {profile.ReadDensitySignal:F0}% / " +
-                $"Clutter {profile.ReadClutterSignal:F0}% / " +
-                $"Persistence {profile.ReadPersistenceSignal:F0}% / " +
-                $"CS {profile.ReadCSSignal:F0}%");
+                $"Read: Density {profile.ReadDensitySignal:P0} / " +
+                $"Clutter {profile.ReadClutterSignal:P0} / " +
+                "Persistence neutralized / " +
+                $"CS {profile.ReadCSSignal:P0} (neutralized)");
+
+            text.AppendLine(
+                $"Read: Intensity {profile.ReadIntensity} / " +
+                $"Presence {profile.ReadCoverage:P0} / " +
+                $"Sections {profile.ReadSections.Count}");
 
             text.AppendLine(
                 $"Speed: Fast {profile.SpeedFastObjectRatio * 100:F0}% / " +

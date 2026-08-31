@@ -4,11 +4,25 @@ namespace BeatInsight.Diagnostics;
 
 public static class GameplayDebug
 {
+    // ============================================================
+    // DEBUG SWITCHES
+    // ============================================================
+
+    public static bool IdentityEnabled = false;
+    public static bool TechEnabled = false;
+    public static bool ReadEnabled = true;
+    public static bool SpeedEnabled = false;
+    public static bool AimEnabled = false;
+    public static bool SummaryEnabled = false;
+
+    // ============================================================
+    // IDENTITY
+    // ============================================================
+
     public static void Identity(
-        GameplayIdentity identity,
-        bool enabled = false)
+        GameplayIdentity identity)
     {
-        if (!enabled)
+        if (!IdentityEnabled)
             return;
 
         DebugLogger.Log(
@@ -40,11 +54,14 @@ public static class GameplayDebug
                 : "None")}");
     }
 
+    // ============================================================
+    // TECH
+    // ============================================================
+
     public static void Tech(
-        GameplayProfile profile,
-        bool enabled = false)
+        GameplayProfile profile)
     {
-        if (!enabled)
+        if (!TechEnabled)
             return;
 
         DebugLogger.Log(
@@ -67,18 +84,21 @@ public static class GameplayDebug
             $"TECH PROFILE = {profile.TechProfile}");
     }
 
+    // ============================================================
+    // READ
+    // ============================================================
+
     public static void Read(
-        GameplayProfile profile,
-        bool enabled = false)
+        GameplayProfile profile)
     {
-        if (!enabled)
+        if (!ReadEnabled)
             return;
 
         DebugLogger.Log(
             "===== READ PROFILE =====");
 
         DebugLogger.Log(
-            $"READ = {profile.ReadObjectCount} circles / " +
+            $"READ = {profile.ReadObjectCount} visual objects / " +
             $"{profile.ReadRatio:P2} / " +
             $"Score {profile.ReadScore:F0}/100 " +
             $"({profile.ReadLevel})");
@@ -87,11 +107,12 @@ public static class GameplayDebug
             $"READ SIGNALS = " +
             $"Density {profile.ReadDensitySignal:P0} / " +
             $"Clutter {profile.ReadClutterSignal:P0} / " +
-            $"Persistence {profile.ReadPersistenceSignal:P0} / " +
-            $"CS {profile.ReadCSSignal:P0}");
+            "Persistence neutralized / " +
+            "CS neutralized");
 
         DebugLogger.Log(
-            $"READ COVERAGE = {profile.ReadCoverage:P2}");
+            $"READ PRESENCE = {profile.ReadCoverage:P2} / " +
+            $"Sections {profile.ReadSections.Count}");
 
         DebugLogger.Log(
             $"READ PROFILE = {profile.ReadProfile}");
@@ -100,11 +121,14 @@ public static class GameplayDebug
             $"READ INTENSITY = {profile.ReadIntensity}");
     }
 
+    // ============================================================
+    // SPEED
+    // ============================================================
+
     public static void Speed(
-        GameplayProfile profile,
-        bool enabled = false)
+        GameplayProfile profile)
     {
-        if (!enabled)
+        if (!SpeedEnabled)
             return;
 
         DebugLogger.Log(
@@ -131,11 +155,14 @@ public static class GameplayDebug
             $"AR {profile.SpeedARSignal:P0}");
     }
 
+    // ============================================================
+    // AIM
+    // ============================================================
+
     public static void Aim(
-        GameplayProfile profile,
-        bool enabled = false)
+        GameplayProfile profile)
     {
-        if (!enabled)
+        if (!AimEnabled)
             return;
 
         DebugLogger.Log(
@@ -162,11 +189,14 @@ public static class GameplayDebug
             $"AIM INTENSITY = {profile.AimIntensity}");
     }
 
+    // ============================================================
+    // SUMMARY
+    // ============================================================
+
     public static void Summary(
-        GameplayProfile profile,
-        bool enabled = false)
+        GameplayProfile profile)
     {
-        if (!enabled)
+        if (!SummaryEnabled)
             return;
 
         DebugLogger.Log(

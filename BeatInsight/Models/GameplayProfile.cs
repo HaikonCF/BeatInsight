@@ -155,27 +155,38 @@ public sealed class GameplayProfile
     // ============================================================
 
     /// <summary>
-    /// Nombre de cercles considérés comme participant
-    /// à une situation de Read.
+    /// Nombre de circles ou sliders-head considérés comme participant
+    /// à une situation de Reading.
     /// </summary>
     public int ReadObjectCount { get; init; }
 
     /// <summary>
-    /// Proportion des cercles concernés par le Read.
+    /// Proportion des informations visuelles éligibles concernées
+    /// par le Reading avant validation des sections.
     /// </summary>
     public double ReadRatio { get; init; }
+    /// <summary>
+    /// Proportion des informations visuelles éligibles appartenant
+    /// à des sections Reading validées.
+    /// </summary>
     public double ReadCoverage { get; init; }
     public string ReadProfile { get; init; } = string.Empty;
 
+    /// <summary>
+    /// Niveau qualitatif de l'intensité locale des zones Reading.
+    /// Il est distinct de la présence globale représentée par
+    /// ReadCoverage.
+    /// </summary>
     public string ReadIntensity { get; set; } = "";
 
     /// <summary>
     /// Score Read sur 100.
     ///
-    /// Le score combine :
-    /// - 40 % densité temporelle,
-    /// - 35 % surcharge visuelle,
-    /// - 25 % persistance.
+    /// Le score global combine l'intensité locale des zones Reading
+    /// et leur présence validée dans la map.
+    ///
+    /// Reading V1 utilise la densité et le clutter des informations
+    /// futures visibles. La persistance et le CS sont neutralisés.
     /// </summary>
     public double ReadScore { get; init; }
 
@@ -186,7 +197,7 @@ public sealed class GameplayProfile
     public string ReadLevel { get; init; } = "Low";
 
     /// <summary>
-    /// Signal moyen de densité temporelle du Read.
+    /// Signal moyen de densité des informations futures visibles.
     /// </summary>
     public double ReadDensitySignal { get; init; }
 
@@ -196,12 +207,14 @@ public sealed class GameplayProfile
     public double ReadClutterSignal { get; init; }
 
     /// <summary>
-    /// Signal moyen de persistance visuelle du Read.
+    /// Signal de persistance visuelle du Read. Neutralisé à 0 dans
+    /// Reading V1, en attente d'une sémantique future cohérente.
     /// </summary>
     public double ReadPersistenceSignal { get; init; }
     
     /// <summary>
-    /// 
+    /// Signal CS conservé pour compatibilité. Neutralisé à 0 en
+    /// Reading V1 : le CS ne contribue pas au ReadScore.
     /// </summary>
     public double ReadCSSignal { get; init; }
 

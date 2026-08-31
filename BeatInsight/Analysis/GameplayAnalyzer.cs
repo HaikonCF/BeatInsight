@@ -169,15 +169,28 @@ public static class GameplayAnalyzer
     private const double ReadClutterWeight = 0.35;
 
     /// <summary>
-    /// Poids de la persistance visuelle dans le score Read.
+    /// La persistance est volontairement neutralisée pour Reading V1.
+    /// Elle sera recalibrée lorsque sa sémantique future sera définie.
     /// </summary>
-    private const double ReadPersistenceWeight = 0.25;
+    private const double ReadPersistenceWeight = 0.0;
 
     /// <summary>
-    /// Nombre minimum d'objets simultanément visibles pour
-    /// considérer qu'un cercle participe réellement au Read.
+    /// Nombre minimum d'informations futures visibles nécessaire
+    /// pour qu'un objet participe à une zone Reading.
     /// </summary>
-    private const int ReadMinimumVisibleObjects = 3;
+    private const int ReadMinimumFutureVisibleObjects = 2;
+
+    /// <summary>
+    /// Nombre d'informations futures visibles à partir duquel
+    /// la densité Reading commence à augmenter.
+    /// </summary>
+    private const int ReadDensityBaselineFutureObjects = 1;
+
+    /// <summary>
+    /// Nombre d'informations futures visibles auquel le signal
+    /// de densité Reading est saturé.
+    /// </summary>
+    private const int ReadDensitySaturationFutureObjects = 6;
 
     /// <summary>
     /// Distance à partir de laquelle deux objets sont considérés
@@ -186,40 +199,18 @@ public static class GameplayAnalyzer
     private const double ReadClutterDistance = 140.0;
 
     /// <summary>
-    /// CS à partir duquel le Read commence à recevoir
-    /// un bonus lié à la précision spatiale demandée.
+    /// Nombre minimum d'objets Reading dans une section valide.
     /// </summary>
-    private const double ReadCSBaseline = 4.0;
+    private const int ReadMinimumSectionObjects = 2;
 
     /// <summary>
-    /// CS auquel le bonus Read atteint son maximum.
+    /// Écart temporel maximum entre deux objets Reading consécutifs
+    /// d'une même section.
     /// </summary>
-    private const double ReadCSSaturation = 7.0;
+    private const double ReadMaximumSectionGapMs = 300.0;
 
-    /// <summary>
-    /// Bonus maximum apporté par le CS au Read.
-    /// 0.25 = +25 % maximum.
-    /// </summary>
-    private const double ReadCSMaximumBonus = 0.25;
-
-    private static string GetReadProfile(
-    double coverage,
-    double score)
-    {
-        if (score >= 70)
-            return "Strong Reading Presence";
-
-        if (score >= 50)
-            return "Moderate Reading Presence";
-
-        if (score >= 35 && coverage >= 0.50)
-            return "Focused Reading Presence";
-
-        if (score >= 25)
-            return "Light Reading Presence";
-
-        return "Minimal Reading Presence";
-    }
+    private const double ReadActiveSignalWeight =
+        ReadDensityWeight + ReadClutterWeight + ReadPersistenceWeight;
 
 
     // ============================================================
@@ -381,23 +372,24 @@ public static class GameplayAnalyzer
                 objects);
 
         double readCoverage =
-            CalculateSectionCoverage(
-                read.ReadSections,
-                objects);
-
-
-        DebugLogger.Log(
-            $"READ COVERAGE DEBUG | " +
-            $"Sections={read.ReadSections.Count} " +
-            $"Coverage={readCoverage:P1}");
+            read.Coverage;
 
         string readProfile =
-            GetReadProfile(
-                readCoverage,
-                read.Score);
+            GetReadPresenceProfile(
+                readCoverage);
 
         DebugLogger.Log(
-            $"READ PROFILE = {readProfile}");
+            $"READ V1 DEBUG | " +
+            $"Objects={read.ReadObjectCount} | " +
+            $"Sections={read.ReadSections.Count} | " +
+            $"Intensity={read.Intensity:F1}/100 | " +
+            $"Presence={readCoverage:P1} | " +
+            $"Score={read.Score:F1}/100 | " +
+            $"Density={read.DensitySignal:P0} | " +
+            $"Clutter={read.ClutterSignal:P0} | " +
+            $"Persistence=neutralized | " +
+            $"CS=neutralized | " +
+            $"Profile={readProfile}");
 
         SpeedAnalysis speed =
             AnalyzeSpeed(
@@ -685,10 +677,10 @@ public static class GameplayAnalyzer
             ReadCoverage =
                 readCoverage,
             ReadProfile =
-                GetReadPresenceProfile(read.Ratio),
+                readProfile,
 
             ReadIntensity =
-                GetReadIntensity(read.Score),
+                GetReadIntensity(read.Intensity),
 
             // ----------------------------
             // Speed
@@ -765,6 +757,8 @@ public static class GameplayAnalyzer
         DebugLogger.Log("GAMEPLAY | BEFORE WRITEDEBUG");
 
         WriteDebug(profile);
+
+        GameplayDebug.Read(profile);
 
         DebugLogger.Log("GAMEPLAY | AFTER WRITEDEBUG");
 
@@ -2205,14 +2199,15 @@ public static class GameplayAnalyzer
     /// <summary>
     /// Analyse la difficulté de lecture de la map.
     ///
-    /// Le Read repose sur trois composantes :
+    /// Reading V1 repose sur l'anticipation des informations futures
+    /// visibles avant leur hit.
     ///
-    /// 40 % : densité temporelle
-    /// 35 % : surcharge visuelle
-    /// 25 % : persistance
+    /// - densité d'informations futures ;
+    /// - congestion spatiale entre ces informations ;
+    /// - persistance actuellement neutralisée.
     ///
-    /// Le score décrit donc la pression de lecture et non
-    /// simplement la vitesse de la map.
+    /// Le score global combine l'intensité locale et la présence de
+    /// sections Reading valides dans la map.
     /// </summary>
     private static ReadAnalysis AnalyzeRead(
         Beatmap beatmap,
@@ -2227,20 +2222,20 @@ public static class GameplayAnalyzer
                 0,
                 0,
                 0,
+                0,
+                0,
                 Array.Empty<GameplaySection>());
 
         double approachTime =
             GetApproachTime(beatmap.AR);
 
-        double csSignal =
-            CalculateReadCSSignal(beatmap.CS);
+        int analysedReadObjects =
+            objects.Count(IsReadVisualObject);
 
-        int analysedCircles =
-                objects.Count(IsCircle);
-
-
-        if (analysedCircles == 0)
+        if (analysedReadObjects == 0)
             return new ReadAnalysis(
+                0,
+                0,
                 0,
                 0,
                 0,
@@ -2255,127 +2250,87 @@ public static class GameplayAnalyzer
 
         double totalDensitySignal = 0;
         double totalClutterSignal = 0;
-        double totalPersistenceSignal = 0;
+        double totalIntensity = 0;
 
         // --------------------------------------------------------
         // Analyse objet par objet.
+        //
+        // Reading V1 observe les informations FUTURES déjà visibles
+        // au moment où l'objet courant doit être joué.
         // --------------------------------------------------------
 
         for (int i = 0;
              i < objects.Count;
              i++)
         {
-            if (!IsCircle(objects[i]))
+            if (!IsReadVisualObject(objects[i]))
                 continue;
 
             double currentTime =
                 objects[i].Time;
 
-            int visibleObjects = 0;
-            int clutteredObjects = 0;
+            List<HitObject> visibleFutureObjects = new();
 
-            double totalObjectAge = 0;
-            int ageCount = 0;
-
-            // On regarde les 50 objets précédents au maximum.
-            for (int j = Math.Max(0, i - 50);
-                 j <= i;
+            // Le pipeline repose déjà sur des HitObjects chronologiques.
+            // Dès que la fenêtre de visibilité est dépassée, les objets
+            // suivants ne peuvent plus être des candidats Reading.
+            for (int j = i + 1;
+                 j < objects.Count;
                  j++)
             {
-                if (!IsCircle(objects[j]))
+                double delay =
+                    objects[j].Time - currentTime;
+
+                if (delay > approachTime)
+                    break;
+
+                if (delay <= 0
+                    || !IsReadVisualObject(objects[j]))
                     continue;
 
-                double age =
-                    currentTime - objects[j].Time;
-
-                // L'objet doit être visible dans la fenêtre
-                // déterminée par l'AR.
-                if (age < 0
-                    || age > approachTime)
-                {
-                    continue;
-                }
-
-                visibleObjects++;
-
-                // Plus l'objet est ancien dans la fenêtre,
-                // plus sa persistance visuelle est importante.
-                double persistence =
-                    age / approachTime;
-
-                totalObjectAge += persistence;
-                ageCount++;
-
-                // ------------------------------------------------
-                // Surcharge spatiale
-                // ------------------------------------------------
-
-                if (j != i)
-                {
-                    double distance =
-                        Distance(
-                            objects[j],
-                            objects[i]);
-
-                    if (distance <= ReadClutterDistance)
-                        clutteredObjects++;
-                }
+                visibleFutureObjects.Add(objects[j]);
             }
 
             // ----------------------------------------------------
-            // 1. DENSITÉ TEMPORELLE
+            // 1. DENSITÉ D'INFORMATIONS FUTURES
             // ----------------------------------------------------
 
             double densitySignal =
-                Math.Clamp(
-                    (visibleObjects - 2) / 5.0,
-                    0,
-                    1);
+                CalculateReadDensitySignal(
+                    visibleFutureObjects.Count);
 
             // ----------------------------------------------------
-            // 2. SURCHARGE VISUELLE
+            // 2. CONGESTION VISUELLE
             // ----------------------------------------------------
 
             double clutterSignal =
-                Math.Clamp(
-                    clutteredObjects / 3.0,
-                    0,
-                    1);
+                CalculateReadClutterSignal(
+                    visibleFutureObjects);
 
             // ----------------------------------------------------
             // 3. PERSISTANCE
+            //
+            // Neutralisée pour V1 : l'ancienne mesure reposait sur
+            // des objets déjà joués et ne correspond plus à la
+            // sémantique d'anticipation visuelle.
             // ----------------------------------------------------
 
-            double persistenceSignal = 0;
-
-            if (ageCount > 0)
-            {
-                double averagePersistence =
-                    totalObjectAge / ageCount;
-
-                persistenceSignal =
-                    Math.Clamp(
-                        averagePersistence,
-                        0,
-                        1);
-            }
+            const double persistenceSignal = 0.0;
 
             // ----------------------------------------------------
-            // Score Read local
+            // Intensité Reading locale
             // ----------------------------------------------------
 
-            double localReadScore =
-                densitySignal * ReadDensityWeight
-                + clutterSignal * ReadClutterWeight
-                + persistenceSignal * ReadPersistenceWeight;
+            double localIntensity =
+                CalculateReadIntensity(
+                    densitySignal,
+                    clutterSignal,
+                    persistenceSignal);
 
-            // Variable conservée volontairement :
-            // elle représente le Read local de cet objet.
-            _ = localReadScore;
-
-            // Un objet entre dans le ratio Read lorsqu'au
-            // moins 3 objets sont simultanément visibles.
-            if (visibleObjects >= ReadMinimumVisibleObjects)
+            // Un objet entre dans la présence Reading lorsqu'au
+            // moins deux informations futures sont visibles.
+            if (visibleFutureObjects.Count >=
+                ReadMinimumFutureVisibleObjects)
             {
                 readObjectCount++;
 
@@ -2387,8 +2342,8 @@ public static class GameplayAnalyzer
                 totalClutterSignal +=
                     clutterSignal;
 
-                totalPersistenceSignal +=
-                    persistenceSignal;
+                totalIntensity +=
+                    localIntensity;
             }
         }
 
@@ -2399,15 +2354,16 @@ public static class GameplayAnalyzer
         double readRatio =
             CalculateRatio(
                 readObjectCount,
-                analysedCircles);
+                analysedReadObjects);
 
         // --------------------------------------------------------
-        // Moyennes des trois signaux
+        // Moyennes des signaux et de l'intensité locale.
         // --------------------------------------------------------
 
         double averageDensitySignal = 0;
         double averageClutterSignal = 0;
         double averagePersistenceSignal = 0;
+        double readIntensity = 0;
 
         if (readObjectCount > 0)
         {
@@ -2417,93 +2373,201 @@ public static class GameplayAnalyzer
             averageClutterSignal =
                 totalClutterSignal / readObjectCount;
 
-            averagePersistenceSignal =
-                totalPersistenceSignal / readObjectCount;
+            readIntensity =
+                totalIntensity / readObjectCount;
         }
 
         // --------------------------------------------------------
-        // Score Read final
+        // Sections et présence Reading.
+        //
+        // Les sections ne retiennent que les groupes cohérents
+        // d'objets Read originaux, ce qui évite qu'un singleton très
+        // dense devienne à lui seul une présence importante.
         // --------------------------------------------------------
 
-        double baseScore =
-            averageDensitySignal * ReadDensityWeight
-            + averageClutterSignal * ReadClutterWeight
-            + averagePersistenceSignal * ReadPersistenceWeight;
+        List<GameplaySection> readSections =
+            BuildReadSections(
+                readObjectIndices,
+                objects);
 
-        // Le CS agit comme un modificateur.
-        // Il ne peut pas créer du Read à lui seul.
-        double csModifier =
-            1.0 + csSignal * ReadCSMaximumBonus;
+        double readCoverage =
+            CalculateReadSectionCoverage(
+                readSections,
+                analysedReadObjects);
+
+        // --------------------------------------------------------
+        // Score Read global.
+        //
+        // L'intensité décrit la difficulté locale des passages.
+        // La présence décrit la proportion de la map couverte par
+        // des sections Reading valides.
+        // --------------------------------------------------------
 
         double score =
-            baseScore * csModifier;
+            readIntensity * readCoverage;
 
         score =
             Math.Clamp(score, 0, 1) * 100.0;
 
-        List<GameplaySection> readSections =
-            BuildSectionsFromObjectIndices(
-                "Read",
-                readObjectIndices,
-                objects);
-
         return new ReadAnalysis(
             readObjectCount,
             readRatio,
+            readCoverage,
+            readIntensity * 100.0,
             score,
             averageDensitySignal,
             averageClutterSignal,
             averagePersistenceSignal,
-            csSignal,
+            0.0,
             readSections);
     }
 
-    private static List<GameplaySection> BuildSectionsFromObjectIndices(
-    string type,
-    IReadOnlyList<int> indices,
-    IReadOnlyList<HitObject> objects)
+    private static double CalculateReadDensitySignal(
+        int visibleFutureObjectCount)
+    {
+        return Math.Clamp(
+            (double)(visibleFutureObjectCount
+                     - ReadDensityBaselineFutureObjects)
+            / (ReadDensitySaturationFutureObjects
+               - ReadDensityBaselineFutureObjects),
+            0,
+            1);
+    }
+
+    private static double CalculateReadClutterSignal(
+        IReadOnlyList<HitObject> visibleFutureObjects)
+    {
+        if (visibleFutureObjects.Count < 2)
+            return 0;
+
+        int pairCount = 0;
+        int clutteredPairCount = 0;
+
+        for (int firstIndex = 0;
+             firstIndex < visibleFutureObjects.Count - 1;
+             firstIndex++)
+        {
+            for (int secondIndex = firstIndex + 1;
+                 secondIndex < visibleFutureObjects.Count;
+                 secondIndex++)
+            {
+                pairCount++;
+
+                if (Distance(
+                        visibleFutureObjects[firstIndex],
+                        visibleFutureObjects[secondIndex])
+                    <= ReadClutterDistance)
+                {
+                    clutteredPairCount++;
+                }
+            }
+        }
+
+        return pairCount == 0
+            ? 0
+            : Math.Clamp(
+                (double)clutteredPairCount / pairCount,
+                0,
+                1);
+    }
+
+    private static double CalculateReadIntensity(
+        double densitySignal,
+        double clutterSignal,
+        double persistenceSignal)
+    {
+        return Math.Clamp(
+            (densitySignal * ReadDensityWeight
+             + clutterSignal * ReadClutterWeight
+             + persistenceSignal * ReadPersistenceWeight)
+            / ReadActiveSignalWeight,
+            0,
+            1);
+    }
+
+    private static List<GameplaySection> BuildReadSections(
+        IReadOnlyList<int> readObjectIndices,
+        IReadOnlyList<HitObject> objects)
     {
         List<GameplaySection> sections = new();
 
-        if (indices.Count == 0)
+        if (readObjectIndices.Count == 0)
             return sections;
 
-        int startIndex = indices[0];
-        int previousIndex = indices[0];
+        int sectionStart = readObjectIndices[0];
+        int previousIndex = readObjectIndices[0];
 
-        for (int i = 1; i < indices.Count; i++)
+        for (int i = 1; i < readObjectIndices.Count; i++)
         {
-            int currentIndex = indices[i];
+            int currentIndex = readObjectIndices[i];
 
-            // Un trou signifie que la séquence est terminée.
-            if (currentIndex != previousIndex + 1)
+            bool consecutive =
+                currentIndex == previousIndex + 1;
+
+            double gap =
+                objects[currentIndex].Time -
+                objects[previousIndex].Time;
+
+            if (!consecutive
+                || gap <= 0
+                || gap > ReadMaximumSectionGapMs)
             {
-                sections.Add(
-                    CreateGameplaySection(
-                        type,
-                        startIndex,
-                        previousIndex,
-                        objects));
+                AddReadSection(
+                    sections,
+                    objects,
+                    sectionStart,
+                    previousIndex);
 
-                startIndex = currentIndex;
+                sectionStart = currentIndex;
             }
 
             previousIndex = currentIndex;
         }
 
-        // Dernière section.
-        sections.Add(
-            CreateGameplaySection(
-                type,
-                startIndex,
-                previousIndex,
-                objects));
+        AddReadSection(
+            sections,
+            objects,
+            sectionStart,
+            previousIndex);
 
         return sections;
     }
 
+    private static void AddReadSection(
+        List<GameplaySection> sections,
+        IReadOnlyList<HitObject> objects,
+        int startIndex,
+        int endIndex)
+    {
+        int objectCount =
+            endIndex - startIndex + 1;
 
+        if (objectCount < ReadMinimumSectionObjects)
+            return;
 
+        sections.Add(
+            CreateGameplaySection(
+                "Read",
+                startIndex,
+                endIndex,
+                objects));
+    }
+
+    private static double CalculateReadSectionCoverage(
+        IReadOnlyList<GameplaySection> sections,
+        int analysedReadObjects)
+    {
+        if (sections.Count == 0 || analysedReadObjects == 0)
+            return 0;
+
+        int coveredReadObjects =
+            sections.Sum(section => section.ObjectCount);
+
+        return Math.Clamp(
+            (double)coveredReadObjects / analysedReadObjects,
+            0,
+            1);
+    }
 
     private static GameplaySection CreateGameplaySection(
     string type,
@@ -2533,28 +2597,6 @@ public static class GameplayAnalyzer
             return 1800 - 120 * ar;
 
         return 1200 - 150 * (ar - 5);
-    }
-
-    /// <summary>
-    /// Convertit le CS en signal de précision spatiale pour le Read.
-    ///
-    /// CS <= 4 : aucun bonus.
-    /// CS >= 7 : bonus maximal.
-    /// Entre les deux : interpolation linéaire.
-    /// </summary>
-    private static double CalculateReadCSSignal(double cs)
-    {
-        if (cs <= ReadCSBaseline)
-            return 0;
-
-        if (cs >= ReadCSSaturation)
-            return 1;
-
-        return Math.Clamp(
-            (cs - ReadCSBaseline)
-            / (ReadCSSaturation - ReadCSBaseline),
-            0,
-            1);
     }
 
     /// <summary>
@@ -4253,6 +4295,21 @@ public static class GameplayAnalyzer
     }
 
     /// <summary>
+    /// Vérifie si l'objet apporte une information visuelle Reading.
+    /// Les sliders ne contribuent que via leur head/start ; les
+    /// spinners restent exclus.
+    /// </summary>
+    private static bool IsReadVisualObject(
+        HitObject hitObject)
+    {
+        if (IsSpinner(hitObject))
+            return false;
+
+        return IsCircle(hitObject)
+            || IsSlider(hitObject);
+    }
+
+    /// <summary>
     /// Calcule la distance euclidienne entre deux objets.
     /// </summary>
     private static double Distance(
@@ -4653,7 +4710,7 @@ public static class GameplayAnalyzer
             $"Temporal {profile.TechTemporalSignal:P0}");
 
         BeatInsight.Diagnostics.DebugLogger.Log(
-            $"READ = {profile.ReadObjectCount} circles / " +
+            $"READ = {profile.ReadObjectCount} visual objects / " +
             $"{profile.ReadRatio:P2} / " +
             $"Score {profile.ReadScore:F0}/100 " +
             $"({profile.ReadLevel})");
@@ -4662,8 +4719,13 @@ public static class GameplayAnalyzer
             $"READ SIGNALS = " +
             $"Density {profile.ReadDensitySignal:P0} / " +
             $"Clutter {profile.ReadClutterSignal:P0} / " +
-            $"Persistence {profile.ReadPersistenceSignal:P0} / " +
-            $"CS {profile.ReadCSSignal:P0}");
+            "Persistence neutralized / " +
+            "CS neutralized");
+
+        BeatInsight.Diagnostics.DebugLogger.Log(
+            $"READ PRESENCE = {profile.ReadCoverage:P2} / " +
+            $"Sections {profile.ReadSections.Count} / " +
+            $"Intensity {profile.ReadIntensity}");
 
         BeatInsight.Diagnostics.DebugLogger.Log(
             $"READ PROFILE = {profile.ReadProfile}");
@@ -4713,6 +4775,8 @@ public static class GameplayAnalyzer
     private sealed record ReadAnalysis(
     int ReadObjectCount,
     double Ratio,
+    double Coverage,
+    double Intensity,
     double Score,
     double DensitySignal,
     double ClutterSignal,
