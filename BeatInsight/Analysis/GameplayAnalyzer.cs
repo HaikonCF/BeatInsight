@@ -1,7 +1,6 @@
 using BeatInsight.Models;
 using System.Diagnostics;
 using BeatInsight.Diagnostics;
-using BI_DebugLogger = global::BeatInsight.Diagnostics.DebugLogger;
 
 namespace BeatInsight.Analysis;
 
@@ -289,7 +288,7 @@ public static class GameplayAnalyzer
                 jumpObjects,
                 "Jump");
 
-        BeatInsight.Diagnostics.DebugLogger.Log(
+        BeatInsight.Diagnostics.DebugLogger.Detailed(
             $"SECTIONS DEBUG | " +
             $"Stream={streamSections.Count} " +
             $"Jump={jumpSections.Count}");
@@ -318,7 +317,7 @@ public static class GameplayAnalyzer
         TechAnalysis tech =
             AnalyzeTech(objects);
 
-        BeatInsight.Diagnostics.DebugLogger.Log(
+        BeatInsight.Diagnostics.DebugLogger.Detailed(
             $"SECTIONS DEBUG | " +
             $"Tech={tech.TechSections.Count}");
 
@@ -327,7 +326,7 @@ public static class GameplayAnalyzer
                 tech.TechSections,
                 objects);
 
-        BeatInsight.Diagnostics.DebugLogger.Log(
+        BeatInsight.Diagnostics.DebugLogger.Detailed(
             $"COVERAGE DEBUG | " +
             $"Stream={streamCoverage:P1} " +
             $"Jump={jumpCoverage:P1} " +
@@ -355,7 +354,7 @@ public static class GameplayAnalyzer
                     100.0)
         };
 
-        BeatInsight.Diagnostics.DebugLogger.Log(
+        BeatInsight.Diagnostics.DebugLogger.Detailed(
             $"TECH COVERAGE ADJUSTMENT | " +
             $"Raw={rawTechScore:F1} " +
             $"Coverage={techCoverage:P1} " +
@@ -378,18 +377,6 @@ public static class GameplayAnalyzer
             GetReadPresenceProfile(
                 readCoverage);
 
-        DebugLogger.Log(
-            $"READ V1 DEBUG | " +
-            $"Objects={read.ReadObjectCount} | " +
-            $"Sections={read.ReadSections.Count} | " +
-            $"Intensity={read.Intensity:F1}/100 | " +
-            $"Presence={readCoverage:P1} | " +
-            $"Score={read.Score:F1}/100 | " +
-            $"Density={read.DensitySignal:P0} | " +
-            $"Clutter={read.ClutterSignal:P0} | " +
-            $"Persistence=neutralized | " +
-            $"CS=neutralized | " +
-            $"Profile={readProfile}");
 
         SpeedAnalysis speed =
             AnalyzeSpeed(
@@ -408,12 +395,6 @@ public static class GameplayAnalyzer
             GetSpeedPresenceProfile(
                 speedCoverage,
                 speed.Score);
-
-        DebugLogger.Log(
-            $"SPEED PROFILE DEBUG | " +
-            $"Coverage={speedCoverage:P1} | " +
-            $"Score={speed.Score:F1} | " +
-            $"Profile={speedProfile}");
 
         AimAnalysis aim =
             AnalyzeAim(
@@ -505,7 +486,7 @@ public static class GameplayAnalyzer
                 0.0,
                 100.0);
 
-        DebugLogger.Log(
+        DebugLogger.Detailed(
             $"PRIMARY DEBUG | " +
             $"Stream={streamRatio:P1} " +
             $"Jump={jumpRatio:P1} " +
@@ -516,17 +497,6 @@ public static class GameplayAnalyzer
             $"{techCoverage:P1} " +
             $"TechScore={tech.Score:F1} " +
             $"=> {primaryType}");
-
-        DebugLogger.Log(
-            $"AIM PROFILE DEBUG | " +
-            $"Coverage={aimProfile.Coverage:P1} | " +
-            $"Score={aimProfile.Score:F1} | " +
-            $"Profile={aimProfile.Profile} | " +
-            $"Intensity={aimProfile.Intensity}");
-
-        DebugLogger.Log(
-            $"AIM COVERAGE DEBUG | " +
-            $"Coverage={aimCoverage:P1}");
 
         string gameplayIdentity =
             BuildGameplayIdentity(
@@ -564,17 +534,7 @@ public static class GameplayAnalyzer
         BeatInsight.Diagnostics.DebugLogger.Detailed(
             $"tech.Score = {tech.Score:F3}");
 
-        double debugTechScore =
-            CalculateTechIdentityScore(
-                streamCoverage,
-                jumpCoverage,
-                techCoverage,
-                tech.Score);
-
-        DebugLogger.Log(
-            $"=> TechIdentityScore = {debugTechScore:F3}");
-
-        DebugLogger.Log(
+        BeatInsight.Diagnostics.DebugLogger.Detailed(
             "================================");
         // --------------------------------------------------------
         // Construction du profil final.
@@ -732,37 +692,13 @@ public static class GameplayAnalyzer
             StyleProfile = style,
             Identity = identity
         };
-        DebugLogger.Log(
-            $"PROFILE TECH DEBUG | " +
-            $"tech.Score={tech.Score:F3} | " +
-            $"profile.TechScore={profile.TechScore:F3}");
-        DebugLogger.Log(
-            $"TECH PROFILE = {profile.TechProfile}");
-        DebugLogger.Log(
-                $"READ PROFILE DEBUG | " +
-                $"Coverage={profile.ReadCoverage:P1} | " +
-                $"Score={profile.ReadScore:F1} | " +
-                $"Profile={profile.ReadProfile} | " +
-                $"Intensity={profile.ReadIntensity}");
-        DebugLogger.Log(
-                $"SPEED PROFILE DEBUG | " +
-                $"Coverage={profile.SpeedCoverage:P1} | " +
-                $"Score={profile.SpeedScore:F1} | " +
-                $"Profile={profile.SpeedProfile} | " +
-                $"Intensity={profile.SpeedIntensity}");
-        DebugLogger.Log(
-                $"SPEED COVERAGE DEBUG | " +
-                $"Sections={speed.SpeedSections.Count} " +
-                $"Coverage={speedCoverage:P1}");
-        DebugLogger.Log("GAMEPLAY | BEFORE WRITEDEBUG");
 
-        WriteDebug(profile);
-
+        GameplayDebug.Identity(profile.Identity);
+        GameplayDebug.Tech(profile);
         GameplayDebug.Read(profile);
-
-        DebugLogger.Log("GAMEPLAY | AFTER WRITEDEBUG");
-
-        DebugLogger.Log("GAMEPLAY | BEFORE RETURN");
+        GameplayDebug.Speed(profile);
+        GameplayDebug.Aim(profile);
+        GameplayDebug.Summary(profile);
 
         beatmap.GameplayProfile = profile;
 
@@ -1661,7 +1597,7 @@ public static class GameplayAnalyzer
                 + compactSignal * 0.20,
                 0,
                 1);
-        DebugLogger.Log(
+        DebugLogger.Detailed(
             $"TECH STRUCTURE DEBUG | " +
             $"Structure={structureSignal:F3} " +
             $"Alternating={alternatingSignal:F3} " +
@@ -1719,7 +1655,7 @@ public static class GameplayAnalyzer
         ? 0
         : (double)sliders.Count / objects.Count;
 
-        DebugLogger.Log(
+        DebugLogger.Detailed(
             $"TECH DEBUG | " +
             $"Sliders={sliders.Count} " +
             $"SliderDensity={sliderDensity:P1} " +
@@ -1786,7 +1722,7 @@ public static class GameplayAnalyzer
      techObjects.Count(
          value => value);
 
-        BeatInsight.Diagnostics.DebugLogger.Log(
+        BeatInsight.Diagnostics.DebugLogger.Detailed(
             $"TECH SCORE DEBUG | " +
             $"Sharp={sharpTransitionSignal:F3} " +
             $"Structure={structureCombinedSignal:F3} " +
@@ -1805,7 +1741,7 @@ public static class GameplayAnalyzer
         score =
     Math.Clamp(score, 0, 1);
 
-        BeatInsight.Diagnostics.DebugLogger.Log(
+        BeatInsight.Diagnostics.DebugLogger.Detailed(
                 $"TECH FINAL DEBUG | FinalScore={score * 100:F3}");
 
         score *= 100;
@@ -3616,22 +3552,17 @@ public static class GameplayAnalyzer
                 jumpCoverage,
                 techCoverage,
                 tech.Score);
-        DebugLogger.Log(
-    $"IDENTITY SCORES | " +
-    $"Stream={streamStructuralScore:F1} | " +
-    $"Jump={jumpStructuralScore:F1} | " +
-    $"Tech={techStructuralScore:F1}");
-        DebugLogger.Log(
+        DebugLogger.Detailed(
+            $"IDENTITY SCORES | " +
+            $"Stream={streamStructuralScore:F1} | " +
+            $"Jump={jumpStructuralScore:F1} | " +
+            $"Tech={techStructuralScore:F1}");
+        DebugLogger.Detailed(
             $"TECH IDENTITY DEBUG | " +
             $"Coverage={techCoverage:P1} " +
             $"TechScore={tech.Score:F1} " +
             $"IdentityScore={techStructuralScore:F1}");
 
-        DebugLogger.Log(
-            $"IDENTITY SCORES | " +
-            $"Stream={streamStructuralScore:F1} | " +
-            $"Jump={jumpStructuralScore:F1} | " +
-            $"Tech={techStructuralScore:F1}");
 
         var structuralScores =
             new List<(string Name, double Score)>
@@ -3817,12 +3748,6 @@ public static class GameplayAnalyzer
                     95.0);
         }
 
-        // ============================================================
-        // DEBUG
-        // ============================================================
-
-        Debug.WriteLine(
-            "===== TAG / GAMEPLAY IDENTITY =====");
 
 
 
@@ -4184,34 +4109,34 @@ public static class GameplayAnalyzer
         // DEBUG
         // --------------------------------------------------------
 
-        DebugLogger.Log(
+        DebugLogger.Detailed(
             "===== TECH IDENTITY SCORE DEBUG =====");
 
-        DebugLogger.Log(
+        DebugLogger.Detailed(
             $"Tech Coverage       = {techCoverage:F3}");
 
-        DebugLogger.Log(
+        DebugLogger.Detailed(
             $"Tech Score          = {techScore:F3}");
 
-        DebugLogger.Log(
+        DebugLogger.Detailed(
             $"Stream Coverage     = {streamCoverage:F3}");
 
-        DebugLogger.Log(
+        DebugLogger.Detailed(
             $"Jump Coverage       = {jumpCoverage:F3}");
 
-        DebugLogger.Log(
+        DebugLogger.Detailed(
             $"Coverage Component  = {coverageComponent:F3}");
 
-        DebugLogger.Log(
-            $"Score Component     = {scoreComponent:F3}");
+        DebugLogger.Detailed(
+             $"Score Component     = {scoreComponent:F3}");
 
-        DebugLogger.Log(
+        DebugLogger.Detailed(
             $"Dominance Component = {dominanceComponent:F3}");
 
-        DebugLogger.Log(
+        DebugLogger.Detailed(
             $"Identity Score      = {identityScore * 100.0:F3}");
 
-        DebugLogger.Log(
+        DebugLogger.Detailed(
             "====================================");
 
         return identityScore * 100.0;
@@ -4655,99 +4580,6 @@ public static class GameplayAnalyzer
                 objectCount));
     }
 
-
-    // ============================================================
-    // 16. DEBUG
-    // ============================================================
-
-    /// <summary>
-    /// Écrit le profil gameplay dans la sortie Debug de Visual Studio.
-    ///
-    /// Ces informations servent uniquement à calibrer les détecteurs
-    /// et n'ont aucun effet sur le calcul du Star Rating.
-    /// </summary>
-    private static void WriteDebug(
-        GameplayProfile profile)
-    {
-        BeatInsight.Diagnostics.DebugLogger.Log(
-         $"----- GAMEPLAY PROFILE V0 -----");
-
-        BeatInsight.Diagnostics.DebugLogger.Log(
-            $"ANALYSED CIRCLES = {profile.AnalysedCircleCount}");
-
-        BeatInsight.Diagnostics.DebugLogger.Log(
-            $"STREAMS = {profile.StreamSequenceCount} sequences / " +
-            $"{profile.StreamObjectCount} circles / " +
-            $"{profile.StreamRatio:P2}");
-
-        BeatInsight.Diagnostics.DebugLogger.Log(
-            $"JUMPS = {profile.JumpSequenceCount} sequences / " +
-            $"{profile.JumpObjectCount} circles / " +
-            $"{profile.JumpRatio:P2}");
-
-        BeatInsight.Diagnostics.DebugLogger.Log(
-            $"BURSTS = {profile.BurstSequenceCount} sequences / " +
-            $"{profile.BurstObjectCount} circles / " +
-            $"{profile.BurstRatio:P2} / " +
-            $"Max {profile.LongestBurstLength}");
-
-        BeatInsight.Diagnostics.DebugLogger.Log(
-            $"PRIMARY TYPE = {profile.PrimaryType}");
-
-        BeatInsight.Diagnostics.DebugLogger.Log(
-            $"TECH = {profile.TechObjectCount} circles / " +
-            $"{profile.TechRatio:P2} / " +
-            $"Signal {profile.TechScore:F0}/100 " +
-            $"({profile.TechLevel})");
-
-
-
-        BeatInsight.Diagnostics.DebugLogger.Log(
-            $"TECH SIGNALS = " +
-            $"Transition {profile.TechTransitionSignal:P0} / " +
-            $"Structure {profile.TechStructureSignal:P0} / " +
-            $"Spatial {profile.TechSpatialSignal:P0} / " +
-            $"Temporal {profile.TechTemporalSignal:P0}");
-
-        BeatInsight.Diagnostics.DebugLogger.Log(
-            $"READ = {profile.ReadObjectCount} visual objects / " +
-            $"{profile.ReadRatio:P2} / " +
-            $"Score {profile.ReadScore:F0}/100 " +
-            $"({profile.ReadLevel})");
-
-        BeatInsight.Diagnostics.DebugLogger.Log(
-            $"READ SIGNALS = " +
-            $"Density {profile.ReadDensitySignal:P0} / " +
-            $"Clutter {profile.ReadClutterSignal:P0} / " +
-            "Persistence neutralized / " +
-            "CS neutralized");
-
-        BeatInsight.Diagnostics.DebugLogger.Log(
-            $"READ PRESENCE = {profile.ReadCoverage:P2} / " +
-            $"Sections {profile.ReadSections.Count} / " +
-            $"Intensity {profile.ReadIntensity}");
-
-        BeatInsight.Diagnostics.DebugLogger.Log(
-            $"READ PROFILE = {profile.ReadProfile}");
-
-        BeatInsight.Diagnostics.DebugLogger.Log(
-            $"AIM = Score {profile.AimScore:F0}/100 " +
-            $"({GetAimLevel(profile.AimScore)})");
-
-        BeatInsight.Diagnostics.DebugLogger.Log(
-            $"AIM SIGNALS = " +
-            $"Distance {profile.AimDistanceSignal:P0} / " +
-            $"Speed {profile.AimSpeedSignal:P0} / " +
-            $"Angle {profile.AimAngleSignal:P0} / " +
-            $"Temporal {profile.AimTemporalSignal:P0}");
-
-        BeatInsight.Diagnostics.DebugLogger.Log(
-            $"AIM PROFILE = {profile.AimProfile}");
-
-        BeatInsight.Diagnostics.DebugLogger.Log(
-            $"AIM COVERAGE = {profile.AimCoverage:P2}");
-
-    }
 
 
     // ============================================================

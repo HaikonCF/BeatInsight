@@ -1,4 +1,5 @@
 ﻿using AutoMapper;
+using BeatInsight.Diagnostics;
 using BeatInsight.Models;
 using BeatInsight.Parser;
 using BeatInsight.Services;
@@ -41,19 +42,23 @@ namespace BeatInsight
             {
                 string json = await osuApi.GetBeatmap(beatmapId);
 
-                Debug.WriteLine("============================================================");
-                Debug.WriteLine("OSU BEATMAP API OK");
-                Debug.WriteLine($"BEATMAP ID = {beatmapId}");
-                Debug.WriteLine(json);
-                Debug.WriteLine("============================================================");
+                DebugLogger.Log(
+                    $"OSU BEATMAP API OK | BeatmapId={beatmapId}");
+
+                DebugLogger.Detailed(
+                    $"OSU BEATMAP API RESPONSE | BeatmapId={beatmapId}");
+
+                DebugLogger.Detailed(json);
             }
             catch (Exception ex)
             {
-                Debug.WriteLine("============================================================");
-                Debug.WriteLine("OSU BEATMAP API ERROR");
-                Debug.WriteLine($"BEATMAP ID = {beatmapId}");
-                Debug.WriteLine(ex);
-                Debug.WriteLine("============================================================");
+                DebugLogger.Log(
+                    $"OSU BEATMAP API ERROR | " +
+                    $"BeatmapId={beatmapId} | " +
+                    $"{ex.Message}");
+
+                DebugLogger.Detailed(
+                    ex.ToString());
             }
         }
 
@@ -64,7 +69,7 @@ namespace BeatInsight
 
             InitializeComponent();
 
-            
+
 
 
             mapTimer = new DispatcherTimer
@@ -92,10 +97,11 @@ namespace BeatInsight
             }
             catch (Exception ex)
             {
-                Debug.WriteLine("============================================================");
-                Debug.WriteLine("UPDATE MAP ERROR");
-                Debug.WriteLine(ex);
-                Debug.WriteLine("============================================================");
+                DebugLogger.Log(
+                    $"UPDATE MAP ERROR | {ex.Message}");
+
+                DebugLogger.Detailed(
+                    ex.ToString());
             }
             finally
             {
@@ -342,8 +348,13 @@ namespace BeatInsight
             }
             catch (Exception ex)
             {
-                Debug.WriteLine(
-                    $"COMMUNITY TAGS ERROR | {ex.Message}");
+                DebugLogger.Log(
+                    $"COMMUNITY TAGS ERROR | " +
+                    $"BeatmapId={beatmapId} | " +
+                    $"{ex.Message}");
+
+                DebugLogger.Detailed(
+                    ex.ToString());
 
                 return new List<CommunityTag>();
             }
@@ -374,19 +385,23 @@ namespace BeatInsight
                 string body =
                     await response.Content.ReadAsStringAsync();
 
-                Debug.WriteLine("============================================================");
-                Debug.WriteLine("OSU TAGS API TEST");
-                Debug.WriteLine($"HTTP = {(int)response.StatusCode} ({response.StatusCode})");
-                Debug.WriteLine("RESPONSE:");
-                Debug.WriteLine(body);
-                Debug.WriteLine("============================================================");
+                DebugLogger.Log(
+                    $"OSU TAGS API | " +
+                    $"HTTP={(int)response.StatusCode} ({response.StatusCode})");
+
+                DebugLogger.Detailed(
+                    "OSU TAGS API RESPONSE:");
+
+                DebugLogger.Detailed(
+                    body);
             }
             catch (Exception ex)
             {
-                Debug.WriteLine("============================================================");
-                Debug.WriteLine("OSU TAGS API ERROR");
-                Debug.WriteLine(ex);
-                Debug.WriteLine("============================================================");
+                DebugLogger.Log(
+                    $"OSU TAGS API ERROR | {ex.Message}");
+
+                DebugLogger.Detailed(
+                    ex.ToString());
             }
         }
 
@@ -406,20 +421,13 @@ namespace BeatInsight
                     "BEATINSIGHT_OSU_CLIENT_SECRET");
 
             if (string.IsNullOrWhiteSpace(clientSecret))
+            {
                 throw new Exception(
                     "BEATINSIGHT_OSU_CLIENT_SECRET est introuvable.");
-
-            Debug.WriteLine(
-                $"OSU AUTH | Client ID = 66257");
-
-            Debug.WriteLine(
-                $"OSU AUTH | Secret présent = {!string.IsNullOrWhiteSpace(clientSecret)}");
-
-            Debug.WriteLine(
-                $"OSU AUTH | Secret longueur = {clientSecret?.Length ?? 0}");
+            }
 
             using HttpRequestMessage request =
-                new HttpRequestMessage(
+                new(
                     HttpMethod.Post,
                     "https://osu.ppy.sh/oauth/token");
 
@@ -428,39 +436,43 @@ namespace BeatInsight
                 "application/json");
 
             request.Content =
-    new FormUrlEncodedContent(
-        new Dictionary<string, string>
-        {
-            ["client_id"] = "66257",
-            ["client_secret"] = OsuSecrets.ClientSecret,
-            ["grant_type"] = "client_credentials",
-            ["scope"] = "public"
-        });
+                new FormUrlEncodedContent(
+                    new Dictionary<string, string>
+                    {
+                        ["client_id"] = "66257",
+                        ["client_secret"] = OsuSecrets.ClientSecret,
+                        ["grant_type"] = "client_credentials",
+                        ["scope"] = "public"
+                    });
 
             using HttpResponseMessage response =
-    await client.SendAsync(request);
+                await client.SendAsync(request);
 
             string responseBody =
-     await response.Content.ReadAsStringAsync();
+                await response.Content.ReadAsStringAsync();
 
             if (!response.IsSuccessStatusCode)
             {
+                DebugLogger.Log(
+                    $"OSU API AUTH ERROR | " +
+                    $"HTTP={(int)response.StatusCode} ({response.StatusCode})");
+
+                DebugLogger.Detailed(
+                    responseBody);
+
                 throw new Exception(
-                    $"osu! API HTTP {(int)response.StatusCode} ({response.StatusCode})\n" +
-                    $"Response: {responseBody}"
-                );
+                    $"osu! API HTTP {(int)response.StatusCode} ({response.StatusCode})");
             }
 
             using JsonDocument document =
                 JsonDocument.Parse(responseBody);
 
-            
-
             osuAccessToken =
-             document.RootElement
-         .GetProperty("access_token")
-         .GetString()
-     ?? throw new Exception("osu! API : access_token absent de la réponse.");
+                document.RootElement
+                    .GetProperty("access_token")
+                    .GetString()
+                ?? throw new Exception(
+                    "osu! API : access_token absent de la réponse.");
 
             int expiresIn =
                 document.RootElement
@@ -470,12 +482,11 @@ namespace BeatInsight
             osuTokenExpiration =
                 DateTime.UtcNow.AddSeconds(expiresIn - 60);
 
-            Debug.WriteLine(
-                $"OSU API AUTH OK | Expires in {expiresIn}s");
+            DebugLogger.Detailed(
+                $"OSU API AUTH OK | ExpiresIn={expiresIn}s");
 
             return osuAccessToken!;
         }
-
         private async Task<bool> IsTosuAvailable()
         {
             try
@@ -499,7 +510,6 @@ namespace BeatInsight
                 ? "● Tosu connecté"
                 : "● En attente de Tosu...";
         }
-
         private async Task UpdateMap()
         {
             // ============================================================
@@ -512,7 +522,7 @@ namespace BeatInsight
                 {
                     tosuConnected = false;
 
-                    Debug.WriteLine(
+                    DebugLogger.Log(
                         "TOSU | Déconnecté.");
                 }
 
@@ -526,7 +536,7 @@ namespace BeatInsight
             {
                 tosuConnected = true;
 
-                Debug.WriteLine(
+                DebugLogger.Log(
                     "TOSU | Connecté.");
 
                 SetTosuStatus(true);
@@ -602,7 +612,7 @@ namespace BeatInsight
     .GetProperty("id")
     .GetInt32();
 
-            
+
 
             string chemin = System.IO.Path.Combine(
                 songs,
@@ -629,7 +639,7 @@ namespace BeatInsight
             // URL osu!
             currentBeatmapUrl = $"https://osu.ppy.sh/b/{beatmapId}";
 
-           
+
             Beatmap beatmap = await Task.Run(() =>
             BeatmapParser.Load(chemin));
 
@@ -679,72 +689,33 @@ namespace BeatInsight
             beatmap.TagComparison =
                 tagComparison;
 
-
-            // ============================================================
-            // DEBUG
-            // ============================================================
-
-            Debug.WriteLine(
-                "===== TAG / GAMEPLAY IDENTITY =====");
-
-            Debug.WriteLine(
-                $"GAMEPLAY IDENTITY = {identity.FullName}");
-
-            Debug.WriteLine(
-                $"PRIMARY = {identity.Primary}");
-
-            Debug.WriteLine(
-                $"SECONDARY = {identity.Secondary}");
-
-            Debug.WriteLine(
-                $"PATTERN = {identity.Pattern}");
-
-            Debug.WriteLine(
-                $"IDENTITY CONFIDENCE = {identity.Confidence:F1}%");
-
-            
-
-
-            // ------------------------------------------------------------
-            // Traits
-            // ------------------------------------------------------------
-
-            Debug.WriteLine(
-                $"TRAITS = {(identity.Traits.Count > 0
-                    ? string.Join(" | ", identity.Traits)
-                    : "None")}");
-
-
             // ------------------------------------------------------------
             // Community
             // ------------------------------------------------------------
 
+            DebugLogger.Log(
+                    "===== COMMUNITY TAG COMPARISON =====");
+
             if (!tagComparison.HasTags)
             {
-                Debug.WriteLine(
-                    "TAG COMPARISON = Unavailable");
-
-                Debug.WriteLine(
-                    "COMMUNITY TAGS = 0");
-
-                Debug.WriteLine(
-                    "COMMUNITY VOTES = 0");
+                DebugLogger.Log(
+                    "TAG COMPARISON = Unavailable | No community tags");
             }
             else
             {
-                Debug.WriteLine(
+                DebugLogger.Log(
                     $"TAG CONSISTENCY = {tagComparison.Score * 100:F1}%");
 
-                Debug.WriteLine(
+                DebugLogger.Log(
                     $"TAG STATUS = {tagComparison.Status}");
 
-                Debug.WriteLine(
+                DebugLogger.Log(
                     $"TOTAL COMMUNITY VOTES = {tagComparison.TotalVotes}");
 
                 foreach (GameplayTagComparison match
                          in tagComparison.Matches)
                 {
-                    Debug.WriteLine(
+                    DebugLogger.Detailed(
                         $"TAG = {match.Tag} | " +
                         $"VOTES = {match.Votes} | " +
                         $"STATUS = {match.Status} | " +
@@ -754,26 +725,7 @@ namespace BeatInsight
                 }
             }
 
-            Debug.WriteLine("===== TAG / GAMEPLAY IDENTITY =====");
 
-            if (!tagComparison.HasTags)
-            {
-                Debug.WriteLine(
-                    "TAG COMPARISON = Unavailable | No community tags");
-            }
-            else
-            {
-                Debug.WriteLine(
-                    $"TAG CONSISTENCY = {tagComparison.Score * 100:F1}%");
-
-                Debug.WriteLine(
-                    $"TAG STATUS = {tagComparison.Status}");
-
-                Debug.WriteLine(
-                    $"TOTAL COMMUNITY VOTES = {tagComparison.TotalVotes}");
-
-               
-            }
 
             // ============================================================
             // BACKGROUND
@@ -808,8 +760,8 @@ namespace BeatInsight
             {
                 BackgroundImage.Source = null;
             }
-            
-            
+
+
             DataContext = beatmap;
         }
     }

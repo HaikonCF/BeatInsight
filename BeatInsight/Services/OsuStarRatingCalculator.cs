@@ -1,4 +1,5 @@
-﻿using osu.Game.Beatmaps;
+﻿using BeatInsight.Diagnostics;
+using osu.Game.Beatmaps;
 using osu.Game.Beatmaps.Formats;
 using osu.Game.IO;
 using osu.Game.Rulesets;
@@ -6,9 +7,7 @@ using osu.Game.Rulesets.Mods;
 using osu.Game.Rulesets.Osu;
 using osu.Game.Rulesets.Osu.Difficulty;
 using System;
-using System.Diagnostics;
 using System.IO;
-
 
 namespace BeatInsight.Services;
 
@@ -21,8 +20,8 @@ public static class OsuStarRatingCalculator
                 "Beatmap osu! introuvable.",
                 osuFilePath);
 
-        Debug.WriteLine("===== OSU STAR RATING DEBUG =====");
-        Debug.WriteLine($"FILE = {osuFilePath}");
+        DebugLogger.Detailed(
+            $"OSU STAR RATING | File={osuFilePath}");
 
         // Décodeur utilisé par le système de difficulté osu!
         LegacyDifficultyCalculatorBeatmapDecoder.Register();
@@ -38,15 +37,13 @@ public static class OsuStarRatingCalculator
             beatmap = decoder.Decode(reader);
         }
 
-        Debug.WriteLine(
-            $"OSU DEBUG | HitObjects={beatmap.HitObjects.Count}");
-
-        
+        DebugLogger.Detailed(
+            $"OSU STAR RATING | HitObjects={beatmap.HitObjects.Count}");
 
         if (beatmap.HitObjects.Count == 0)
         {
-            Debug.WriteLine(
-                "OSU DEBUG | Aucun HitObject => StarRating=0");
+            DebugLogger.Log(
+                "OSU STAR RATING | Aucun HitObject | StarRating=0");
 
             return 0;
         }
@@ -58,18 +55,12 @@ public static class OsuStarRatingCalculator
         var workingBeatmap =
             new InMemoryWorkingBeatmap(beatmap);
 
-        Debug.WriteLine(
-            $"OSU DEBUG | WorkingBeatmap créée");
-
         // ============================================================
         // RULESET OFFICIEL OSU!
         // ============================================================
 
         var ruleset =
             new OsuRuleset();
-
-        Debug.WriteLine(
-            $"OSU DEBUG | Ruleset={ruleset.RulesetInfo.Name}");
 
         // ============================================================
         // CALCULATEUR OFFICIEL
@@ -79,28 +70,22 @@ public static class OsuStarRatingCalculator
             ruleset.CreateDifficultyCalculator(
                 workingBeatmap);
 
-        Debug.WriteLine(
-            $"OSU DEBUG | Calculator={calculator.GetType().Name}");
-
         var attributes =
             calculator.Calculate(
                 Array.Empty<Mod>());
 
-        Debug.WriteLine(
-            $"OSU DEBUG | Attributes={attributes.GetType().Name}");
-
         var osuAttributes =
             (OsuDifficultyAttributes)attributes;
 
-        Debug.WriteLine(
-            $"OSU DEBUG | StarRating={osuAttributes.StarRating}");
-
-        Debug.WriteLine(
-            "=================================");
+        DebugLogger.Detailed(
+            $"OSU STAR RATING | " +
+            $"Ruleset={ruleset.RulesetInfo.Name} | " +
+            $"Calculator={calculator.GetType().Name} | " +
+            $"Attributes={attributes.GetType().Name} | " +
+            $"StarRating={osuAttributes.StarRating:F3}");
 
         return osuAttributes.StarRating;
     }
-
 
     private sealed class InMemoryWorkingBeatmap : WorkingBeatmap
     {
@@ -116,8 +101,6 @@ public static class OsuStarRatingCalculator
         {
             return beatmap;
         }
-
-
 
         public override osu.Framework.Graphics.Textures.Texture GetBackground()
         {

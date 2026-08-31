@@ -1,4 +1,5 @@
-﻿using System.Diagnostics;
+﻿using BeatInsight.Diagnostics;
+using System.Diagnostics;
 using System.Net.Http;
 using System.Text.Json;
 
@@ -73,7 +74,7 @@ namespace BeatInsight
                     $"https://osu.ppy.sh/beatmaps/{beatmapId}";
 
                 using HttpRequestMessage request =
-                    new HttpRequestMessage(
+                    new(
                         HttpMethod.Get,
                         url);
 
@@ -108,13 +109,13 @@ namespace BeatInsight
 
                 if (beatmapIndex < 0)
                 {
-                    Debug.WriteLine(
+                    DebugLogger.Log(
                         $"COMMUNITY TAGS | Beatmap {beatmapId} introuvable.");
 
                     return result;
                 }
 
-                Debug.WriteLine(
+                DebugLogger.Detailed(
                     $"COMMUNITY TAGS | Beatmap {beatmapId} trouvée à {beatmapIndex}");
 
 
@@ -130,15 +131,14 @@ namespace BeatInsight
 
                 if (topTagIndex < 0)
                 {
-                    Debug.WriteLine(
-                        $"COMMUNITY TAGS | top_tag_ids introuvable.");
+                    DebugLogger.Log(
+                        $"COMMUNITY TAGS | top_tag_ids introuvable | Beatmap={beatmapId}");
 
                     return result;
                 }
 
-                Debug.WriteLine(
+                DebugLogger.Detailed(
                     $"COMMUNITY TAGS | top_tag_ids trouvé à {topTagIndex}");
-
 
 
                 // ============================================================
@@ -169,8 +169,6 @@ namespace BeatInsight
                 using JsonDocument document =
                     JsonDocument.Parse(tagsJson);
 
-                
-
 
                 // ============================================================
                 // ID → NOM + VOTES
@@ -195,8 +193,11 @@ namespace BeatInsight
                     int votes =
                         countElement.GetInt32();
 
-                    Debug.WriteLine(
-                        $"COMMUNITY TAG DEBUG | TagId={tagId} | Votes={votes} | CatalogMatch={catalog.Any(x => x.Id == tagId)}");
+                    DebugLogger.Detailed(
+                        $"COMMUNITY TAG DEBUG | " +
+                        $"TagId={tagId} | " +
+                        $"Votes={votes} | " +
+                        $"CatalogMatch={catalog.Any(x => x.Id == tagId)}");
 
                     OsuTag? tag =
                         catalog.FirstOrDefault(
@@ -219,21 +220,28 @@ namespace BeatInsight
                 // DEBUG
                 // ============================================================
 
-                Debug.WriteLine(
-                    $"COMMUNITY TAGS API OK | Beatmap={beatmapId} | Tags={result.Count}");
+                DebugLogger.Log(
+                    $"COMMUNITY TAGS API OK | " +
+                    $"Beatmap={beatmapId} | " +
+                    $"Tags={result.Count}");
 
                 foreach (OsuTagVote tag in result)
                 {
-                    Debug.WriteLine(
-                        $"  {tag.Name} | Votes={tag.Votes}");
+                    DebugLogger.Detailed(
+                        $"COMMUNITY TAG | {tag.Name} | Votes={tag.Votes}");
                 }
 
                 return result;
             }
             catch (Exception ex)
             {
-                Debug.WriteLine(
-                    $"COMMUNITY TAGS ERROR | {ex.Message}");
+                DebugLogger.Log(
+                    $"COMMUNITY TAGS ERROR | " +
+                    $"Beatmap={beatmapId} | " +
+                    $"{ex.Message}");
+
+                DebugLogger.Detailed(
+                    ex.ToString());
 
                 return result;
             }
@@ -330,14 +338,9 @@ namespace BeatInsight
                     tag.RulesetId =
                         rulesetElement.GetInt32();
                 }
-                if (tag.RulesetId == 0 || tag.RulesetId == null)
-                {
-                    osuTags.Add(tag);
-                }
                 osuTags.Add(tag);
             }
-
-            Debug.WriteLine(
+            DebugLogger.Log(
                 $"OSU TAG CATALOG OK | Tags={osuTags.Count}");
 
             return osuTags;

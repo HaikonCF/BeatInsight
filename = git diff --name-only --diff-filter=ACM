@@ -1,0 +1,38 @@
+BeatInsight/Analysis/GameplayAnalyzer.cs:380: trailing whitespace.
+[32m+[m[41m        [m
+BeatInsight/MainWindow.xaml.cs:728: trailing whitespace.
+[32m+[m[41m            [m
+BeatInsight/OsuApiService.cs:341: trailing whitespace.
+[32m+[m[41m               [m
+BeatInsight/Parser/BeatmapParser.cs:245: trailing whitespace.
+[32m+[m[41m            [m
+BeatInsight/Parser/BeatmapParser.cs:284: trailing whitespace.
+[32m+[m[41m                    [m
+BeatInsight/Parser/BeatmapParser.cs:291: trailing whitespace.
+[32m+[m[41m           [m
+BeatInsight/Parser/BeatmapParser.cs:514: trailing whitespace.
+[32m+[m[41m                    [m
+BeatInsight/Parser/BeatmapParser.cs:526: trailing whitespace.
+[32m+[m[41m                    [m
+BeatInsight/Parser/BeatmapParser.cs:538: trailing whitespace.
+[32m+[m[41m                [m
+BeatInsight/Parser/BeatmapParser.cs:703: trailing whitespace.
+[32m+[m[41m            [m
+BeatInsight/Parser/BeatmapParser.cs:772: trailing whitespace.
+[32m+[m[41m           [m
+BeatInsight/Parser/BeatmapParser.cs:785: trailing whitespace.
+[32m+[m[41m            [m
+BeatInsight/Parser/BeatmapParser.cs:887: trailing whitespace.
+[32m+[m[41m            [m
+BeatInsight/Parser/BeatmapParser.cs:903: trailing whitespace.
+[32m+[m[41m            [m
+BeatInsight/Parser/BeatmapParser.cs:920: trailing whitespace.
+[32m+[m[41m            [m
+BeatInsight/Parser/BeatmapParser.cs:926: trailing whitespace.
+[32m+[m[41m            [m
+BeatInsight/Parser/BeatmapParser.cs:930: trailing whitespace.
+[32m+[m[41m           [m
+BeatInsight/Parser/BeatmapParser.cs:933: trailing whitespace.
+[32m+[m[41m           [m
+BeatInsight/Parser/BeatmapParser.cs:1145: trailing whitespace.
+[32m+[m[41m            [m
