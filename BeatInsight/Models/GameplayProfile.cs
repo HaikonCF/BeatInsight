@@ -21,6 +21,9 @@ public sealed class GameplayProfile
     /// </summary>
     public int AnalysedCircleCount { get; init; }
 
+    public double Confidence { get; init; }
+    public IReadOnlyList<GameplaySection> ReadSections { get; init; }
+       = Array.Empty<GameplaySection>();
 
     // ============================================================
     // 2. STREAM
@@ -125,6 +128,7 @@ public sealed class GameplayProfile
     public double TechStructureSignal { get; init; }
     public double TechSpatialSignal { get; init; }
     public double TechTemporalSignal { get; init; }
+    public string TechProfile { get; init; } = "";
 
     /// <summary>
     /// Nombre de sliders considérés comme complexes.
@@ -143,6 +147,8 @@ public sealed class GameplayProfile
     /// </summary>
     public int SharpTechTransitionCount { get; init; }
 
+    public IReadOnlyList<GameplaySection> TechSections { get; init; } = [];
+
 
     // ============================================================
     // 6. READ
@@ -158,6 +164,10 @@ public sealed class GameplayProfile
     /// Proportion des cercles concernés par le Read.
     /// </summary>
     public double ReadRatio { get; init; }
+    public double ReadCoverage { get; init; }
+    public string ReadProfile { get; init; } = string.Empty;
+
+    public string ReadIntensity { get; set; } = "";
 
     /// <summary>
     /// Score Read sur 100.
@@ -236,6 +246,16 @@ public sealed class GameplayProfile
     /// </summary>
     public double SpeedARSignal { get; init; }
 
+    public int SpeedObjectCount { get; init; }
+
+    public double SpeedCoverage { get; init; }
+
+    public string SpeedProfile { get; init; } = "";
+    public string SpeedIntensity { get; set; } = "";
+    public IReadOnlyList<GameplaySection> SpeedSections { get; set; }
+    = Array.Empty<GameplaySection>();
+
+
     // ============================================================
     // 8. Aim
     // ============================================================
@@ -247,6 +267,11 @@ public sealed class GameplayProfile
     public double AimSpeedSignal { get; init; }
     public double AimAngleSignal { get; init; }
     public double AimTemporalSignal { get; init; }
+    public double AimCoverage { get; init; }
+
+    public string AimProfile { get; init; } = "";
+
+    public string AimIntensity { get; init; } = "";
 
 
     // ============================================================
@@ -406,15 +431,29 @@ public sealed class GameplayProfile
     /// </summary>
     public IReadOnlyList<PatternSequence> BurstSequences { get; init; } = [];
 
+    // ============================================================
+    // SECTIONS TEMPORELLES
+    // ============================================================
+
+    /// <summary>
+    /// Zones temporelles contenant des patterns Stream.
+    /// </summary>
+    public IReadOnlyList<GameplaySection> StreamSections { get; init; } = [];
+
+    /// <summary>
+    /// Zones temporelles contenant des patterns Jump.
+    /// </summary>
+    public IReadOnlyList<GameplaySection> JumpSections { get; init; } = [];
+
+    /// <summary>
+    /// Zones temporelles contenant des patterns Tech.
+    /// </summary>
+    
+
     // V1.1 STYLE
     public GameplayStyleProfile StyleProfile { get; set; } = new();
 
-    private static string BuildGameplayIdentity(
-    string primaryType,
-    GameplayStyleProfile style)
-    {
-        return $"{primaryType} {style.PrimaryStyle}";
-    }
+    
 
     public GameplayIdentity Identity { get; init; } = new();
 }
@@ -441,4 +480,18 @@ public sealed record PatternSequence(
     public int ObjectCount =>
         EndObjectIndex - StartObjectIndex + 1;
 
+};
+
+
+
+public sealed record GameplaySection(
+    string Type,
+    int StartObjectIndex,
+    int EndObjectIndex,
+    double StartTime,
+    double EndTime,
+    int ObjectCount)
+{
+    public double Duration =>
+        EndTime - StartTime;
 }

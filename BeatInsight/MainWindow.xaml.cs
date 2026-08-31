@@ -1,15 +1,19 @@
-﻿using BeatInsight.Models;
+﻿using AutoMapper;
+using BeatInsight.Models;
 using BeatInsight.Parser;
+using BeatInsight.Services;
 using System;
 using System.Diagnostics;
+using System.IO;
+using System.Linq;
 using System.Net.Http;
+using System.Reflection;
+using System.Text;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
-using System.Linq;
-using System.Text;
-using System.Reflection;
+using static BeatInsight.OsuApiService;
 
 // Cette classe représente la fenêtre principale de BeatInsight et contient la logique qui surveille la map actuellement sélectionnée.
 
@@ -23,36 +27,54 @@ namespace BeatInsight
         private readonly HttpClient client = new HttpClient();
         // Indique qu'une mise à jour est déjà en cours pour éviter que deux appels UpdateMap() se chevauchent.
         private readonly DispatcherTimer mapTimer;
+        private readonly OsuApiService osuApi = new OsuApiService();
 
         // Le constructeur prépare la fenêtre et démarre la surveillance automatique de la map.
         private string? currentMapPath;
         private bool isUpdating;
+        private bool tosuConnected;
         private string? currentBeatmapUrl;
+        private readonly OsuApiService osuApiService = new();
+        private async Task TestOsuApi(int beatmapId)
+        {
+            try
+            {
+                string json = await osuApi.GetBeatmap(beatmapId);
 
-        // On initialise les composants graphiques générés par WPF avant de manipuler l'interface.
+                Debug.WriteLine("============================================================");
+                Debug.WriteLine("OSU BEATMAP API OK");
+                Debug.WriteLine($"BEATMAP ID = {beatmapId}");
+                Debug.WriteLine(json);
+                Debug.WriteLine("============================================================");
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine("============================================================");
+                Debug.WriteLine("OSU BEATMAP API ERROR");
+                Debug.WriteLine($"BEATMAP ID = {beatmapId}");
+                Debug.WriteLine(ex);
+                Debug.WriteLine("============================================================");
+            }
+        }
+
 
         public MainWindow()
         // On crée le timer qui servira à vérifier régulièrement l'état actuel d'osu!.
         {
-            // Une vérification toutes les 500 ms permet de détecter rapidement un changement de map sans interroger osu! en permanence.
+
             InitializeComponent();
 
-            // Quand le timer déclenche son événement, on appelle la méthode qui vérifie la map actuelle.
+            BeatInsight.Diagnostics.DebugLogger.DebugMode = false;
+            BeatInsight.Diagnostics.DebugLogger.DetailedDebug = true;
 
-            mapTimer = new DispatcherTimer();
-            // On démarre immédiatement le timer afin que la surveillance commence dès l'ouverture de BeatInsight.
-            mapTimer.Interval = TimeSpan.FromMilliseconds(500);
+
+            mapTimer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromMilliseconds(500)
+            };
+
             mapTimer.Tick += MapTimer_Tick;
-
-            // On lance une première mise à jour sans bloquer le constructeur sur l'opération asynchrone.
-
-            mapTimer.Start();
-
-            // Cette méthode est appelée automatiquement à chaque déclenchement du DispatcherTimer.
-            _ = UpdateMap();
-
-
-        }
+            mapTimer.Start(); }
 
         public string AppVersion => $"BeatInsight v{Assembly.GetExecutingAssembly().GetName().Version?.ToString(3)}";
 
@@ -60,25 +82,26 @@ namespace BeatInsight
 
         private async void MapTimer_Tick(object? sender, EventArgs e)
         {
-            // On verrouille temporairement les mises à jour pendant le traitement courant.
             if (isUpdating)
                 return;
 
-            // On récupère les informations de la map depuis l'API locale d'osu! avant de les analyser.
             isUpdating = true;
 
-            // Même en cas d'erreur ou d'arrêt pendant UpdateMap(), le verrou sera toujours libéré.
             try
             {
                 await UpdateMap();
-                // On demande à osu! les données JSON qui décrivent notamment la beatmap actuellement sélectionnée.
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine("============================================================");
+                Debug.WriteLine("UPDATE MAP ERROR");
+                Debug.WriteLine(ex);
+                Debug.WriteLine("============================================================");
             }
             finally
             {
-                // On transforme le texte JSON reçu en document afin de pouvoir accéder à ses propriétés.
                 isUpdating = false;
             }
-            // On récupère le dossier de la beatmap sélectionnée dans les informations envoyées par osu!.
         }
 
         private void CopyAnalysis_Click(object sender, RoutedEventArgs e)
@@ -298,15 +321,236 @@ namespace BeatInsight
         UseShellExecute = true
     });
 }
+        private async Task<List<CommunityTag>> GetCommunityTags(int beatmapId)
+        {
+            try
+            {
+                List<OsuApiService.OsuTagVote> tags =
+                    await osuApi.GetBeatmapCommunityTags(beatmapId);
+
+                return tags
+                    .Select(tag => new CommunityTag
+                    {
+                        Name = tag.Name,
+                        Votes = tag.Votes
+                    })
+                    .ToList();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine(
+                    $"COMMUNITY TAGS ERROR | {ex.Message}");
+
+                return new List<CommunityTag>();
+            }
+        }
+
+        private async Task TestTagsApi()
+        {
+            try
+            {
+                string token = await GetOsuAccessToken();
+
+                using HttpRequestMessage request = new(
+                    HttpMethod.Get,
+                    "https://osu.ppy.sh/api/v2/tags"
+                );
+
+                request.Headers.Authorization =
+                    new System.Net.Http.Headers.AuthenticationHeaderValue(
+                        "Bearer",
+                        token
+                    );
+
+                request.Headers.Add("Accept", "application/json");
+
+                using HttpResponseMessage response =
+                    await client.SendAsync(request);
+
+                string body =
+                    await response.Content.ReadAsStringAsync();
+
+                Debug.WriteLine("============================================================");
+                Debug.WriteLine("OSU TAGS API TEST");
+                Debug.WriteLine($"HTTP = {(int)response.StatusCode} ({response.StatusCode})");
+                Debug.WriteLine("RESPONSE:");
+                Debug.WriteLine(body);
+                Debug.WriteLine("============================================================");
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine("============================================================");
+                Debug.WriteLine("OSU TAGS API ERROR");
+                Debug.WriteLine(ex);
+                Debug.WriteLine("============================================================");
+            }
+        }
+
+        private string? osuAccessToken;
+        private DateTime osuTokenExpiration;
+
+        private async Task<string> GetOsuAccessToken()
+        {
+            if (!string.IsNullOrWhiteSpace(osuAccessToken) &&
+                DateTime.UtcNow < osuTokenExpiration)
+            {
+                return osuAccessToken;
+            }
+
+            string? clientSecret =
+                Environment.GetEnvironmentVariable(
+                    "BEATINSIGHT_OSU_CLIENT_SECRET");
+
+            if (string.IsNullOrWhiteSpace(clientSecret))
+                throw new Exception(
+                    "BEATINSIGHT_OSU_CLIENT_SECRET est introuvable.");
+
+            Debug.WriteLine(
+                $"OSU AUTH | Client ID = 66257");
+
+            Debug.WriteLine(
+                $"OSU AUTH | Secret présent = {!string.IsNullOrWhiteSpace(clientSecret)}");
+
+            Debug.WriteLine(
+                $"OSU AUTH | Secret longueur = {clientSecret?.Length ?? 0}");
+
+            using HttpRequestMessage request =
+                new HttpRequestMessage(
+                    HttpMethod.Post,
+                    "https://osu.ppy.sh/oauth/token");
+
+            request.Headers.Add(
+                "Accept",
+                "application/json");
+
+            request.Content =
+    new FormUrlEncodedContent(
+        new Dictionary<string, string>
+        {
+            ["client_id"] = "66257",
+            ["client_secret"] = OsuSecrets.ClientSecret,
+            ["grant_type"] = "client_credentials",
+            ["scope"] = "public"
+        });
+
+            using HttpResponseMessage response =
+    await client.SendAsync(request);
+
+            string responseBody =
+     await response.Content.ReadAsStringAsync();
+
+            if (!response.IsSuccessStatusCode)
+            {
+                throw new Exception(
+                    $"osu! API HTTP {(int)response.StatusCode} ({response.StatusCode})\n" +
+                    $"Response: {responseBody}"
+                );
+            }
+
+            using JsonDocument document =
+                JsonDocument.Parse(responseBody);
+
+            
+
+            osuAccessToken =
+             document.RootElement
+         .GetProperty("access_token")
+         .GetString()
+     ?? throw new Exception("osu! API : access_token absent de la réponse.");
+
+            int expiresIn =
+                document.RootElement
+                    .GetProperty("expires_in")
+                    .GetInt32();
+
+            osuTokenExpiration =
+                DateTime.UtcNow.AddSeconds(expiresIn - 60);
+
+            Debug.WriteLine(
+                $"OSU API AUTH OK | Expires in {expiresIn}s");
+
+            return osuAccessToken!;
+        }
+
+        private async Task<bool> IsTosuAvailable()
+        {
+            try
+            {
+                using HttpResponseMessage response =
+                    await client.GetAsync(
+                        "http://127.0.0.1:24050/json",
+                        HttpCompletionOption.ResponseHeadersRead);
+
+                return response.IsSuccessStatusCode;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private void SetTosuStatus(bool connected)
+        {
+            TosuStatusText.Text = connected
+                ? "● Tosu connecté"
+                : "● En attente de Tosu...";
+        }
 
         private async Task UpdateMap()
         {
+            // ============================================================
+            // TOSU CONNECTION
+            // ============================================================
+
+            if (!await IsTosuAvailable())
+            {
+                if (tosuConnected)
+                {
+                    tosuConnected = false;
+
+                    Debug.WriteLine(
+                        "TOSU | Déconnecté.");
+                }
+
+                SetTosuStatus(false);
+
+                return;
+            }
+
+            // Tosu vient d'être détecté.
+            if (!tosuConnected)
+            {
+                tosuConnected = true;
+
+                Debug.WriteLine(
+                    "TOSU | Connecté.");
+
+                SetTosuStatus(true);
+            }
+
+            // ============================================================
+            // RÉCUPÉRATION DES DONNÉES TOSU
+            // ============================================================
+
             string json = await client.GetStringAsync(
-                "http://127.0.0.1:24050/json"
+                $"http://127.0.0.1:24050/json?t={DateTime.UtcNow.Ticks}"
             );
 
             // On récupère le dossier racine dans lequel osu! stocke ses beatmaps.
             JsonDocument document = JsonDocument.Parse(json);
+
+            int debugBeatmapId = document.RootElement
+                .GetProperty("menu")
+                .GetProperty("bm")
+                .GetProperty("id")
+                .GetInt32();
+
+            string debugFile = document.RootElement
+                .GetProperty("menu")
+                .GetProperty("bm")
+                .GetProperty("path")
+                .GetProperty("file")
+                .GetString()!;
 
             string folder =
                 document.RootElement
@@ -348,38 +592,184 @@ namespace BeatInsight
             }
 
             int beatmapId =
-                document.RootElement
-                .GetProperty("menu")
-                .GetProperty("bm")
-                .GetProperty("id")
-                .GetInt32();
+    document.RootElement
+    .GetProperty("menu")
+    .GetProperty("bm")
+    .GetProperty("id")
+    .GetInt32();
 
-            currentBeatmapUrl = $"https://osu.ppy.sh/b/{beatmapId}";
+            
 
             string chemin = System.IO.Path.Combine(
                 songs,
-                // Une nouvelle map a été détectée : on mémorise son chemin pour les prochaines vérifications.
                 folder,
                 file
-            // Ce message permet de repérer clairement dans le debug le début du traitement d'une nouvelle map.
             );
 
-            // Même map → on ne fait rien
-            // On construit le chemin complet vers l'image de background de la beatmap.
-            if (chemin == currentMapPath)
-                return;
+            // ============================================================
+            // MÊME MAP → ON NE FAIT RIEN
+            // ============================================================
 
-            // Nouvelle map
+            if (chemin == currentMapPath)
+            {
+                return;
+            }
+
+            // ============================================================
+            // NOUVELLE MAP
+            // ============================================================
+
+            // On mémorise immédiatement la nouvelle map
             currentMapPath = chemin;
 
-            // On charge le background dans le contrôle graphique de l'interface.
-            Debug.WriteLine($"----- New Map -----");
+            // URL osu!
+            currentBeatmapUrl = $"https://osu.ppy.sh/b/{beatmapId}";
+
+           
+            Beatmap beatmap = await Task.Run(() =>
+            BeatmapParser.Load(chemin));
+
+            // ============================================================
+            // COMMUNITY TAGS
+            // ============================================================
+
+            List<OsuApiService.OsuTagVote> osuCommunityTags =
+                await osuApi.GetBeatmapCommunityTags(beatmapId);
+
+            beatmap.CommunityTags =
+                osuCommunityTags
+                    .Select(tag => new CommunityTag
+                    {
+                        Name = tag.Name,
+                        Votes = tag.Votes
+                    })
+                    .ToList();
 
 
-            Beatmap beatmap = BeatmapParser.Load(chemin);
+            // ============================================================
+            // COMMUNITY TAGS <-> GAMEPLAY IDENTITY
+            // ============================================================
 
-            Debug.WriteLine($"MAP = {beatmap.Title}");
+            GameplayProfile gameplayProfile =
+                beatmap.GameplayProfile;
 
+            GameplayIdentity identity =
+                gameplayProfile.Identity;
+
+
+            // ------------------------------------------------------------
+            // Comparaison
+            // ------------------------------------------------------------
+
+            GameplayTagComparisonResult tagComparison =
+                GameplayTagComparer.Compare(
+                    beatmap.CommunityTags,
+                    identity.FullName,
+                    identity.Traits);
+
+
+            // ------------------------------------------------------------
+            // Stockage du résultat
+            // ------------------------------------------------------------
+
+            beatmap.TagComparison =
+                tagComparison;
+
+
+            // ============================================================
+            // DEBUG
+            // ============================================================
+
+            Debug.WriteLine(
+                "===== TAG / GAMEPLAY IDENTITY =====");
+
+            Debug.WriteLine(
+                $"GAMEPLAY IDENTITY = {identity.FullName}");
+
+            Debug.WriteLine(
+                $"PRIMARY = {identity.Primary}");
+
+            Debug.WriteLine(
+                $"SECONDARY = {identity.Secondary}");
+
+            Debug.WriteLine(
+                $"PATTERN = {identity.Pattern}");
+
+            Debug.WriteLine(
+                $"IDENTITY CONFIDENCE = {identity.Confidence:F1}%");
+
+            
+
+
+            // ------------------------------------------------------------
+            // Traits
+            // ------------------------------------------------------------
+
+            Debug.WriteLine(
+                $"TRAITS = {(identity.Traits.Count > 0
+                    ? string.Join(" | ", identity.Traits)
+                    : "None")}");
+
+
+            // ------------------------------------------------------------
+            // Community
+            // ------------------------------------------------------------
+
+            if (!tagComparison.HasTags)
+            {
+                Debug.WriteLine(
+                    "TAG COMPARISON = Unavailable");
+
+                Debug.WriteLine(
+                    "COMMUNITY TAGS = 0");
+
+                Debug.WriteLine(
+                    "COMMUNITY VOTES = 0");
+            }
+            else
+            {
+                Debug.WriteLine(
+                    $"TAG CONSISTENCY = {tagComparison.Score * 100:F1}%");
+
+                Debug.WriteLine(
+                    $"TAG STATUS = {tagComparison.Status}");
+
+                Debug.WriteLine(
+                    $"TOTAL COMMUNITY VOTES = {tagComparison.TotalVotes}");
+
+                foreach (GameplayTagComparison match
+                         in tagComparison.Matches)
+                {
+                    Debug.WriteLine(
+                        $"TAG = {match.Tag} | " +
+                        $"VOTES = {match.Votes} | " +
+                        $"STATUS = {match.Status} | " +
+                        $"SCORE = {match.Score * 100:F1}% | " +
+                        $"WEIGHT = {match.VoteWeight:F3} | " +
+                        $"CONCEPTS = {string.Join(", ", match.Concepts)}");
+                }
+            }
+
+            Debug.WriteLine("===== TAG / GAMEPLAY IDENTITY =====");
+
+            if (!tagComparison.HasTags)
+            {
+                Debug.WriteLine(
+                    "TAG COMPARISON = Unavailable | No community tags");
+            }
+            else
+            {
+                Debug.WriteLine(
+                    $"TAG CONSISTENCY = {tagComparison.Score * 100:F1}%");
+
+                Debug.WriteLine(
+                    $"TAG STATUS = {tagComparison.Status}");
+
+                Debug.WriteLine(
+                    $"TOTAL COMMUNITY VOTES = {tagComparison.TotalVotes}");
+
+               
+            }
 
             // ============================================================
             // BACKGROUND
@@ -414,8 +804,9 @@ namespace BeatInsight
             {
                 BackgroundImage.Source = null;
             }
-           
-    DataContext = beatmap;
+            
+            
+            DataContext = beatmap;
         }
     }
 }

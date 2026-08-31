@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace BeatInsight.Parser
+namespace BeatInsight.Models
 {
     public class HitObject
     {
@@ -16,6 +16,7 @@ namespace BeatInsight.Parser
         public int Y { get; set; }
         public string SliderCurveType { get; set; } = "";
         public List<SliderControlPoint> SliderControlPoints { get; set; } = new();
+        public SliderControlPoint SliderEndPosition { get; set; } = new();
 
     }
 

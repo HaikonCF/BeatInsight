@@ -1,4 +1,6 @@
 ﻿using BeatInsight.Models;
+using BeatInsight.Services;
+using osu.Framework.Graphics.Lines;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -56,7 +58,9 @@ namespace BeatInsight.Parser
                     {
                         beatmap.Version = line.Substring(8);
                     }
+                    
                 }
+                
                 // On ne lit les paramètres AR, OD, CS, HP et sliders que dans la section [Difficulty].
                 if (currentSection == "Difficulty")
                 {
@@ -136,6 +140,7 @@ namespace BeatInsight.Parser
                             // contrôle. Ils serviront au signal Tech V0.
                             string[] curveParts = valeurs[5].Split('|');
                             hitObject.SliderCurveType = curveParts[0];
+                           
 
                             for (int i = 1; i < curveParts.Length; i++)
                             {
@@ -149,13 +154,50 @@ namespace BeatInsight.Parser
                                     Y = int.Parse(pointParts[1], CultureInfo.InvariantCulture)
                                 });
                             }
-                        }
-                        beatmap.HitObjects.Add(hitObject);
 
+                            if (hitObject.SliderControlPoints.Count > 0)
+                            {
+                                SliderControlPoint pathEnd =
+                                    hitObject.SliderControlPoints[^1];
+
+                                if (hitObject.Slides % 2 == 0)
+                                {
+                                    // Nombre de répétitions pair :
+                                    // le slider revient à son point de départ.
+                                    hitObject.SliderEndPosition = new SliderControlPoint
+                                    {
+                                        X = hitObject.X,
+                                        Y = hitObject.Y
+                                    };
+                                }
+                                else
+                                {
+                                    // Nombre de répétitions impair :
+                                    // le slider termine à la fin de sa trajectoire.
+                                    hitObject.SliderEndPosition = new SliderControlPoint
+                                    {
+                                        X = pathEnd.X,
+                                        Y = pathEnd.Y
+                                    };
+                                }
+
+                                
+
+                            }
+                        }
+                        
+
+                        beatmap.HitObjects.Add(hitObject);
                     }
                 }
 
             }
+            Debug.WriteLine("");
+            Debug.WriteLine("============================================================");
+            Debug.WriteLine("NEW MAP");
+            Debug.WriteLine($"MAP = {beatmap.Title}");
+            Debug.WriteLine($"DIFFICULTY = {beatmap.Version}");
+            Debug.WriteLine("============================================================");
 
             // On parcourt les points de timing pour trouver le premier timing principal hérité par la map et en déduire son BPM.
             foreach (TimingPoint timingPoint in beatmap.TimingPoints)
@@ -194,10 +236,10 @@ namespace BeatInsight.Parser
                 }
             }
 
-            int lenght = beatmap.HitObjects[beatmap.HitObjects.Count - 1].Time - beatmap.HitObjects[0].Time;
-            TimeSpan duree = TimeSpan.FromMilliseconds(lenght);
-            beatmap.Lenght = duree;
-            beatmap.LengthDisplay = $"{duree.Minutes}:{duree.Seconds:00}";
+            int length = beatmap.HitObjects[beatmap.HitObjects.Count - 1].Time - beatmap.HitObjects[0].Time;
+            TimeSpan duree = TimeSpan.FromMilliseconds(length);
+            beatmap.Length = duree;
+            
 
             beatmap.MaxCombo = beatmap.HitObjects.Count;
 
@@ -258,7 +300,19 @@ namespace BeatInsight.Parser
 
             // Le profil est volontairement isolé du Star Rating actuel :
             // il sert d'abord à observer et calibrer les patterns.
-            beatmap.GameplayProfile = global::BeatInsight.Analysis.GameplayAnalyzer.Analyze(beatmap);
+            beatmap.GameplayProfile =
+                global::BeatInsight.Analysis.GameplayAnalyzer.Analyze(beatmap);
+
+            // ============================================================
+            // OSU! STAR RATING
+            // ============================================================
+
+            beatmap.OsuStarRating =
+                OsuStarRatingCalculator.Calculate(filePath);
+
+            // ============================================================
+            // BEATINSIGHT DIFFICULTY
+            // ============================================================
 
             CalculateMovementStats(beatmap);
 
@@ -928,19 +982,218 @@ namespace BeatInsight.Parser
 
             //Debug.WriteLine($"ACCURACY CONTRIBUTION = {accuracyContribution:F2}");
 
-            // On ajoute la contribution du Speed à la difficulté de base.
-            // Le facteur de longueur est ensuite appliqué à l'ensemble.
-            double finalDifficulty = (baseDifficulty + (peakDifference * 0.10) + speedContribution + accuracyContribution) * lengthFactor;
-
+            
             //Debug.WriteLine($"FINAL DIFFICULTY = {finalDifficulty:F2}" );
 
             // On convertit notre difficulté finale en une première estimation
             // du Star Rating. Le seuil évite qu'une difficulté faible fasse
             // descendre artificiellement les maps sous 5 étoiles.
-            double starRating = 5.0 + 1.6 * Math.Pow(Math.Max(0, finalDifficulty - 1.3), 2.0);
 
-            //Debug.WriteLine($"STAR RATING = {starRating:F2}★");
+            GameplayProfile gameplay = beatmap.GameplayProfile;
 
+            // ============================================================
+            // GAMEPLAY DIFFICULTY CONTRIBUTION
+            // ============================================================
+            double aimPresence =
+                gameplay.AimScore / 100.0;
+
+            double speedPresence =
+                gameplay.SpeedScore / 100.0;
+
+            double readPresence =
+                gameplay.ReadScore / 100.0;
+
+            double techPresence =
+                gameplay.TechScore / 100.0;
+
+            double gameplayContribution =
+                  (aimPresence * 0.20)
+                + (speedPresence * 0.25)
+                + (readPresence * 0.20)
+                + (techPresence * 0.35);
+
+            double gameplayBonus =
+                gameplayContribution * 0.50;
+
+            // ============================================================
+            // SPECIALIZATION BONUS
+            // ============================================================
+
+            double specializationBonus = 0.0;
+
+            double maxComponent =
+                Math.Max(
+                    Math.Max(aimPresence, speedPresence),
+                    Math.Max(readPresence, techPresence));
+
+            if (maxComponent > 0.40)
+            {
+                specializationBonus +=
+                    (maxComponent - 0.40) * 0.20;
+            }
+
+            if (gameplay.TechScore >= 40.0 &&
+                gameplay.TechRatio >= 0.20)
+            {
+                specializationBonus += 0.05;
+            }
+
+            Debug.WriteLine(
+                $"Specialization Bonus = {specializationBonus:F3}");
+
+            Debug.WriteLine("----- GAMEPLAY DIFFICULTY -----");
+            Debug.WriteLine($"Aim Presence   = {aimPresence:F3}");
+            Debug.WriteLine($"Speed Presence = {speedPresence:F3}");
+            Debug.WriteLine($"Read Presence  = {readPresence:F3}");
+            Debug.WriteLine($"Tech Presence  = {techPresence:F3}");
+            Debug.WriteLine($"Gameplay       = {gameplayContribution:F3}");
+            Debug.WriteLine($"Gameplay Bonus = {gameplayBonus:F3}");
+
+            // ============================================================
+            // DIFFICULTÉ FINALE
+            // ============================================================
+
+            double finalDifficulty =
+                (baseDifficulty
+                + (peakDifference * 0.10)
+                + speedContribution
+                + accuracyContribution
+                + gameplayBonus
+                + specializationBonus)
+                * lengthFactor;
+
+            // ============================================================
+            // BEATINSIGHT RATING
+            // ============================================================
+
+            // Le Final Difficulty reste notre score interne.
+            // Le Rating est exprimé sur une échelle proche du SR osu!,
+            // mais avec une influence propre aux analyses BeatInsight.
+
+            // ============================================================
+            // BEATINSIGHT GAMEPLAY PROFILE NORMALIZATION
+            // ============================================================
+
+            double aimScoreNormalized =
+                beatmap.GameplayProfile.AimScore / 100.0;
+
+            double speedScoreNormalized =
+                beatmap.GameplayProfile.SpeedScore / 100.0;
+
+            double readScoreNormalized =
+                beatmap.GameplayProfile.ReadScore / 100.0;
+
+            double techScoreNormalized =
+                beatmap.GameplayProfile.TechScore / 100.0;
+
+            // Gameplay global basé sur les quatre dimensions.
+            // Pour l'instant, aucune dimension ne domine artificiellement.
+            double gameplayDifficulty =
+                (
+                    aimScoreNormalized +
+                    speedScoreNormalized +
+                    readScoreNormalized +
+                    techScoreNormalized
+                ) / 4.0;
+
+            Debug.WriteLine("----- GAMEPLAY RATING SIGNALS -----");
+            Debug.WriteLine($"Aim Normalized   = {aimScoreNormalized:F3}");
+            Debug.WriteLine($"Speed Normalized = {speedScoreNormalized:F3}");
+            Debug.WriteLine($"Read Normalized  = {readScoreNormalized:F3}");
+            Debug.WriteLine($"Tech Normalized  = {techScoreNormalized:F3}");
+            Debug.WriteLine($"Gameplay         = {gameplayDifficulty:F3}");
+
+            double peakBonus = peakDifference * 0.10;
+
+            double beatInsightAdjustment =
+                 gameplayDifficulty * 0.30
+                 + peakBonus * 0.20
+                 + specializationBonus * 0.10
+                 + accuracyContribution * 0.10
+                 + speedScoreNormalized * 0.10
+                 + techScoreNormalized * 0.10
+                 + aimScoreNormalized * 0.05
+                 + readScoreNormalized * 0.05;
+
+            
+
+            // On limite l'écart par rapport au SR officiel.
+            // BeatInsight ne doit pas partir complètement à l'ouest.
+            beatInsightAdjustment =
+                Math.Clamp(
+                    beatInsightAdjustment,
+                    -1.0,
+                    1.0);
+
+            Debug.WriteLine("----- BEATINSIGHT RATING CALCULATION -----");
+            Debug.WriteLine($"Gameplay Difficulty = {gameplayDifficulty:F3}");
+            Debug.WriteLine($"Peak Bonus          = {peakBonus:F3}");
+            Debug.WriteLine($"Specialization      = {specializationBonus:F3}");
+            Debug.WriteLine($"Accuracy            = {accuracyContribution:F3}");
+            Debug.WriteLine($"Speed               = {speedScoreNormalized:F3}");
+            Debug.WriteLine($"Tech                = {techScoreNormalized:F3}");
+            Debug.WriteLine($"Aim                 = {aimScoreNormalized:F3}");
+            Debug.WriteLine($"Read                = {readScoreNormalized:F3}");
+            Debug.WriteLine($"Adjustment          = {beatInsightAdjustment:+0.000;-0.000;0.000}");
+
+            double beatInsightRating =
+                beatmap.OsuStarRating +
+                beatInsightAdjustment;
+
+            // On évite un Rating négatif.
+            beatInsightRating =
+                Math.Max(
+                    0,
+                    beatInsightRating);
+
+            beatmap.BeatInsightRating =
+                beatInsightRating;
+
+
+
+
+            Debug.WriteLine("----- BEATINSIGHT DIFFICULTY V1 -----");
+
+            Debug.WriteLine(
+                $"Base Difficulty       = {baseDifficulty:F3}");
+
+            Debug.WriteLine(
+                $"Peak Bonus            = {(peakDifference * 0.10):F3}");
+
+            Debug.WriteLine(
+                $"Speed Contribution    = {speedContribution:F3}");
+
+            Debug.WriteLine(
+                $"Accuracy Contribution = {accuracyContribution:F3}");
+
+            Debug.WriteLine(
+                $"Gameplay Contribution = {gameplayContribution:F3}");
+
+            Debug.WriteLine(
+                $"Gameplay Bonus        = {gameplayBonus:F3}");
+
+            Debug.WriteLine(
+                $"Specialization Bonus  = {specializationBonus:F3}");
+
+            Debug.WriteLine(
+                $"Length Factor         = {lengthFactor:F3}");
+
+            Debug.WriteLine("--------------------------------------");
+
+            Debug.WriteLine(
+                $"Final Difficulty      = {finalDifficulty:F3}");
+
+            Debug.WriteLine(
+                $"Rating Adjustment     = {beatInsightAdjustment:+0.000;-0.000;0.000}");
+
+            Debug.WriteLine(
+                $"osu! Star Rating      = {beatmap.OsuStarRating:F2}★");
+
+            Debug.WriteLine(
+                $"BeatInsight Difficulty = {finalDifficulty:F3}");
+
+            Debug.WriteLine(
+                $"BeatInsight Rating     = {beatmap.BeatInsightRating:F2}★");
 
 
             //Debug.WriteLine($"AIM BASE = {aimBase:F2}");

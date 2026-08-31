@@ -35,6 +35,9 @@ publish/
 *.tmp
 *.temp
 
+# Secrets
+OsuSecrets.cs
+
 # Builds / releases
 publish/
 test-release/

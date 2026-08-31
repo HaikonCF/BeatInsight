@@ -1,0 +1,197 @@
+﻿using BeatInsight.Models;
+
+namespace BeatInsight.Diagnostics;
+
+public static class GameplayDebug
+{
+    public static void Identity(
+        GameplayIdentity identity,
+        bool enabled = false)
+    {
+        if (!enabled)
+            return;
+
+        DebugLogger.Log(
+            "===== TAG / GAMEPLAY IDENTITY =====");
+
+        DebugLogger.Log(
+            $"GAMEPLAY IDENTITY = {identity.FullName}");
+
+        DebugLogger.Log(
+            $"PRIMARY = {identity.Primary}");
+
+        DebugLogger.Log(
+            $"SECONDARY = {identity.Secondary}");
+
+        DebugLogger.Log(
+            $"PATTERN = {identity.Pattern}");
+
+        DebugLogger.Log(
+            $"IDENTITY CONFIDENCE = {identity.Confidence:F1}%");
+
+        DebugLogger.Log(
+            $"TRAITS = {(identity.Traits.Count > 0
+                ? string.Join(" | ", identity.Traits)
+                : "None")}");
+
+        DebugLogger.Log(
+            $"CONCEPTS = {(identity.Concepts.Count > 0
+                ? string.Join(" | ", identity.Concepts)
+                : "None")}");
+    }
+
+    public static void Tech(
+        GameplayProfile profile,
+        bool enabled = false)
+    {
+        if (!enabled)
+            return;
+
+        DebugLogger.Log(
+            "===== TECH PROFILE =====");
+
+        DebugLogger.Log(
+            $"TECH = {profile.TechObjectCount} circles / " +
+            $"{profile.TechRatio:P2} / " +
+            $"Score {profile.TechScore:F0}/100 " +
+            $"({profile.TechLevel})");
+
+        DebugLogger.Log(
+            $"TECH SIGNALS = " +
+            $"Transition {profile.TechTransitionSignal:P0} / " +
+            $"Structure {profile.TechStructureSignal:P0} / " +
+            $"Spatial {profile.TechSpatialSignal:P0} / " +
+            $"Temporal {profile.TechTemporalSignal:P0}");
+
+        DebugLogger.Log(
+            $"TECH PROFILE = {profile.TechProfile}");
+    }
+
+    public static void Read(
+        GameplayProfile profile,
+        bool enabled = false)
+    {
+        if (!enabled)
+            return;
+
+        DebugLogger.Log(
+            "===== READ PROFILE =====");
+
+        DebugLogger.Log(
+            $"READ = {profile.ReadObjectCount} circles / " +
+            $"{profile.ReadRatio:P2} / " +
+            $"Score {profile.ReadScore:F0}/100 " +
+            $"({profile.ReadLevel})");
+
+        DebugLogger.Log(
+            $"READ SIGNALS = " +
+            $"Density {profile.ReadDensitySignal:P0} / " +
+            $"Clutter {profile.ReadClutterSignal:P0} / " +
+            $"Persistence {profile.ReadPersistenceSignal:P0} / " +
+            $"CS {profile.ReadCSSignal:P0}");
+
+        DebugLogger.Log(
+            $"READ COVERAGE = {profile.ReadCoverage:P2}");
+
+        DebugLogger.Log(
+            $"READ PROFILE = {profile.ReadProfile}");
+
+        DebugLogger.Log(
+            $"READ INTENSITY = {profile.ReadIntensity}");
+    }
+
+    public static void Speed(
+        GameplayProfile profile,
+        bool enabled = false)
+    {
+        if (!enabled)
+            return;
+
+        DebugLogger.Log(
+            "===== SPEED PROFILE =====");
+
+        DebugLogger.Log(
+            $"SPEED = {profile.SpeedObjectCount} circles / " +
+            $"{profile.SpeedRatio:P2} / " +
+            $"Score {profile.SpeedScore:F0}/100 " +
+            $"({profile.SpeedLevel})");
+
+        DebugLogger.Log(
+            $"SPEED COVERAGE = {profile.SpeedCoverage:P2}");
+
+        DebugLogger.Log(
+            $"SPEED PROFILE = {profile.SpeedProfile}");
+
+        DebugLogger.Log(
+            $"SPEED INTENSITY = {profile.SpeedIntensity}");
+
+        DebugLogger.Log(
+            $"SPEED SIGNALS = " +
+            $"Density {profile.SpeedDensitySignal:P0} / " +
+            $"AR {profile.SpeedARSignal:P0}");
+    }
+
+    public static void Aim(
+        GameplayProfile profile,
+        bool enabled = false)
+    {
+        if (!enabled)
+            return;
+
+        DebugLogger.Log(
+            "===== AIM PROFILE =====");
+
+        DebugLogger.Log(
+            $"AIM = Score {profile.AimScore:F0}/100 " +
+            $"({profile.AimLevel})");
+
+        DebugLogger.Log(
+            $"AIM SIGNALS = " +
+            $"Distance {profile.AimDistanceSignal:P0} / " +
+            $"Speed {profile.AimSpeedSignal:P0} / " +
+            $"Angle {profile.AimAngleSignal:P0} / " +
+            $"Temporal {profile.AimTemporalSignal:P0}");
+
+        DebugLogger.Log(
+            $"AIM COVERAGE = {profile.AimCoverage:P2}");
+
+        DebugLogger.Log(
+            $"AIM PROFILE = {profile.AimProfile}");
+
+        DebugLogger.Log(
+            $"AIM INTENSITY = {profile.AimIntensity}");
+    }
+
+    public static void Summary(
+        GameplayProfile profile,
+        bool enabled = false)
+    {
+        if (!enabled)
+            return;
+
+        DebugLogger.Log(
+            "===== GAMEPLAY PROFILE =====");
+
+        DebugLogger.Log(
+            $"ANALYSED CIRCLES = {profile.AnalysedCircleCount}");
+
+        DebugLogger.Log(
+            $"PRIMARY TYPE = {profile.PrimaryType}");
+
+        DebugLogger.Log(
+            $"STREAMS = {profile.StreamSequenceCount} sequences / " +
+            $"{profile.StreamObjectCount} circles / " +
+            $"{profile.StreamRatio:P2}");
+
+        DebugLogger.Log(
+            $"JUMPS = {profile.JumpSequenceCount} sequences / " +
+            $"{profile.JumpObjectCount} circles / " +
+            $"{profile.JumpRatio:P2}");
+
+        DebugLogger.Log(
+            $"BURSTS = {profile.BurstSequenceCount} sequences / " +
+            $"{profile.BurstObjectCount} circles / " +
+            $"{profile.BurstRatio:P2} / " +
+            $"Max {profile.LongestBurstLength}");
+    }
+}

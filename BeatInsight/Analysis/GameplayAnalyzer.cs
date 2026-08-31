@@ -1,6 +1,7 @@
 using BeatInsight.Models;
-using BeatInsight.Parser;
 using System.Diagnostics;
+using BeatInsight.Diagnostics;
+using BI_DebugLogger = global::BeatInsight.Diagnostics.DebugLogger;
 
 namespace BeatInsight.Analysis;
 
@@ -15,7 +16,7 @@ namespace BeatInsight.Analysis;
 /// - Jump
 /// - Burst
 /// - Tech
-/// - Read
+/// - ReadAnalysisRead
 /// - Speed
 ///
 /// IMPORTANT : ces analyses décrivent actuellement le gameplay.
@@ -38,8 +39,26 @@ public static class GameplayAnalyzer
     /// il doit représenter au moins 50 % des cercles analysés.
     /// </summary>
     private const double PrimaryTypeThreshold = 0.40;
-    
+
     private const double SecondaryTypeThreshold = 0.20;
+
+    private const double PrimaryIdentityThreshold = 20.0;
+
+    // ============================================================
+    // TECH PATTERN DETECTION
+    // ============================================================
+
+    /// <summary>
+    /// Poids des sliders complexes dans la détection
+    /// des patterns Tech.
+    /// </summary>
+    private const double TechSliderPatternWeight = 0.80;
+
+    /// <summary>
+    /// Poids des cercles présentant une structure Tech
+    /// dans la détection des patterns Tech.
+    /// </summary>
+    private const double TechCirclePatternWeight = 0.20;
 
 
     // ============================================================
@@ -129,7 +148,7 @@ public static class GameplayAnalyzer
     /// </summary>
     private const double BurstMaximumDistance = 60;
 
-    /// <summary>
+    /// <summary> 
     /// Distance moyenne maximum autorisée dans un Burst.
     /// </summary>
     private const double BurstMaximumAverageDistance = 45;
@@ -182,6 +201,25 @@ public static class GameplayAnalyzer
     /// 0.25 = +25 % maximum.
     /// </summary>
     private const double ReadCSMaximumBonus = 0.25;
+
+    private static string GetReadProfile(
+    double coverage,
+    double score)
+    {
+        if (score >= 70)
+            return "Strong Reading Presence";
+
+        if (score >= 50)
+            return "Moderate Reading Presence";
+
+        if (score >= 35 && coverage >= 0.50)
+            return "Focused Reading Presence";
+
+        if (score >= 25)
+            return "Light Reading Presence";
+
+        return "Minimal Reading Presence";
+    }
 
 
     // ============================================================
@@ -237,34 +275,168 @@ public static class GameplayAnalyzer
 
 
         // --------------------------------------------------------
-        // Analyses spécialisées.
+        // Sections temporelles
+        //
+        // Une section représente une zone cohérente dans le temps
+        // où une famille de gameplay est réellement présente.
+        //
+        // Cela permet de différencier :
+        // - un petit nombre d'objets isolés
+        // - une vraie zone Stream / Jump / Tech
+        // --------------------------------------------------------
+
+
+        List<GameplaySection> streamSections =
+            BuildGameplaySections(
+                objects,
+                streamObjects,
+                "Stream");
+
+        List<GameplaySection> jumpSections =
+            BuildGameplaySections(
+                objects,
+                jumpObjects,
+                "Jump");
+
+        BeatInsight.Diagnostics.DebugLogger.Log(
+            $"SECTIONS DEBUG | " +
+            $"Stream={streamSections.Count} " +
+            $"Jump={jumpSections.Count}");
+
+        // --------------------------------------------------------
+        // Coverage temporelle
+        //
+        // Mesure la proportion du temps de la map occupée
+        // par les sections détectées.
+        // --------------------------------------------------------
+
+        double streamCoverage =
+            CalculateSectionCoverage(
+                streamSections,
+                objects);
+
+        double jumpCoverage =
+            CalculateSectionCoverage(
+                jumpSections,
+                objects);
+
+        // --------------------------------------------------------
+        // Analyses spécialisées
         // --------------------------------------------------------
 
         TechAnalysis tech =
             AnalyzeTech(objects);
 
+        BeatInsight.Diagnostics.DebugLogger.Log(
+            $"SECTIONS DEBUG | " +
+            $"Tech={tech.TechSections.Count}");
+
+        double techCoverage =
+            CalculateSectionCoverage(
+                tech.TechSections,
+                objects);
+
+        BeatInsight.Diagnostics.DebugLogger.Log(
+            $"COVERAGE DEBUG | " +
+            $"Stream={streamCoverage:P1} " +
+            $"Jump={jumpCoverage:P1} " +
+            $"Tech={techCoverage:P1}");
+
+        // --------------------------------------------------------
+        // Ajustement Tech selon sa présence réelle
+        // --------------------------------------------------------
+
+        double techCoverageMultiplier =
+            0.45 +
+            0.55 * Math.Clamp(
+                techCoverage,
+                0.0,
+                1.0);
+
+        double rawTechScore = tech.Score;
+
+        tech = tech with
+        {
+            Score =
+                Math.Clamp(
+                    tech.Score * techCoverageMultiplier,
+                    0.0,
+                    100.0)
+        };
+
+        BeatInsight.Diagnostics.DebugLogger.Log(
+            $"TECH COVERAGE ADJUSTMENT | " +
+            $"Raw={rawTechScore:F1} " +
+            $"Coverage={techCoverage:P1} " +
+            $"Multiplier={techCoverageMultiplier:F3} " +
+            $"Final={tech.Score:F1}");
+
+        // --------------------------------------------------------
+        // Read / Speed / Aim / Style
+        // --------------------------------------------------------
+
         ReadAnalysis read =
-            AnalyzeRead(beatmap, objects);
+            AnalyzeRead(
+                beatmap,
+                objects);
+
+        double readCoverage =
+            CalculateSectionCoverage(
+                read.ReadSections,
+                objects);
+
+
+        DebugLogger.Log(
+            $"READ COVERAGE DEBUG | " +
+            $"Sections={read.ReadSections.Count} " +
+            $"Coverage={readCoverage:P1}");
+
+        string readProfile =
+            GetReadProfile(
+                readCoverage,
+                read.Score);
+
+        DebugLogger.Log(
+            $"READ PROFILE = {readProfile}");
 
         SpeedAnalysis speed =
-            AnalyzeSpeed(objects, beatmap);
+            AnalyzeSpeed(
+                objects,
+                beatmap);
 
-        AimAnalysis aim = 
-            AnalyzeAim(objects, beatmap);
+        int analysedCircles =
+            objects.Count(IsCircle);
 
+        double speedCoverage =
+            CalculateRatio(
+                speed.SpeedObjectCount,
+                analysedCircles);
+
+        string speedProfile =
+            GetSpeedPresenceProfile(
+                speedCoverage,
+                speed.Score);
+
+        DebugLogger.Log(
+            $"SPEED PROFILE DEBUG | " +
+            $"Coverage={speedCoverage:P1} | " +
+            $"Score={speed.Score:F1} | " +
+            $"Profile={speedProfile}");
+
+        AimAnalysis aim =
+            AnalyzeAim(
+                objects,
+                beatmap);
         GameplayStyleProfile style =
             AnalyzeGameplayStyle(
-             aim,
-             speed,
-             tech,
-             read);
+                aim,
+                speed,
+                read);
 
         // --------------------------------------------------------
         // Statistiques générales.
         // --------------------------------------------------------
 
-        int analysedCircles =
-            objects.Count(IsCircle);
 
         int streamObjectCount =
             streamObjects.Count(value => value);
@@ -275,48 +447,143 @@ public static class GameplayAnalyzer
         int burstObjectCount =
             burstObjects.Count(value => value);
 
+        int techCircleCount =
+            CountSectionCircles(
+                tech.TechSections,
+                objects);
+
         // --------------------------------------------------------
         // Ratios.
         // --------------------------------------------------------
 
         double streamRatio =
-            CalculateRatio(streamObjectCount, analysedCircles);
+            CalculateRatio(
+                streamObjectCount,
+                analysedCircles);
 
         double jumpRatio =
-            CalculateRatio(jumpObjectCount, analysedCircles);
+            CalculateRatio(
+                jumpObjectCount,
+                analysedCircles);
 
         double burstRatio =
-            CalculateRatio(burstObjectCount, analysedCircles);
+            CalculateRatio(
+                burstObjectCount,
+                analysedCircles);
 
         double techRatio =
-            CalculateRatio(tech.TechObjectCount, analysedCircles);
+            CalculateRatio(
+                techCircleCount,
+                analysedCircles);
+
+        double aimCoverage =
+            CalculateRatio(
+                aim.AimObjectCount,
+                analysedCircles);
 
         // --------------------------------------------------------
         // Classification globale de la map.
         // --------------------------------------------------------
 
+        AimProfile aimProfile =
+            GetAimProfile(
+                aimCoverage,
+                aim.Score);
+
         string primaryType =
             DeterminePrimaryType(
-                streamRatio,
-                jumpRatio,
+                streamCoverage,
+                jumpCoverage,
+                techCoverage,
                 tech.Score);
+
+        double confidence =
+            CalculatePrimaryConfidence(
+                primaryType,
+                streamCoverage,
+                jumpCoverage,
+                techCoverage,
+                tech.Score);
+
+
+
+        confidence =
+            Math.Clamp(
+                confidence,
+                0.0,
+                100.0);
+
+        DebugLogger.Log(
+            $"PRIMARY DEBUG | " +
+            $"Stream={streamRatio:P1} " +
+            $"Jump={jumpRatio:P1} " +
+            $"TechRatio={techRatio:P1} " +
+            $"Coverage(S/J/T)=" +
+            $"{streamCoverage:P1}/" +
+            $"{jumpCoverage:P1}/" +
+            $"{techCoverage:P1} " +
+            $"TechScore={tech.Score:F1} " +
+            $"=> {primaryType}");
+
+        DebugLogger.Log(
+            $"AIM PROFILE DEBUG | " +
+            $"Coverage={aimProfile.Coverage:P1} | " +
+            $"Score={aimProfile.Score:F1} | " +
+            $"Profile={aimProfile.Profile} | " +
+            $"Intensity={aimProfile.Intensity}");
+
+        DebugLogger.Log(
+            $"AIM COVERAGE DEBUG | " +
+            $"Coverage={aimCoverage:P1}");
+
         string gameplayIdentity =
             BuildGameplayIdentity(
-                primaryType,
-                style);
+                primaryType);
 
         // --------------------------------------------------------
         // Identity
         // --------------------------------------------------------
 
         GameplayIdentity identity =
-            AnalyzeGameplayIdentity(
-                primaryType,
-                aim,
-                speed,
-                tech,
-                read);
+                AnalyzeGameplayIdentity(
+                    primaryType,
+                    streamCoverage,
+                    jumpCoverage,
+                    techCoverage,
+                    aim,
+                    speed,
+                    tech,
+                    read);
 
+        BeatInsight.Diagnostics.DebugLogger.Detailed(
+                "===== IDENTITY INPUT DEBUG =====");
+
+        BeatInsight.Diagnostics.DebugLogger.Detailed(
+           $"streamCoverage = {streamCoverage:F3} " +
+            $"=> StreamScore = {streamCoverage * 100.0:F3}");
+
+        BeatInsight.Diagnostics.DebugLogger.Detailed(
+            $"jumpCoverage = {jumpCoverage:F3} " +
+            $"=> JumpScore = {jumpCoverage * 100.0:F3}");
+
+        BeatInsight.Diagnostics.DebugLogger.Detailed(
+           $"techCoverage = {techCoverage:F3}");
+
+        BeatInsight.Diagnostics.DebugLogger.Detailed(
+            $"tech.Score = {tech.Score:F3}");
+
+        double debugTechScore =
+            CalculateTechIdentityScore(
+                streamCoverage,
+                jumpCoverage,
+                techCoverage,
+                tech.Score);
+
+        DebugLogger.Log(
+            $"=> TechIdentityScore = {debugTechScore:F3}");
+
+        DebugLogger.Log(
+            "================================");
         // --------------------------------------------------------
         // Construction du profil final.
         // --------------------------------------------------------
@@ -337,6 +604,7 @@ public static class GameplayAnalyzer
             StreamSequenceCount = streams.Count,
             StreamRatio = streamRatio,
             StreamSequences = streams,
+            StreamSections = streamSections,
 
             // ----------------------------
             // Jump
@@ -346,6 +614,7 @@ public static class GameplayAnalyzer
             JumpSequenceCount = jumps.Count,
             JumpRatio = jumpRatio,
             JumpSequences = jumps,
+            JumpSections = jumpSections,
 
             // ----------------------------
             // Burst
@@ -364,14 +633,16 @@ public static class GameplayAnalyzer
             // Tech
             // ----------------------------
 
-            TechObjectCount = tech.TechObjectCount,
+            TechObjectCount = techCircleCount,
             TechRatio = techRatio,
             TechScore = tech.Score,
-            TechLevel = GetTechLevel(tech.Score),
+            TechLevel = GetTechLevel(tech.Score, techCoverage),
+            TechProfile = GetTechProfile(techCoverage, tech.Score),
             TechTransitionSignal = tech.TransitionSignal,
             TechStructureSignal = tech.StructureSignal,
             TechSpatialSignal = tech.SpatialSignal,
             TechTemporalSignal = tech.TemporalSignal,
+
 
             ComplexSliderCount =
                 tech.ComplexSliderCount,
@@ -382,18 +653,22 @@ public static class GameplayAnalyzer
             SharpTechTransitionCount =
                 tech.SharpTransitionCount,
 
+            TechSections = tech.TechSections,
+
             // ----------------------------
             // Read
             // ----------------------------
 
-            ReadObjectCount = 
+            ReadObjectCount =
                 read.ReadObjectCount,
-            ReadRatio = 
+            ReadRatio =
                 read.Ratio,
-            ReadScore = 
+            ReadScore =
                 read.Score,
-            ReadLevel = 
+            ReadLevel =
                 GetReadLevel(read.Score),
+            ReadSections =
+                read.ReadSections,
 
             ReadDensitySignal =
                 read.DensitySignal,
@@ -407,16 +682,40 @@ public static class GameplayAnalyzer
             ReadCSSignal =
                 read.CSSignal,
 
+            ReadCoverage =
+                readCoverage,
+            ReadProfile =
+                GetReadPresenceProfile(read.Ratio),
+
+            ReadIntensity =
+                GetReadIntensity(read.Score),
+
             // ----------------------------
             // Speed
             // ----------------------------
 
+            SpeedObjectCount =
+                    speed.SpeedObjectCount,
+
+            SpeedCoverage =
+                    speedCoverage,
+
+            SpeedProfile =
+                    speedProfile,
+
+            SpeedIntensity =
+                GetSpeedIntensity(speed.Score),
+
+            SpeedSections =
+                speed.SpeedSections,
+
             SpeedScore = speed.Score,
             SpeedLevel = GetSpeedLevel(speed.Score),
             SpeedRatio = speed.SpeedRatio,
-            SpeedFastObjectRatio =speed.FastObjectRatio,
-            SpeedDensitySignal =speed.DensitySignal,
-            SpeedARSignal =speed.ARSignal,
+            SpeedFastObjectRatio = speed.FastObjectRatio,
+            SpeedDensitySignal = speed.DensitySignal,
+            SpeedARSignal = speed.ARSignal,
+
 
             // ----------------------------
             // Aim
@@ -428,6 +727,9 @@ public static class GameplayAnalyzer
             AimSpeedSignal = aim.SpeedSignal,
             AimAngleSignal = aim.AngleSignal,
             AimTemporalSignal = aim.TemporalSignal,
+            AimCoverage = aimProfile.Coverage,
+            AimProfile = aimProfile.Profile,
+            AimIntensity = aimProfile.Intensity,
 
             // ----------------------------
             // Classification
@@ -438,13 +740,40 @@ public static class GameplayAnalyzer
             StyleProfile = style,
             Identity = identity
         };
+        DebugLogger.Log(
+            $"PROFILE TECH DEBUG | " +
+            $"tech.Score={tech.Score:F3} | " +
+            $"profile.TechScore={profile.TechScore:F3}");
+        DebugLogger.Log(
+            $"TECH PROFILE = {profile.TechProfile}");
+        DebugLogger.Log(
+                $"READ PROFILE DEBUG | " +
+                $"Coverage={profile.ReadCoverage:P1} | " +
+                $"Score={profile.ReadScore:F1} | " +
+                $"Profile={profile.ReadProfile} | " +
+                $"Intensity={profile.ReadIntensity}");
+        DebugLogger.Log(
+                $"SPEED PROFILE DEBUG | " +
+                $"Coverage={profile.SpeedCoverage:P1} | " +
+                $"Score={profile.SpeedScore:F1} | " +
+                $"Profile={profile.SpeedProfile} | " +
+                $"Intensity={profile.SpeedIntensity}");
+        DebugLogger.Log(
+                $"SPEED COVERAGE DEBUG | " +
+                $"Sections={speed.SpeedSections.Count} " +
+                $"Coverage={speedCoverage:P1}");
+        DebugLogger.Log("GAMEPLAY | BEFORE WRITEDEBUG");
 
-        // Debug console uniquement.
         WriteDebug(profile);
+
+        DebugLogger.Log("GAMEPLAY | AFTER WRITEDEBUG");
+
+        DebugLogger.Log("GAMEPLAY | BEFORE RETURN");
+
+        beatmap.GameplayProfile = profile;
 
         return profile;
     }
-
 
 
     // ============================================================
@@ -772,25 +1101,85 @@ public static class GameplayAnalyzer
                 <= BurstMaximumAverageDistance;
     }
 
+    private static int complexSliderDebugCount = 0;
+    private static int complexContextDebugCount = 0;
+    private static void DebugTechTransition(
+    ref int debugCount,
+    int index,
+    HitObject current,
+    HitObject previous,
+    HitObject next,
+    double angle,
+    double averageDistance,
+    double averageInterval,
+    bool isSharp,
+    bool isAwkward,
+    bool isStructural,
+    bool isCompact,
+    bool isAlternating,
+    bool spacingVariation)
+    {
+        if (debugCount >= 50)
+            return;
+
+        if (averageDistance > 160)
+            return;
+
+        BeatInsight.Diagnostics.DebugLogger.Detailed(
+        $"TECH TRANSITION DEBUG #{debugCount + 1} | " +
+        $"i={index} " +
+        $"Time={current.Time} " +
+        $"Angle={angle:F1}° " +
+        $"AvgDist={averageDistance:F1} " +
+        $"AvgInterval={averageInterval:F1}ms " +
+        $"Sharp={isSharp} " +
+        $"Awkward={isAwkward} " +
+        $"Structural={isStructural} " +
+        $"Compact={isCompact} " +
+        $"Alternating={isAlternating} " +
+        $"SpacingVariation={spacingVariation} " +
+        $"Prev=({previous.X},{previous.Y}) " +
+        $"Curr=({current.X},{current.Y}) " +
+        $"Next=({next.X},{next.Y}) " +
+        $"Types={previous.Type}/{current.Type}/{next.Type} " +
+        $"Curves={previous.SliderCurveType}/{current.SliderCurveType}/{next.SliderCurveType}");
+
+
+
+        debugCount++;
+
+    }
 
     // ============================================================
     // 10. TECH
     // ============================================================
 
     /// <summary>
-    /// Analyse les structures Tech :
-    /// - sliders complexes,
-    /// - superpositions spatiales,
-    /// - transitions brusques.
+    /// Analyse les structures Tech.
     ///
-    /// TechObjectCount représente les cercles impliqués dans les
-    /// transitions Tech détectées.
+    /// Le Tech repose principalement sur :
+    /// - les changements de direction,
+    /// - les angles awkward,
+    /// - les transitions compactes,
+    /// - les variations de spacing,
+    /// - les sliders complexes,
+    /// - les alternances structurelles.
+    ///
+    /// Les grands déplacements sont volontairement exclus afin
+    /// d'éviter de confondre Jump/Aim et Tech.
     /// </summary>
     private static TechAnalysis AnalyzeTech(
         IReadOnlyList<HitObject> objects)
     {
+        complexSliderDebugCount = 0;
+        int complexSignalDebugCount = 0;
+
+
         bool[] techObjects =
-            new bool[objects.Count];
+    new bool[objects.Count];
+
+        double[] techPatternEvidence =
+            new double[objects.Count];
 
         // --------------------------------------------------------
         // Sliders
@@ -805,15 +1194,32 @@ public static class GameplayAnalyzer
         int sliderSpatialOverlapCount =
             CountSliderSpatialOverlaps(sliders);
 
+
         // --------------------------------------------------------
         // Transitions
         // --------------------------------------------------------
 
         int transitionCount = 0;
+
         int sharpTransitionCount = 0;
+
         int fastTransitionCount = 0;
+
         int structuralTransitions = 0;
+
         int alternatingTransitions = 0;
+
+        int compactTransitions = 0;
+
+        int awkwardTransitions = 0;
+
+        int spacingVariationTransitions = 0;
+
+        // --------------------------------------------------------
+        // Analyse locale
+        // --------------------------------------------------------
+        int debugCount = 0;
+
 
         for (int i = 1; i < objects.Count - 1; i++)
         {
@@ -826,7 +1232,93 @@ public static class GameplayAnalyzer
             HitObject next =
                 objects[i + 1];
 
-            // Les spinners ne participent pas à cette analyse.
+            bool currentIsComplexSlider =
+                 IsComplexSlider(current);
+
+            bool previousIsComplexSlider =
+                IsComplexSlider(previous);
+
+            bool nextIsComplexSlider =
+                IsComplexSlider(next);
+
+            if (currentIsComplexSlider
+    && complexContextDebugCount < 50)
+            {
+                double beforeDistance =
+     Math.Sqrt(
+         Math.Pow(current.X - previous.X, 2) +
+         Math.Pow(current.Y - previous.Y, 2));
+
+                double afterDistance =
+                    Math.Sqrt(
+                        Math.Pow(next.X - current.X, 2) +
+                        Math.Pow(next.Y - current.Y, 2));
+
+                double beforeInterval =
+                    current.Time - previous.Time;
+
+                double afterInterval =
+                    next.Time - current.Time;
+
+                double angle =
+                    GetTurnAngle(
+                        previous,
+                        current,
+                        next);
+
+                double sliderStartX = current.X;
+                double sliderStartY = current.Y;
+
+                double sliderEndX = current.X;
+                double sliderEndY = current.Y;
+
+                if (current.SliderControlPoints.Count > 0)
+                {
+                    SliderControlPoint lastPoint =
+                        current.SliderControlPoints[^1];
+
+                    sliderEndX = lastPoint.X;
+                    sliderEndY = lastPoint.Y;
+                }
+
+                double sliderTravelDistance =
+                    Math.Sqrt(
+                        Math.Pow(sliderEndX - sliderStartX, 2) +
+                        Math.Pow(sliderEndY - sliderStartY, 2));
+                double sliderTravelRatio =
+                    current.Length > 0
+                        ? sliderTravelDistance / current.Length
+                        : 0;
+
+
+                BeatInsight.Diagnostics.DebugLogger.Detailed(
+                    $"COMPLEX CONTEXT DEBUG #{complexContextDebugCount + 1} | " +
+                    $"i={i} " +
+                    $"Time={current.Time} " +
+                    $"Curve={current.SliderCurveType} " +
+                    $"CP={current.SliderControlPoints.Count} " +
+                    $"Slides={current.Slides} " +
+                    $"Length={current.Length:F1} " +
+                    $"SliderStart=({sliderStartX:F0},{sliderStartY:F0}) " +
+                    $"SliderEnd=({sliderEndX:F0},{sliderEndY:F0}) " +
+                    $"SliderTravel={sliderTravelDistance:F1} " +
+                    $"TravelRatio={sliderTravelRatio:F2} " +
+                    $"BeforeDist={beforeDistance:F1} " +
+                    $"AfterDist={afterDistance:F1} " +
+                    $"Prev=({previous.X},{previous.Y}) " +
+                    $"Curr=({current.X},{current.Y}) " +
+                    $"Next=({next.X},{next.Y}) " +
+                    $"PrevType={previous.Type} " +
+                    $"CurrType={current.Type} " +
+                    $"NextType={next.Type}");
+
+
+
+
+                complexContextDebugCount++;
+            }
+
+            // Les spinners ne participent pas au Tech.
             if (IsSpinner(previous)
                 || IsSpinner(current)
                 || IsSpinner(next))
@@ -841,147 +1333,383 @@ public static class GameplayAnalyzer
                 next.Time - current.Time;
 
             if (firstInterval <= 0
-                || secondInterval <= 0
-                || firstInterval > 220
-                || secondInterval > 220)
+                || secondInterval <= 0)
             {
                 continue;
             }
+            if (currentIsComplexSlider
+               && complexSignalDebugCount < 50)
+            {
+                BeatInsight.Diagnostics.DebugLogger.Detailed(
+                     $"COMPLEX SLIDER SIGNAL DEBUG | " +
+                    $"i={i} " +
+                    $"Time={current.Time} " +
+                    $"Curve={current.SliderCurveType} " +
+                    $"CP={current.SliderControlPoints.Count} " +
+                    $"Length={current.Length:F1} " +
+                    $"BeforeInterval={firstInterval:F1}ms " +
+                    $"AfterInterval={secondInterval:F1}ms " +
+                    $"PrevComplex={previousIsComplexSlider} " +
+                    $"CurrentComplex={currentIsComplexSlider} " +
+                    $"NextComplex={nextIsComplexSlider}");
 
-            // Les très grands déplacements sont davantage
-            // caractéristiques du Jump.
-            if (Distance(previous, current) > 160
-                || Distance(current, next) > 160)
+                complexSignalDebugCount++;
+            }
+
+
+            // ----------------------------------------------------
+            // Distances
+            // ----------------------------------------------------
+
+            var previousEnd =
+     GetObjectEndPosition(previous);
+
+            var currentStart =
+                GetObjectStartPosition(current);
+
+            var currentEnd =
+                GetObjectEndPosition(current);
+
+            var nextStart =
+                GetObjectStartPosition(next);
+
+
+            double firstDistance =
+                Math.Sqrt(
+                    Math.Pow(currentStart.X - previousEnd.X, 2) +
+                    Math.Pow(currentStart.Y - previousEnd.Y, 2));
+
+            double secondDistance =
+                Math.Sqrt(
+                    Math.Pow(nextStart.X - currentEnd.X, 2) +
+                    Math.Pow(nextStart.Y - currentEnd.Y, 2));
+
+            double averageDistance =
+                (firstDistance + secondDistance) / 2.0;
+
+            // ----------------------------------------------------
+            // Les gros déplacements sont plutôt Jump/Aim.
+            // ----------------------------------------------------
+
+            if (firstDistance > 160
+                || secondDistance > 160)
             {
                 continue;
             }
 
             transitionCount++;
 
+            // ----------------------------------------------------
+            // Transition compacte
+            // ----------------------------------------------------
+
+            if (firstDistance <= 110
+                && secondDistance <= 110)
+            {
+                compactTransitions++;
+            }
+
+            // ----------------------------------------------------
+            // Angle
+            // ----------------------------------------------------
+
             double turnAngle =
-                GetTurnAngle(
+                GetTechTurnAngle(
                     previous,
                     current,
                     next);
 
-            // --------------------------------------------------------
-            // STRUCTURE TECH V1.2
-            // --------------------------------------------------------
+            bool isStructural =
+    turnAngle >= TechStructureAngle;
 
-            // Une transition devient structurelle lorsqu'elle implique
-            // un changement de direction suffisamment important.
+            bool isAwkward =
+                turnAngle >= 45
+                && turnAngle <= 150
+                && averageDistance <= 125;
+
+            bool isSharp =
+                turnAngle >= 150
+                && averageDistance <= 125;
+
+            bool isCompact =
+                firstDistance <= 110
+                && secondDistance <= 110;
+
+            bool isAlternating = false;
+
+            bool spacingVariation =
+                Math.Abs(
+                    firstDistance
+                    - secondDistance) >= 35;
+
+            // ----------------------------------------------------
+            // Structure
+            // ----------------------------------------------------
+
             if (turnAngle >= TechStructureAngle)
             {
                 structuralTransitions++;
             }
 
-            // --------------------------------------------------------
-            // ALTERNANCE DE DIRECTION
-            // --------------------------------------------------------
+            // ----------------------------------------------------
+            // Angles awkward
+            //
+            // On évite de considérer uniquement les 180°.
+            // Les angles intermédiaires sont souvent beaucoup
+            // plus intéressants pour détecter une structure Tech.
+            // ----------------------------------------------------
 
-            if (i >= 2 && i + 1 < objects.Count)
+            if (turnAngle >= 45
+    && turnAngle <= 150
+    && averageDistance <= 125)
             {
-                double previousAngle =
-                    GetTurnAngle(
-                        objects[i - 2],
-                        objects[i - 1],
-                        objects[i]);
+                awkwardTransitions++;
 
-                if (previousAngle >= TechStructureAngle
-                    && turnAngle >= TechStructureAngle)
-                {
-                    if (firstInterval > 0
-                        && secondInterval > 0
-                        && firstInterval <= TechStructureMaximumInterval
-                        && secondInterval <= TechStructureMaximumInterval)
-                    {
-                        alternatingTransitions++;
-                    }
-                }
-            }
-            if (turnAngle >= 150)
-            {
-                sharpTransitionCount++;
-
-                // Les trois objets entourant la transition
-                // sont marqués comme objets Tech.
                 techObjects[i - 1] = true;
                 techObjects[i] = true;
                 techObjects[i + 1] = true;
+
+                techPatternEvidence[i - 1] =
+                    Math.Max(
+                        techPatternEvidence[i - 1],
+                        previousIsComplexSlider
+                            ? TechSliderPatternWeight
+                            : TechCirclePatternWeight);
+
+                techPatternEvidence[i] =
+                    Math.Max(
+                        techPatternEvidence[i],
+                        currentIsComplexSlider
+                            ? TechSliderPatternWeight
+                            : TechCirclePatternWeight);
+
+                techPatternEvidence[i + 1] =
+                    Math.Max(
+                        techPatternEvidence[i + 1],
+                        nextIsComplexSlider
+                            ? TechSliderPatternWeight
+                            : TechCirclePatternWeight);
             }
+
+            // ----------------------------------------------------
+            // Sharp reversal
+            // ----------------------------------------------------
+
+            if (turnAngle >= 150
+    && averageDistance <= 125)
+            {
+                sharpTransitionCount++;
+
+                techObjects[i - 1] = true;
+                techObjects[i] = true;
+                techObjects[i + 1] = true;
+
+                techPatternEvidence[i - 1] =
+                    Math.Max(
+                        techPatternEvidence[i - 1],
+                        previousIsComplexSlider
+                            ? TechSliderPatternWeight
+                            : TechCirclePatternWeight);
+
+                techPatternEvidence[i] =
+                    Math.Max(
+                        techPatternEvidence[i],
+                        currentIsComplexSlider
+                            ? TechSliderPatternWeight
+                            : TechCirclePatternWeight);
+
+                techPatternEvidence[i + 1] =
+                    Math.Max(
+                        techPatternEvidence[i + 1],
+                        nextIsComplexSlider
+                            ? TechSliderPatternWeight
+                            : TechCirclePatternWeight);
+            }
+
+            // ----------------------------------------------------
+            // Fast transition
+            // ----------------------------------------------------
 
             if (firstInterval <= 125
                 && secondInterval <= 125)
             {
                 fastTransitionCount++;
             }
+
+            // ----------------------------------------------------
+            // Variation de spacing
+            //
+            // Un changement important de distance entre deux
+            // mouvements peut créer une structure awkward.
+            // ----------------------------------------------------
+
+            double distanceDifference =
+                Math.Abs(
+                    firstDistance
+                    - secondDistance);
+
+            if (distanceDifference >= 35)
+            {
+                spacingVariationTransitions++;
+            }
+
+            // ----------------------------------------------------
+            // Alternance
+            // ----------------------------------------------------
+
+            if (i >= 2)
+            {
+                double previousAngle =
+                    GetTechTurnAngle(
+                        objects[i - 2],
+                        objects[i - 1],
+                        objects[i]);
+
+                if (previousAngle >= TechStructureAngle
+                    && turnAngle >= TechStructureAngle
+                    && firstInterval <= TechStructureMaximumInterval
+                    && secondInterval <= TechStructureMaximumInterval)
+                {
+                    alternatingTransitions++;
+
+                    isAlternating = true;
+                }
+            }
+
+            DebugTechTransition(
+     ref debugCount,
+     i,
+     previous,
+     current,
+     next,
+     turnAngle,
+     averageDistance,
+     (firstInterval + secondInterval) / 2.0,
+     isSharp,
+     isAwkward,
+     isStructural,
+     isCompact,
+     isAlternating,
+     spacingVariation);
+
         }
 
-        // --------------------------------------------------------
-        // Signaux intermédiaires
-        // --------------------------------------------------------
 
-        double complexSliderRatio =
-            CalculateRatio(
-                complexSliderCount,
-                sliders.Count);
 
-        double sharpTransitionRatio =
-            CalculateRatio(
-                sharpTransitionCount,
-                transitionCount);
 
-        double fastTransitionRatio =
-            CalculateRatio(
-                fastTransitionCount,
-                transitionCount);
         // --------------------------------------------------------
-        // SIGNAUX TECH V1.1
+        // Signaux
         // --------------------------------------------------------
 
-        // Proportion de transitions réellement brusques.
         double transitionSignal =
             CalculateRatio(
                 sharpTransitionCount,
                 transitionCount);
 
-        // Proportion de sliders complexes.
-        double sliderSignal =
+        double awkwardSignal =
             CalculateRatio(
-                complexSliderCount,
-                sliders.Count);
+                awkwardTransitions,
+                transitionCount);
 
-        // Proportion de superpositions spatiales.
-        double spatialSignal =
-            sliders.Count == 0
-                ? 0
-                : Math.Clamp(
-                    (double)sliderSpatialOverlapCount
-                    / Math.Max(1.0, sliders.Count),
-                    0,
-                    1);
+        double compactSignal =
+            CalculateRatio(
+                compactTransitions,
+                transitionCount);
 
-        // Pression temporelle des transitions.
-        double temporalSignal =
-            fastTransitionRatio;
-
-        // --------------------------------------------------------
-        // STRUCTURE SIGNAL
-        // --------------------------------------------------------
+        double spacingVariationSignal =
+            CalculateRatio(
+                spacingVariationTransitions,
+                transitionCount);
 
         double structureSignal =
             CalculateRatio(
                 structuralTransitions,
                 transitionCount);
 
-        // --------------------------------------------------------
-        // ALTERNANCE SIGNAL
-        // --------------------------------------------------------
-
         double alternatingSignal =
             CalculateRatio(
                 alternatingTransitions,
                 transitionCount);
+
+        double temporalSignal =
+            CalculateRatio(
+                fastTransitionCount,
+                transitionCount);
+
+        double complexSliderRatio =
+            CalculateRatio(
+                complexSliderCount,
+                sliders.Count);
+
+
+        // --------------------------------------------------------
+        // Structure
+        // --------------------------------------------------------
+
+        double rawStructureSignal =
+            Math.Clamp(
+                structureSignal * 0.45
+                + alternatingSignal * 0.25
+                + awkwardSignal * 0.30,
+                0,
+                1);
+
+        // --------------------------------------------------------
+        // Tech structure
+        //
+        // Les structures compactes sont beaucoup plus importantes
+        // que la simple vitesse.
+        // --------------------------------------------------------
+
+        double structureCombinedSignal =
+                Math.Clamp(
+                rawStructureSignal * 0.80
+                + compactSignal * 0.20,
+                0,
+                1);
+        DebugLogger.Log(
+            $"TECH STRUCTURE DEBUG | " +
+            $"Structure={structureSignal:F3} " +
+            $"Alternating={alternatingSignal:F3} " +
+            $"Awkward={awkwardSignal:F3} " +
+            $"Compact={compactSignal:F3} " +
+            $"Raw={rawStructureSignal:F3} " +
+            $"Combined={structureCombinedSignal:F3}");
+
+        // --------------------------------------------------------
+        // Transition signal
+        // --------------------------------------------------------
+
+        double sharpSignal =
+            NormalizeAboveBaseline(
+                transitionSignal,
+                0.10,
+                0.45);
+
+        // --------------------------------------------------------
+        // Spacing awkwardness
+        // --------------------------------------------------------
+
+        double spacingSignal =
+            NormalizeAboveBaseline(
+                spacingVariationSignal,
+                0.15,
+                0.60);
+
+        // --------------------------------------------------------
+        // Spatial overlap
+        // --------------------------------------------------------
+
+        double spatialSignal =
+            sliders.Count == 0
+                ? 0
+                : Math.Clamp(
+                    (double)sliderSpatialOverlapCount
+                    / Math.Max(
+                        1.0,
+                        sliders.Count),
+                    0,
+                    1);
 
         double overlapSignal =
             sliders.Count == 0
@@ -992,21 +1720,36 @@ public static class GameplayAnalyzer
                     / Math.Max(
                         1.0,
                         sliders.Count * 0.25));
+        double sliderDensity =
+    objects.Count == 0
+        ? 0
+        : (double)sliders.Count / objects.Count;
 
-        double rawStructureSignal =
-      Math.Clamp(
-          structureSignal * 0.60
-          + alternatingSignal * 0.40,
-          0,
-          1);
+        DebugLogger.Log(
+            $"TECH DEBUG | " +
+            $"Sliders={sliders.Count} " +
+            $"SliderDensity={sliderDensity:P1} " +
+            $"Complex={complexSliderCount} " +
+            $"ComplexRatio={complexSliderRatio:P1} " +
+            $"Overlap={sliderSpatialOverlapCount} " +
+            $"Sharp={sharpTransitionCount} " +
+            $"Structural={structuralTransitions} " +
+            $"Alternating={alternatingTransitions} " +
+            $"Fast={fastTransitionCount}");
 
-        double structureTemporalModifier =
-            0.30
-            + temporalSignal * 0.70;
+        // --------------------------------------------------------
+        // Signaux intermédiaires
+        // --------------------------------------------------------
 
-        double structureCombinedSignal =
-            rawStructureSignal
-            * structureTemporalModifier;
+        double sharpTransitionRatio =
+            CalculateRatio(
+                sharpTransitionCount,
+                transitionCount);
+
+        double fastTransitionRatio =
+            CalculateRatio(
+                fastTransitionCount,
+                transitionCount);
 
         // --------------------------------------------------------
         // Normalisation
@@ -1024,35 +1767,261 @@ public static class GameplayAnalyzer
                 0.15,
                 0.50);
 
+
         // --------------------------------------------------------
-        // Score Tech
+        // SCORE TECH V1.5
+        //
+        // Le Tech ne doit pas dépendre principalement de la vitesse.
+        // La structure, les transitions et les sliders complexes
+        // constituent les signaux principaux.
+        //
+        // Temporal reste un signal secondaire.
         // --------------------------------------------------------
 
         double score =
-            (
-                  sharpTransitionSignal * 0.20
-                + structureCombinedSignal * 0.55
-                + complexSliderSignal * 0.10
-                + overlapSignal * 0.15
-            )
-            * (0.50 + fastTransitionRatio * 0.50);
+              sharpTransitionSignal * 0.25
+            + structureCombinedSignal * 0.30
+            + complexSliderSignal * 0.20
+            + overlapSignal * 0.10
+            + temporalSignal * 0.05
+            + spacingSignal * 0.10;
 
-        score =
-            Math.Clamp(score, 0, 1) * 100;
+        double rawScore = Math.Clamp(score, 0, 1);
 
         int techObjectCount =
-            techObjects.Count(value => value);
+     techObjects.Count(
+         value => value);
+
+        BeatInsight.Diagnostics.DebugLogger.Log(
+            $"TECH SCORE DEBUG | " +
+            $"Sharp={sharpTransitionSignal:F3} " +
+            $"Structure={structureCombinedSignal:F3} " +
+            $"Complex={complexSliderSignal:F3} " +
+            $"Overlap={overlapSignal:F3} " +
+            $"Temporal={temporalSignal:F3} " +
+            $"RawScore={rawScore:F3}");
+
+        // --------------------------------------------------------
+        // Score final V1.6
+        //
+        // Le score intrinsèque mesure la présence de signaux Tech.
+        // La couverture mesure la proportion réelle d'objets Tech.
+        // --------------------------------------------------------
+
+        score =
+    Math.Clamp(score, 0, 1);
+
+        BeatInsight.Diagnostics.DebugLogger.Log(
+                $"TECH FINAL DEBUG | FinalScore={score * 100:F3}");
+
+        score *= 100;
+
+        // --------------------------------------------------------
+        // Objets Tech
+        // --------------------------------------------------------
+
+
+
+        List<GameplaySection> techSections =
+            BuildTechSections(
+                objects,
+                techObjects,
+                techPatternEvidence);
+
+        // --------------------------------------------------------
+        // Résultat
+        // --------------------------------------------------------
 
         return new TechAnalysis(
-            score,
-            techObjectCount,
-            complexSliderCount,
-            sliderSpatialOverlapCount,
-            sharpTransitionCount,
-            transitionSignal,
-            structureCombinedSignal,
-            spatialSignal,
-            temporalSignal);
+                score,
+                techObjectCount,
+                complexSliderCount,
+                sliderSpatialOverlapCount,
+                sharpTransitionCount,
+                transitionSignal,
+                structureCombinedSignal,
+                spatialSignal,
+                temporalSignal,
+                techSections);
+
+    }
+    private static (double X, double Y) GetObjectStartPosition(
+    HitObject hitObject)
+    {
+        return (
+            hitObject.X,
+            hitObject.Y);
+    }
+
+    private static (double X, double Y) GetObjectEndPosition(
+    HitObject hitObject)
+    {
+        if (!IsSlider(hitObject))
+        {
+            return (
+                hitObject.X,
+                hitObject.Y);
+        }
+
+        return (
+            hitObject.SliderEndPosition.X,
+            hitObject.SliderEndPosition.Y);
+    }
+
+    private static double GetTechTurnAngle(
+    HitObject previous,
+    HitObject current,
+    HitObject next)
+    {
+        var previousEnd =
+            GetObjectEndPosition(previous);
+
+        var currentStart =
+            GetObjectStartPosition(current);
+
+        var currentEnd =
+            GetObjectEndPosition(current);
+
+        var nextStart =
+            GetObjectStartPosition(next);
+
+        double firstX =
+            currentStart.X - previousEnd.X;
+
+        double firstY =
+            currentStart.Y - previousEnd.Y;
+
+        double secondX =
+            nextStart.X - currentEnd.X;
+
+        double secondY =
+            nextStart.Y - currentEnd.Y;
+
+        double firstLength =
+            Math.Sqrt(
+                firstX * firstX +
+                firstY * firstY);
+
+        double secondLength =
+            Math.Sqrt(
+                secondX * secondX +
+                secondY * secondY);
+
+        if (firstLength == 0 || secondLength == 0)
+            return 0;
+
+        double cosine =
+            (
+                firstX * secondX +
+                firstY * secondY
+            )
+            / (firstLength * secondLength);
+
+        return Math.Acos(
+            Math.Clamp(cosine, -1, 1))
+            * 180
+            / Math.PI;
+    }
+
+    /// <summary>
+    /// Construit les sections Tech à partir des preuves de patterns.
+    /// 
+    /// Les sliders complexes ont une influence de 80 %.
+    /// Les cercles présentant une structure Tech ont une influence de 20 %.
+    /// 
+    /// Cette pondération sert uniquement à la détection des patterns.
+    /// Elle n'influence pas directement le Tech.Score.
+    /// </summary>
+    private static List<GameplaySection> BuildTechSections(
+        IReadOnlyList<HitObject> objects,
+        bool[] techObjects,
+        double[] techPatternEvidence)
+    {
+        List<GameplaySection> sections = [];
+
+        const int minimumObjects = 4;
+        const double maximumGapMs = 300;
+
+        int start = -1;
+        int end = -1;
+
+        for (int i = 0; i < objects.Count; i++)
+        {
+            // Aucun signal Tech sur cet objet.
+            if (!techObjects[i]
+                || techPatternEvidence[i] <= 0)
+            {
+                if (start >= 0)
+                {
+                    AddGameplaySection(
+                        sections,
+                        objects,
+                        start,
+                        end,
+                        "Tech",
+                        minimumObjects);
+
+                    start = -1;
+                    end = -1;
+                }
+
+                continue;
+            }
+
+            // ----------------------------------------------------
+            // Début d'une section
+            // ----------------------------------------------------
+
+            if (start < 0)
+            {
+                start = i;
+                end = i;
+                continue;
+            }
+
+            // ----------------------------------------------------
+            // Continuité temporelle
+            // ----------------------------------------------------
+
+            double gap =
+                objects[i].Time -
+                objects[end].Time;
+
+            if (gap <= maximumGapMs)
+            {
+                end = i;
+            }
+            else
+            {
+                AddGameplaySection(
+                    sections,
+                    objects,
+                    start,
+                    end,
+                    "Tech",
+                    minimumObjects);
+
+                start = i;
+                end = i;
+            }
+        }
+
+        // --------------------------------------------------------
+        // Dernière section
+        // --------------------------------------------------------
+
+        if (start >= 0)
+        {
+            AddGameplaySection(
+                sections,
+                objects,
+                start,
+                end,
+                "Tech",
+                minimumObjects);
+        }
+
+        return sections;
     }
 
     /// <summary>
@@ -1135,14 +2104,38 @@ public static class GameplayAnalyzer
     /// Détermine si un slider possède une structure suffisamment
     /// complexe pour être considéré comme signal Tech.
     /// </summary>
-    private static bool IsComplexSlider(
-        HitObject hitObject)
-    {
-        if (!IsSlider(hitObject))
-            return false;
+    /// 
 
-        return hitObject.SliderCurveType is "C" or "P"
-            || hitObject.SliderControlPoints.Count >= 3;
+    private static bool IsComplexSlider(HitObject hitObject)
+    {
+        bool complexCurve =
+            hitObject.SliderCurveType is "C" or "P";
+
+        bool manyControlPoints =
+            hitObject.SliderControlPoints.Count >= 3;
+
+        bool isComplex =
+            complexCurve || manyControlPoints;
+
+        if (isComplex && complexSliderDebugCount < 50)
+        {
+            BeatInsight.Diagnostics.DebugLogger.Detailed(
+                $"COMPLEX SLIDER DEBUG #{complexSliderDebugCount + 1} | " +
+                $"Time={hitObject.Time} " +
+                $"Pos=({hitObject.X},{hitObject.Y}) " +
+                $"Curve={hitObject.SliderCurveType} " +
+                $"ControlPoints={hitObject.SliderControlPoints.Count} " +
+                $"Slides={hitObject.Slides} " +
+                $"Length={hitObject.Length:F1} " +
+                $"Reason=" +
+                $"{(complexCurve ? "Curve" : "")}" +
+                $"{(complexCurve && manyControlPoints ? "+" : "")}" +
+                $"{(manyControlPoints ? "ControlPoints" : "")}");
+
+            complexSliderDebugCount++;
+        }
+
+        return isComplex;
     }
 
     // ============================================================
@@ -1227,7 +2220,14 @@ public static class GameplayAnalyzer
     {
         if (objects.Count == 0)
             return new ReadAnalysis(
-                0, 0, 0, 0, 0, 0, 0);
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                Array.Empty<GameplaySection>());
 
         double approachTime =
             GetApproachTime(beatmap.AR);
@@ -1236,12 +2236,22 @@ public static class GameplayAnalyzer
             CalculateReadCSSignal(beatmap.CS);
 
         int analysedCircles =
-            objects.Count(IsCircle);
+                objects.Count(IsCircle);
+
 
         if (analysedCircles == 0)
-            return new ReadAnalysis(0, 0, 0, 0, 0, 0, 0);
+            return new ReadAnalysis(
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                Array.Empty<GameplaySection>());
 
         int readObjectCount = 0;
+        List<int> readObjectIndices = new();
 
         double totalDensitySignal = 0;
         double totalClutterSignal = 0;
@@ -1369,6 +2379,8 @@ public static class GameplayAnalyzer
             {
                 readObjectCount++;
 
+                readObjectIndices.Add(i);
+
                 totalDensitySignal +=
                     densitySignal;
 
@@ -1429,6 +2441,12 @@ public static class GameplayAnalyzer
         score =
             Math.Clamp(score, 0, 1) * 100.0;
 
+        List<GameplaySection> readSections =
+            BuildSectionsFromObjectIndices(
+                "Read",
+                readObjectIndices,
+                objects);
+
         return new ReadAnalysis(
             readObjectCount,
             readRatio,
@@ -1436,7 +2454,70 @@ public static class GameplayAnalyzer
             averageDensitySignal,
             averageClutterSignal,
             averagePersistenceSignal,
-            csSignal);
+            csSignal,
+            readSections);
+    }
+
+    private static List<GameplaySection> BuildSectionsFromObjectIndices(
+    string type,
+    IReadOnlyList<int> indices,
+    IReadOnlyList<HitObject> objects)
+    {
+        List<GameplaySection> sections = new();
+
+        if (indices.Count == 0)
+            return sections;
+
+        int startIndex = indices[0];
+        int previousIndex = indices[0];
+
+        for (int i = 1; i < indices.Count; i++)
+        {
+            int currentIndex = indices[i];
+
+            // Un trou signifie que la séquence est terminée.
+            if (currentIndex != previousIndex + 1)
+            {
+                sections.Add(
+                    CreateGameplaySection(
+                        type,
+                        startIndex,
+                        previousIndex,
+                        objects));
+
+                startIndex = currentIndex;
+            }
+
+            previousIndex = currentIndex;
+        }
+
+        // Dernière section.
+        sections.Add(
+            CreateGameplaySection(
+                type,
+                startIndex,
+                previousIndex,
+                objects));
+
+        return sections;
+    }
+
+
+
+
+    private static GameplaySection CreateGameplaySection(
+    string type,
+    int startIndex,
+    int endIndex,
+    IReadOnlyList<HitObject> objects)
+    {
+        return new GameplaySection(
+            type,
+            startIndex,
+            endIndex,
+            objects[startIndex].Time,
+            objects[endIndex].Time,
+            endIndex - startIndex + 1);
     }
 
     /// <summary>
@@ -1503,7 +2584,10 @@ public static class GameplayAnalyzer
     /// - densité locale,
     /// - AR.
     /// </summary>
-    private static SpeedAnalysis AnalyzeSpeed(IReadOnlyList<HitObject> objects,Beatmap beatmap)
+    private const double SpeedLightThreshold = 0.25;
+    private const double SpeedModerateThreshold = 0.50;
+    private const double SpeedStrongThreshold = 0.75;
+    private static SpeedAnalysis AnalyzeSpeed(IReadOnlyList<HitObject> objects, Beatmap beatmap)
     {
         List<HitObject> circles =
             objects
@@ -1517,7 +2601,9 @@ public static class GameplayAnalyzer
                 0,
                 0,
                 0,
-                0);
+                0,
+                0,
+                Array.Empty<GameplaySection>());
         }
 
         bool[] fastObjects =
@@ -1567,6 +2653,14 @@ public static class GameplayAnalyzer
             (double)fastObjects.Count(value => value)
             / circles.Count;
 
+        int speedObjectCount =
+            fastObjects.Count(value => value);
+
+        List<GameplaySection> speedSections =
+            BuildSpeedSections(
+                circles,
+                fastObjects);
+
         // --------------------------------------------------------
         // Densité locale.
         // --------------------------------------------------------
@@ -1594,11 +2688,13 @@ public static class GameplayAnalyzer
             Math.Clamp(score, 0, 1) * 100;
 
         return new SpeedAnalysis(
-            score,
-            fastRatio,
-            fastObjectRatio,
-            densitySignal,
-            arSignal);
+                speedObjectCount,
+                score,
+                fastRatio,
+                fastObjectRatio,
+                densitySignal,
+                arSignal,
+                speedSections);
     }
 
     /// <summary>
@@ -1677,6 +2773,16 @@ public static class GameplayAnalyzer
         return (ar - 7) / 3.0;
     }
 
+    private static string GetSpeedIntensity(double score)
+    {
+        return score switch
+        {
+            >= 70 => "High",
+            >= 40 => "Medium",
+            _ => "Low"
+        };
+    }
+
     /// <summary>
     /// Convertit le score Speed en niveau lisible.
     /// </summary>
@@ -1689,6 +2795,114 @@ public static class GameplayAnalyzer
             >= 40 => "Medium",
             _ => "Low"
         };
+    }
+
+    /// <summary>
+    /// Détermine la présence de Speed dans la map
+    /// à partir de sa couverture et de son score.
+    /// </summary>
+    private static string GetSpeedPresenceProfile(
+    double coverage,
+    double score)
+    {
+        if (coverage >= 0.70 && score >= 60)
+            return "Dominant Speed Presence";
+
+        if (coverage >= 0.50 && score >= 45)
+            return "Strong Speed Presence";
+
+        if (coverage >= 0.30 && score >= 35)
+            return "Moderate Speed Presence";
+
+        if (coverage >= 0.15 && score >= 25)
+            return "Light Speed Presence";
+
+        return "Minimal Speed Presence";
+    }
+    /// <summary>
+    /// Construit les sections Speed à partir des objets
+    /// considérés comme rapides.
+    /// </summary>
+    private static List<GameplaySection> BuildSpeedSections(
+        IReadOnlyList<HitObject> circles,
+        IReadOnlyList<bool> fastObjects)
+    {
+        List<GameplaySection> sections = new();
+
+        if (circles.Count == 0 ||
+            fastObjects.Count != circles.Count)
+            return sections;
+
+        int sectionStart = -1;
+
+        for (int i = 0; i < circles.Count; i++)
+        {
+            bool isFast =
+                fastObjects[i];
+
+            // ----------------------------------------------------
+            // Début d'une section Speed.
+            // ----------------------------------------------------
+
+            if (isFast && sectionStart == -1)
+            {
+                sectionStart = i;
+                continue;
+            }
+
+            // ----------------------------------------------------
+            // Fin d'une section Speed.
+            // ----------------------------------------------------
+
+            if (!isFast && sectionStart != -1)
+            {
+                int sectionEnd = i - 1;
+
+                int objectCount =
+                    sectionEnd - sectionStart + 1;
+
+                if (objectCount >= 2)
+                {
+                    sections.Add(
+                        new GameplaySection(
+                            "Speed",
+                            sectionStart,
+                            sectionEnd,
+                            circles[sectionStart].Time,
+                            circles[sectionEnd].Time,
+                            objectCount));
+                }
+
+                sectionStart = -1;
+            }
+        }
+
+        // --------------------------------------------------------
+        // Ferme une éventuelle section en fin de map.
+        // --------------------------------------------------------
+
+        if (sectionStart != -1)
+        {
+            int sectionEnd =
+                circles.Count - 1;
+
+            int objectCount =
+                sectionEnd - sectionStart + 1;
+
+            if (objectCount >= 2)
+            {
+                sections.Add(
+                    new GameplaySection(
+                        "Speed",
+                        sectionStart,
+                        sectionEnd,
+                        circles[sectionStart].Time,
+                        circles[sectionEnd].Time,
+                        objectCount));
+            }
+        }
+
+        return sections;
     }
 
     // =============================================================
@@ -1725,12 +2939,19 @@ public static class GameplayAnalyzer
             .ToList();
 
         if (circles.Count < 2)
-            return new AimAnalysis(0, 0, 0, 0, 0);
+            return new AimAnalysis(
+                0,
+                0,
+                0,
+                0,
+                0,
+                0);
 
         double totalDistance = 0;
         double totalMovementSpeed = 0;
 
         int movementCount = 0;
+        int aimObjectCount = 0;
 
         // ---------------------------------------------------------
         // DISTANCE + VITESSE
@@ -1753,6 +2974,19 @@ public static class GameplayAnalyzer
             double movementSpeed =
                 distance / (interval / 1000.0);
 
+            // ---------------------------------------------------------
+            // IDENTIFICATION D'UN MOUVEMENT AIM
+            // ---------------------------------------------------------
+
+            bool isAimMovement =
+                distance >= AimDistanceBaseline
+                && movementSpeed >= AimSpeedBaseline;
+
+            if (isAimMovement)
+            {
+                aimObjectCount++;
+            }
+
             totalDistance += distance;
             totalMovementSpeed += movementSpeed;
 
@@ -1760,7 +2994,13 @@ public static class GameplayAnalyzer
         }
 
         if (movementCount == 0)
-            return new AimAnalysis(0, 0, 0, 0, 0);
+            return new AimAnalysis(
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0);
 
         double averageDistance =
             totalDistance / movementCount;
@@ -1857,11 +3097,12 @@ public static class GameplayAnalyzer
             Math.Clamp(score, 0, 1) * 100;
 
         return new AimAnalysis(
-            score,
-            distanceSignal,
-            speedSignal,
-            angleSignal,
-            temporalSignal);
+             aimObjectCount,
+             score,
+             distanceSignal,
+             speedSignal,
+             angleSignal,
+             temporalSignal);
     }
 
     private static double CalculateAimTemporalSignal(
@@ -1993,105 +3234,96 @@ public static class GameplayAnalyzer
     // =============================================================
 
     private sealed record AimAnalysis(
-        double Score,
-        double DistanceSignal,
-        double SpeedSignal,
-        double AngleSignal,
-        double TemporalSignal);
+       int AimObjectCount,
+       double Score,
+       double DistanceSignal,
+       double SpeedSignal,
+       double AngleSignal,
+       double TemporalSignal);
 
 
-    // ============================================================
-    // 13. CLASSIFICATION DE LA MAP
-    // ============================================================
-
-    /// <summary>
-    /// Détermine le type principal de la map à partir des ratios
-    /// Stream, Jump et Tech.
-    ///
-    /// Si aucun type ne dépasse 50 %, la map est considérée
-    /// comme Classic / Mixed.
-    /// </summary>
     private static string DeterminePrimaryType(
-    double streamRatio,
-    double jumpRatio,
+    double streamCoverage,
+    double jumpCoverage,
+    double techCoverage,
     double techScore)
     {
-        var types = new List<(string Name, double Ratio)>
-    {
-        ("Stream", streamRatio),
-        ("Jump", jumpRatio)
-    };
-
-        var ordered =
-            types
-                .OrderByDescending(x => x.Ratio)
-                .ToList();
-
-        double techRatio =
-            techScore / 100.0;
-
-
         // --------------------------------------------------------
-        // TYPE PRINCIPAL
+        // Dominance basée principalement sur la couverture réelle.
         // --------------------------------------------------------
 
-        if (techRatio >= 0.40
-            && techRatio >= ordered[0].Ratio)
+        double maxCoverage = Math.Max(
+            streamCoverage,
+            Math.Max(jumpCoverage, techCoverage));
+
+        // Pas suffisamment de couverture spécialisée :
+        // on considère la map comme Classic / Mixed.
+        if (maxCoverage < 0.10)
         {
-            return "Tech";
+            return "Classic / Mixed";
         }
 
+        // --------------------------------------------------------
+        // Vérification de la dominance.
+        // --------------------------------------------------------
 
-        if (ordered[0].Ratio >= 0.40)
+        // Stream dominant
+        if (streamCoverage >= jumpCoverage &&
+            streamCoverage >= techCoverage)
         {
-            double difference = ordered[0].Ratio - ordered[1].Ratio;
+            // Si Stream domine réellement la couverture,
+            // TechScore ne doit pas écraser cette classification.
+            if (streamCoverage >= 0.20)
+                return "Stream";
 
+            // Entre deux profils proches => Mixed.
+            if (streamCoverage - Math.Max(jumpCoverage, techCoverage) < 0.05)
+                return "Classic / Mixed";
 
-            if (ordered[1].Ratio >= SecondaryTypeThreshold
-                    && difference <= 0.18)
-            {
-                return $"{ordered[0].Name} / {ordered[1].Name}";
-            }
-
-            return ordered[0].Name;
+            return "Stream";
         }
 
+        // Jump dominant
+        if (jumpCoverage >= streamCoverage &&
+            jumpCoverage >= techCoverage)
+        {
+            if (jumpCoverage >= 0.20)
+                return "Jump";
+
+            if (jumpCoverage - Math.Max(streamCoverage, techCoverage) < 0.05)
+                return "Classic / Mixed";
+
+            return "Jump";
+        }
 
         // --------------------------------------------------------
-        // MAP MIXED
+        // Tech dominant
         // --------------------------------------------------------
+
+        if (techCoverage >= streamCoverage &&
+            techCoverage >= jumpCoverage)
+        {
+            // Tech doit être suffisamment présent ET avoir
+            // un score technique cohérent.
+            if (techCoverage >= 0.10 && techScore >= 55)
+                return "Tech";
+
+            if (techCoverage - Math.Max(streamCoverage, jumpCoverage) < 0.05)
+                return "Classic / Mixed";
+
+            return "Classic / Mixed";
+        }
 
         return "Classic / Mixed";
     }
 
-    private static string BuildStyleDescription(
-    string style)
+    private static string BuildGameplayIdentity(
+    string primaryType)
     {
-        return style switch
-        {
-            "Speed Aim" =>
-                "High speed with large cursor movement.",
+        if (string.IsNullOrWhiteSpace(primaryType))
+            return "Classic / Mixed";
 
-            "Speed" =>
-                "Requires fast tapping and stamina.",
-
-            "Aim" =>
-                "Focuses on cursor control and movement.",
-
-            "Tech" =>
-                "Requires pattern adaptation and precision.",
-
-            "Reading" =>
-                "Requires strong visual processing.",
-
-            _ =>
-                "Balanced gameplay."
-        };
-    }
-
-    private static string BuildGameplayIdentity(string primaryType,GameplayStyleProfile style)
-    {
-        return $"{primaryType} {style.PrimaryStyle}";
+        return primaryType;
     }
 
     private static int GetTraitPriority(string trait)
@@ -2151,6 +3383,85 @@ public static class GameplayAnalyzer
             .ToList();
     }
 
+    private static List<string> GenerateGameplayConcepts(
+    string primaryType,
+    AimAnalysis aim,
+    SpeedAnalysis speed,
+    TechAnalysis tech,
+    ReadAnalysis read)
+    {
+        HashSet<string> concepts = [];
+
+        // ============================================================
+        // SPEED
+        // ============================================================
+
+        if (speed.Score >= 35)
+            concepts.Add("speed");
+
+        if (speed.SpeedRatio >= 0.15)
+            concepts.Add("stream");
+
+        if (speed.SpeedRatio >= 0.20)
+            concepts.Add("burst");
+
+        // ============================================================
+        // AIM
+        // ============================================================
+
+        if (aim.Score >= 35)
+            concepts.Add("aim");
+
+        if (aim.DistanceSignal >= 0.45)
+            concepts.Add("spacing");
+
+        if (aim.AngleSignal >= 0.60)
+            concepts.Add("angle");
+
+        if (aim.TemporalSignal >= 0.60)
+            concepts.Add("timing");
+
+        // ============================================================
+        // READING
+        // ============================================================
+
+        if (read.Score >= 35)
+            concepts.Add("reading");
+
+        if (read.DensitySignal >= 0.45)
+            concepts.Add("density");
+
+        if (read.ClutterSignal >= 0.45)
+            concepts.Add("clutter");
+
+        if (read.PersistenceSignal >= 0.45)
+            concepts.Add("persistence");
+
+        if (read.CSSignal >= 0.50)
+            concepts.Add("cs");
+
+        // ============================================================
+        // TECH
+        // ============================================================
+
+        if (tech.Score >= 35)
+            concepts.Add("tech");
+
+        if (tech.StructureSignal >= 0.45)
+            concepts.Add("structure");
+
+        if (tech.TransitionSignal >= 0.45)
+            concepts.Add("transition");
+
+        if (tech.SpatialSignal >= 0.45)
+            concepts.Add("spatial");
+
+        if (tech.TemporalSignal >= 0.45)
+            concepts.Add("timing");
+
+        return concepts.ToList();
+    }
+
 
     // ============================================================
     // 14. NIVEAUX DE DIFFICULTÉ
@@ -2160,258 +3471,334 @@ public static class GameplayAnalyzer
     /// Convertit le score Tech en niveau.
     /// </summary>
     private static string GetTechLevel(
-        double score)
+    double score,
+    double coverage)
     {
-        return score switch
+        if (coverage < 0.05)
+            return "Minor";
+
+        if (score < 25)
+            return "Low";
+
+        if (score < 50)
+            return "Medium";
+
+        if (score < 75)
+            return "High";
+
+        return "Extreme";
+    }
+
+    private static string GetTechProfile(
+    double coverage,
+    double score)
+    {
+        if (coverage < 0.05)
+            return "Minor Technical Presence";
+
+        if (coverage < 0.10)
+            return score >= 60
+                ? "Focused Technical Presence"
+                : "Moderate Technical Presence";
+
+        if (coverage < 0.20)
+            return score >= 60
+                ? "Strong Technical Presence"
+                : "Moderate Technical Presence";
+
+        return score >= 60
+            ? "Dominant Technical Presence"
+            : "Strong Technical Presence";
+    }
+
+    private static double GetStreamIdentityScore(
+    string primaryType,
+    SpeedAnalysis speed)
+    {
+        if (primaryType.Contains(
+                "Stream",
+                StringComparison.OrdinalIgnoreCase))
         {
-            >= 70 => "High",
-            >= 40 => "Medium",
-            _ => "Low"
-        };
+            return 100.0;
+        }
+
+        if (speed.SpeedRatio >= 0.20)
+        {
+            return speed.SpeedRatio * 100.0;
+        }
+
+        return speed.SpeedRatio * 70.0;
+    }
+
+    private static double GetJumpIdentityScore(
+        string primaryType)
+    {
+        if (primaryType.Contains(
+                "Jump",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return 100.0;
+        }
+
+        return 0.0;
     }
 
     private static GameplayIdentity AnalyzeGameplayIdentity(
     string primaryType,
+    double streamCoverage,
+    double jumpCoverage,
+    double techCoverage,
     AimAnalysis aim,
     SpeedAnalysis speed,
     TechAnalysis tech,
     ReadAnalysis read)
     {
-        string identity;
+        // ============================================================
+        // SCORES STRUCTURELS
+        //
+        // La couverture représente la présence réelle de chaque
+        // famille de gameplay dans la map.
+        //
+        // Aim / Speed / Reading ne participent PAS à l'identité.
+        // ============================================================
+
+        double streamStructuralScore =
+            streamCoverage * 100.0;
+
+        double jumpStructuralScore =
+            jumpCoverage * 100.0;
+
+        double techStructuralScore =
+            CalculateTechIdentityScore(
+                streamCoverage,
+                jumpCoverage,
+                techCoverage,
+                tech.Score);
+        DebugLogger.Log(
+    $"IDENTITY SCORES | " +
+    $"Stream={streamStructuralScore:F1} | " +
+    $"Jump={jumpStructuralScore:F1} | " +
+    $"Tech={techStructuralScore:F1}");
+        DebugLogger.Log(
+            $"TECH IDENTITY DEBUG | " +
+            $"Coverage={techCoverage:P1} " +
+            $"TechScore={tech.Score:F1} " +
+            $"IdentityScore={techStructuralScore:F1}");
+
+        DebugLogger.Log(
+            $"IDENTITY SCORES | " +
+            $"Stream={streamStructuralScore:F1} | " +
+            $"Jump={jumpStructuralScore:F1} | " +
+            $"Tech={techStructuralScore:F1}");
+
+        var structuralScores =
+            new List<(string Name, double Score)>
+            {
+            ("Stream", streamStructuralScore),
+            ("Jump", jumpStructuralScore),
+            ("Tech", techStructuralScore)
+            };
+
+        List<(string Name, double Score)> ordered =
+            structuralScores
+                .OrderByDescending(x => x.Score)
+                .ToList();
+
+        // ============================================================
+        // PRIMARY
+        //
+        // L'identité structurelle devient la source de vérité.
+        //
+        // Stream / Jump utilisent leur couverture structurelle.
+        // Tech utilise son TechIdentityScore.
+        //
+        // Aim / Speed / Reading ne participent jamais à la
+        // classification primaire.
+        // ============================================================
+
+        string primary =
+            "Classic / Mixed";
+
+        if (ordered.Count > 0)
+        {
+            (string Name, double Score) candidate =
+                ordered[0];
+
+            if (candidate.Score >= PrimaryIdentityThreshold)
+            {
+                primary = candidate.Name;
+            }
+        }
+
+        // ============================================================
+        // SCORE DU PRIMARY
+        // ============================================================
+
+        double primaryScore =
+            ordered
+                .FirstOrDefault(
+                    x => x.Name.Equals(
+                        primary,
+                        StringComparison.OrdinalIgnoreCase))
+                .Score;
+
+        // ============================================================
+        // SECONDARY
+        //
+        // Seules les identités structurelles peuvent être Secondary.
+        //
+        // Conditions :
+        // - au moins 10 % de couverture
+        // - pas trop éloigné du Primary
+        //
+        // Classic / Mixed n'est jamais un Secondary.
+        // ============================================================
+
         string secondary = "";
-        double confidence = 0;
+
+        double secondaryScore = 0.0;
+
+        if (!primary.Equals(
+                "Classic / Mixed",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            foreach ((string Name, double Score) candidate in ordered)
+            {
+                if (candidate.Name.Equals(
+                        primary,
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                // Présence structurelle minimale.
+                if (candidate.Score < 10.0)
+                    continue;
+
+                // Le Secondary doit avoir une présence significative
+                // par rapport au Primary.
+                //
+                // Exemple :
+                // Jump 32,7 / Tech 23,8 -> accepté
+                // Jump 70 / Tech 8      -> refusé
+                double relativePresence =
+                    primaryScore > 0.0
+                        ? candidate.Score / primaryScore
+                        : 0.0;
+
+                if (relativePresence >= 0.50)
+                {
+                    secondary =
+                        candidate.Name;
+
+                    secondaryScore =
+                        candidate.Score;
+
+                    break;
+                }
+            }
+        }
+
+        // ============================================================
+        // PATTERN
+        // ============================================================
+
+        string pattern =
+            string.IsNullOrWhiteSpace(secondary)
+                ? primary
+                : $"{primary} / {secondary}";
+
+        // ============================================================
+        // TRAITS
+        // ============================================================
+
         List<string> traits =
-        GenerateGameplayTraits(
-            primaryType,
-            aim,
-            speed,
-            tech,
-            read);
+            GenerateGameplayTraits(
+                primary,
+                aim,
+                speed,
+                tech,
+                read);
 
         // ============================================================
-        // SPEED AIM
+        // CONCEPTS
         // ============================================================
 
-        if (speed.Score >= 65
-            && aim.Score >= 50)
+        List<string> concepts =
+            GenerateGameplayConcepts(
+                primary,
+                aim,
+                speed,
+                tech,
+                read);
+
+        // ============================================================
+        // CONFIDENCE
+        //
+        // UNIQUEMENT basée sur la structure.
+        //
+        // Plus le Primary domine son Secondary,
+        // plus la confiance augmente.
+        // ============================================================
+
+        double confidence;
+
+        if (primary.Equals(
+                "Classic / Mixed",
+                StringComparison.OrdinalIgnoreCase))
         {
-            identity = "Speed Aim";
+            confidence = 55.0;
         }
-
-
-        // ============================================================
-        // STREAM SPEED
-        // ============================================================
-
-        else if (primaryType.Contains("Stream")
-            && speed.Score >= 45)
-        {
-            identity = "Speed";
-        }
-
-
-        // ============================================================
-        // STREAM FLOW
-        // ============================================================
-
-        else if (primaryType.Contains("Stream")
-            && read.Score >= 50
-            && speed.Score < 60)
-        {
-            identity = "Flow";
-        }
-
-
-        // ============================================================
-        // JUMP AIM
-        // ============================================================
-
-        else if (primaryType.Contains("Jump")
-            && aim.Score >= 50)
-        {
-            identity = "Aim";
-        }
-
-
-        // ============================================================
-        // JUMP READING
-        // ============================================================
-
-        else if (primaryType.Contains("Jump")
-            && read.Score >= 50)
-        {
-            identity = "Reading";
-        }
-
-
-        // ============================================================
-        // TECH PRECISION
-        // ============================================================
-
-        else if (tech.Score >= 45
-            && aim.Score >= 30)
-        {
-            identity = "Tech Precision";
-        }
-
-
-        // ============================================================
-        // TECH READING
-        // ============================================================
-
-        else if (tech.Score >= 35
-            && read.Score >= 45)
-        {
-            identity = "Tech Reading";
-        }
-
-
-        // ============================================================
-        // PURE READING
-        // ============================================================
-
-        else if (read.Score >= 60)
-        {
-            identity = "Reading";
-        }
-
-
-        // ============================================================
-        // AIM
-        // ============================================================
-
-        else if (aim.Score >= 60)
-        {
-            identity = "Aim";
-        }
-
-
-        // ============================================================
-        // SPEED
-        // ============================================================
-
-        else if (speed.Score >= 60)
-        {
-            identity = "Speed";
-        }
-
-
-        // ============================================================
-        // FALLBACK
-        // ============================================================
-
         else
         {
-            identity = "Balanced";
+            double separation =
+                primaryScore > 0.0
+                    ? (primaryScore - secondaryScore)
+                      / primaryScore
+                    : 0.0;
+
+            separation =
+                Math.Clamp(
+                    separation,
+                    0.0,
+                    1.0);
+
+            confidence =
+                50.0
+                + (primaryScore * 0.40)
+                + (separation * 30.0);
+
+            confidence =
+                Math.Clamp(
+                    confidence,
+                    50.0,
+                    95.0);
         }
 
         // ============================================================
-        // SECONDARY PATTERN
+        // DEBUG
         // ============================================================
 
-        if (primaryType.Contains("Stream")
-            && read.Score >= 50)
-        {
-            secondary = "Reading";
-        }
-
-        else if (primaryType.Contains("Stream")
-            && aim.Score >= 40)
-        {
-            secondary = "Aim";
-        }
-
-        else if (primaryType.Contains("Jump")
-            && speed.Score >= 50)
-        {
-            secondary = "Speed";
-        }
-
-        else if (primaryType.Contains("Jump")
-            && read.Score >= 50)
-        {
-            secondary = "Reading";
-        }
-
-        double patternStrength = primaryType switch
-        {
-            var x when x.Contains("Stream") =>
-                Math.Max(0, speed.Score),
-
-            var x when x.Contains("Jump") =>
-                Math.Max(0, aim.Score),
-
-            var x when x.Contains("Tech") =>
-                tech.Score,
-
-            _ => 30
-        };
+        Debug.WriteLine(
+            "===== TAG / GAMEPLAY IDENTITY =====");
 
 
-        double gameplayStrength =
-            Math.Max(
-                Math.Max(speed.Score, aim.Score),
-                Math.Max(read.Score, tech.Score));
 
-
-        confidence =
-            50
-            + patternStrength * 0.35
-            + gameplayStrength * 0.15;
-
-
-        confidence =
-            Math.Clamp(
-                confidence,
-                50,
-                95);
-        if (speed.Score >= 65)
-        {
-            traits.Add("High Speed Pressure");
-        }
-
-        if (aim.Score >= 60)
-        {
-            traits.Add("High Aim Pressure");
-        }
-
-        if (read.Score >= 60)
-        {
-            traits.Add("High Reading Demand");
-        }
-
-        if (tech.Score >= 45)
-        {
-            traits.Add("Technical Patterns");
-        }
-
-
-        if (primaryType.Contains("Stream"))
-        {
-            traits.Add("Stream Heavy");
-        }
-
-        if (primaryType.Contains("Jump"))
-        {
-            traits.Add("Jump Heavy");
-        }
-
-
-        if (primaryType.Contains(" / "))
-        {
-            string[] parts = primaryType.Split('/');
-
-            traits.Add(
-                $"{parts[1].Trim()} Secondary");
-        }
+        // ============================================================
+        // RESULTAT
+        // ============================================================
 
         return new GameplayIdentity
         {
-            Pattern = primaryType,
-            Primary = identity,
+            Primary = primary,
             Secondary = secondary,
+            Pattern = pattern,
             Confidence = confidence,
-            Traits = CleanTraits(traits)
+            StreamScore = streamStructuralScore,
+            JumpScore = jumpStructuralScore,
+            TechScore = techStructuralScore,
+            Traits = CleanTraits(traits),
+            Concepts = concepts
         };
     }
 
@@ -2421,107 +3808,187 @@ public static class GameplayAnalyzer
     SpeedAnalysis speed,
     TechAnalysis tech,
     ReadAnalysis read)
+
+
     {
+
+
         HashSet<string> traits = [];
 
         // ============================================================
-        // STRUCTURE
-        // ============================================================
-
-        if (primaryType.Contains("Stream"))
-        {
-            traits.Add("Stream Heavy");
-        }
-
-        if (primaryType.Contains("Jump"))
-        {
-            traits.Add("Jump Heavy");
-        }
-        
-        if (primaryType.Contains(" / ")
-            && !primaryType.Contains("Classic"))
-        {
-            string[] parts =
-                primaryType.Split('/');
-
-            if (parts.Length >= 2)
-            {
-                traits.Add(
-                    $"{parts[1].Trim()} Secondary");
-            }
-        }
-
-        // ============================================================
-        // SPEED
+        // PRESSIONS PRINCIPALES
         // ============================================================
 
         if (speed.Score >= 60)
         {
             traits.Add("High Speed Pressure");
         }
-        else if (speed.Score >= 40)
+        else if (speed.Score >= 35)
         {
             traits.Add("Speed Influence");
         }
-
-        // ============================================================
-        // AIM
-        // ============================================================
 
         if (aim.Score >= 60)
         {
             traits.Add("High Aim Pressure");
         }
-        else if (aim.Score >= 40)
+        else if (aim.Score >= 35)
         {
             traits.Add("Aim Influence");
         }
-
-        // ============================================================
-        // READ
-        // ============================================================
 
         if (read.Score >= 60)
         {
             traits.Add("High Reading Demand");
         }
-        else if (read.Score >= 40)
+        else if (read.Score >= 35)
         {
             traits.Add("Reading Influence");
         }
-
-        // ============================================================
-        // TECH
-        // ============================================================
 
         if (tech.Score >= 60)
         {
             traits.Add("High Technical Pressure");
         }
-        else if (tech.Score >= 40)
+        else if (tech.Score >= 35)
         {
             traits.Add("Technical Influence");
         }
 
         // ============================================================
-        // CLASSIC / MIXED
+        // STRUCTURES
         // ============================================================
 
-        if (primaryType == "Classic / Mixed")
+        if (primaryType.Contains(
+                "Stream",
+                StringComparison.OrdinalIgnoreCase))
         {
-            if (tech.Score >= 35)
+            traits.Add("Stream Heavy");
+        }
+        else if (speed.SpeedRatio >= 0.15)
+        {
+            traits.Add("Stream Influence");
+        }
+
+        if (primaryType.Contains(
+                "Jump",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            traits.Add("Jump Heavy");
+        }
+
+        // ============================================================
+        // BURSTS
+        // ============================================================
+
+        if (primaryType.Contains(
+                "Stream",
+                StringComparison.OrdinalIgnoreCase)
+            || speed.SpeedRatio >= 0.20)
+        {
+            // Le Burst est particulièrement pertinent
+            // lorsque la pression Speed est présente.
+            traits.Add("Burst Influence");
+        }
+
+        // ============================================================
+        // SPEED STRUCTURE
+        // ============================================================
+
+        if (speed.FastObjectRatio >= 0.30)
+        {
+            traits.Add("Fast Patterns");
+        }
+
+        if (speed.DensitySignal >= 0.40)
+        {
+            traits.Add("High Density");
+        }
+
+        // ============================================================
+        // AIM STRUCTURE
+        // ============================================================
+
+        if (aim.DistanceSignal >= 0.45)
+        {
+            traits.Add("Large Spacing");
+        }
+
+        if (aim.AngleSignal >= 0.60)
+        {
+            traits.Add("Directional Changes");
+        }
+
+        if (aim.TemporalSignal >= 0.60)
+        {
+            traits.Add("Aim Timing Pressure");
+        }
+
+        // ============================================================
+        // TECH STRUCTURE
+        // ============================================================
+
+        if (tech.Score >= 45)
+        {
+            traits.Add("Technical Patterns");
+        }
+
+        if (tech.StructureSignal >= 0.45)
+        {
+            traits.Add("Structured Patterns");
+        }
+
+        if (tech.TransitionSignal >= 0.45)
+        {
+            traits.Add("Sharp Transitions");
+        }
+
+        // ============================================================
+        // READ STRUCTURE
+        // ============================================================
+
+        if (read.DensitySignal >= 0.45)
+        {
+            traits.Add("Reading Density");
+        }
+
+        if (read.ClutterSignal >= 0.45)
+        {
+            traits.Add("Visual Clutter");
+        }
+
+        if (read.PersistenceSignal >= 0.45)
+        {
+            traits.Add("Persistent Reading");
+        }
+
+        // ============================================================
+        // SECONDARY TYPE
+        // ============================================================
+
+        if (primaryType.Contains(" / "))
+        {
+            string[] parts =
+                primaryType.Split('/');
+
+            if (parts.Length >= 2)
             {
-                traits.Add("Transition Heavy");
+                string secondary =
+                    parts[1].Trim();
+
+                traits.Add(
+                    $"{secondary} Secondary");
             }
         }
 
-        return traits.ToList();
+        return traits
+            .Distinct()
+            .ToList();
     }
 
     private static GameplayStyleProfile AnalyzeGameplayStyle(
     AimAnalysis aim,
     SpeedAnalysis speed,
-    TechAnalysis tech,
     ReadAnalysis read)
     {
         double aimValue =
@@ -2530,54 +3997,227 @@ public static class GameplayAnalyzer
         double speedValue =
             speed.Score;
 
-        double techValue =
-            tech.Score;
-
         double readValue =
             read.Score;
 
+        // --------------------------------------------------------
+        // Détermination du skill dominant.
+        //
+        // Aim / Speed / Reading sont des dimensions transversales.
+        // Elles ne définissent jamais l'identité structurelle primaire.
+        // --------------------------------------------------------
 
-        string primary;
+        string dominantSkill;
 
+        double highestValue =
+            Math.Max(
+                aimValue,
+                Math.Max(
+                    speedValue,
+                    readValue));
 
-        if (speedValue >= 65 && aimValue >= 50)
+        // Aucun skill ne présente une influence suffisamment forte.
+        if (highestValue < 40)
         {
-            primary = "Speed Aim";
+            dominantSkill = "Balanced";
         }
-        else if (aimValue >= 65)
+        else if (aimValue >= speedValue
+                 && aimValue >= readValue)
         {
-            primary = "Aim";
+            dominantSkill = "Aim";
         }
-        else if (speedValue >= 65)
+        else if (speedValue >= aimValue
+                 && speedValue >= readValue)
         {
-            primary = "Speed";
-        }
-        else if (techValue >= 45)
-        {
-            primary = "Tech";
-        }
-        else if (readValue >= 50)
-        {
-            primary = "Reading";
+            dominantSkill = "Speed";
         }
         else
         {
-            primary = "Balanced";
+            dominantSkill = "Reading";
         }
 
+        // --------------------------------------------------------
+        // Description du skill dominant.
+        // --------------------------------------------------------
+
+        string description =
+            dominantSkill switch
+            {
+                "Aim" =>
+                    "Focuses on cursor control and movement.",
+
+                "Speed" =>
+                    "Requires fast tapping and sustained speed.",
+
+                "Reading" =>
+                    "Requires strong visual processing.",
+
+                _ =>
+                    "Balanced gameplay."
+            };
 
         return new GameplayStyleProfile
         {
-            PrimaryStyle = primary,
+            DominantSkill = dominantSkill,
 
             AimInfluence = aimValue,
+
             SpeedInfluence = speedValue,
-            TechInfluence = techValue,
+
             ReadInfluence = readValue,
 
-            Description = BuildStyleDescription(
-                primary)
+            Description = description
         };
+    }
+
+    private static double CalculateTechIdentityScore(
+    double streamCoverage,
+    double jumpCoverage,
+    double techCoverage,
+    double techScore)
+    {
+        // --------------------------------------------------------
+        // 1. Présence structurelle Tech
+        // --------------------------------------------------------
+
+        double coverageComponent =
+            Math.Clamp(
+                techCoverage,
+                0.0,
+                1.0);
+
+        // --------------------------------------------------------
+        // 2. Force intrinsèque des patterns Tech
+        //
+        // Le TechScore renforce l'identité,
+        // mais ne doit jamais compenser une faible couverture.
+        // --------------------------------------------------------
+
+        double scoreComponent =
+            Math.Clamp(
+                techScore / 60.0,
+                0.0,
+                1.0);
+
+        // --------------------------------------------------------
+        // 3. Dominance structurelle
+        // --------------------------------------------------------
+
+        double strongestCompetitor =
+            Math.Max(
+                streamCoverage,
+                jumpCoverage);
+
+        double dominanceComponent;
+
+        if (techCoverage <= 0.0)
+        {
+            dominanceComponent = 0.0;
+        }
+        else if (strongestCompetitor <= 0.0)
+        {
+            dominanceComponent = 1.0;
+        }
+        else
+        {
+            dominanceComponent =
+                techCoverage /
+                (techCoverage + strongestCompetitor);
+        }
+
+        // --------------------------------------------------------
+        // 4. Identité finale
+        //
+        // La couverture domine.
+        // Le score Tech renforce.
+        // La dominance départage.
+        // --------------------------------------------------------
+
+        double identityScore =
+            (coverageComponent * 0.60)
+            + (scoreComponent * 0.15)
+            + (dominanceComponent * 0.25);
+
+        // --------------------------------------------------------
+        // DEBUG
+        // --------------------------------------------------------
+
+        DebugLogger.Log(
+            "===== TECH IDENTITY SCORE DEBUG =====");
+
+        DebugLogger.Log(
+            $"Tech Coverage       = {techCoverage:F3}");
+
+        DebugLogger.Log(
+            $"Tech Score          = {techScore:F3}");
+
+        DebugLogger.Log(
+            $"Stream Coverage     = {streamCoverage:F3}");
+
+        DebugLogger.Log(
+            $"Jump Coverage       = {jumpCoverage:F3}");
+
+        DebugLogger.Log(
+            $"Coverage Component  = {coverageComponent:F3}");
+
+        DebugLogger.Log(
+            $"Score Component     = {scoreComponent:F3}");
+
+        DebugLogger.Log(
+            $"Dominance Component = {dominanceComponent:F3}");
+
+        DebugLogger.Log(
+            $"Identity Score      = {identityScore * 100.0:F3}");
+
+        DebugLogger.Log(
+            "====================================");
+
+        return identityScore * 100.0;
+    }
+
+    private static double CalculatePrimaryConfidence(
+    string primaryType,
+    double streamCoverage,
+    double jumpCoverage,
+    double techCoverage,
+    double techScore)
+    {
+        double stream = streamCoverage;
+        double jump = jumpCoverage;
+
+        double tech =
+            techCoverage *
+            (0.5 + 0.5 * (techScore / 100.0));
+
+        double[] values =
+        {
+        stream,
+        jump,
+        tech
+    };
+
+        Array.Sort(values);
+
+        double highest = values[2];
+        double secondHighest = values[1];
+
+        if (highest <= 0)
+            return 0;
+
+        double dominance =
+            highest / (highest + secondHighest);
+
+        double separation =
+            (highest - secondHighest) / highest;
+
+        double confidence =
+            (dominance * 0.6) +
+            (separation * 0.4);
+
+        return Math.Clamp(
+            confidence * 100.0,
+            0.0,
+            100.0);
     }
 
 
@@ -2634,9 +4274,9 @@ public static class GameplayAnalyzer
     /// trois objets consécutifs.
     /// </summary>
     private static double GetTurnAngle(
-        HitObject previous,
-        HitObject current,
-        HitObject next)
+    HitObject previous,
+    HitObject current,
+    HitObject next)
     {
         double firstX =
             current.X - previous.X;
@@ -2663,7 +4303,7 @@ public static class GameplayAnalyzer
         if (firstLength == 0
             || secondLength == 0)
         {
-            return 180;
+            return 0;
         }
 
         double cosine =
@@ -2724,6 +4364,240 @@ public static class GameplayAnalyzer
             1);
     }
 
+    /// <summary>
+    /// Ajoute une section Jump si elle respecte le nombre minimum
+    /// d'objets.
+    /// </summary>
+    private static void AddJumpSection(
+        List<GameplaySection> sections,
+        IReadOnlyList<HitObject> objects,
+        int start,
+        int end,
+        int minimumObjects)
+    {
+        if (start < 0 ||
+            end < start ||
+            end >= objects.Count)
+        {
+            return;
+        }
+
+        int objectCount =
+            end - start + 1;
+
+        if (objectCount < minimumObjects)
+            return;
+
+        sections.Add(
+            new GameplaySection(
+                "Jump",
+                start,
+                end,
+                objects[start].Time,
+                objects[end].Time,
+                objectCount));
+    }
+
+    // ============================================================
+    // SECTIONS DE GAMEPLAY
+    // ============================================================
+
+    /// <summary>
+    /// Construit les sections temporelles d'une famille de gameplay.
+    ///
+    /// Une section correspond à une zone continue de la map où
+    /// plusieurs objets appartiennent au même pattern.
+    ///
+    /// Cela permet de distinguer :
+    ///
+    /// - quelques objets isolés
+    /// - de véritables zones de gameplay cohérentes
+    ///
+    /// Le masque fourni doit utiliser le même index que
+    /// Beatmap.HitObjects.
+    /// </summary>
+    private static List<GameplaySection> BuildGameplaySections(
+        IReadOnlyList<HitObject> objects,
+        bool[] patternObjects,
+        string type)
+    {
+        List<GameplaySection> sections = [];
+
+        // --------------------------------------------------------
+        // Paramètres communs
+        // --------------------------------------------------------
+
+        const int minimumObjects = 4;
+
+        // Deux objets appartenant à la même section doivent
+        // rester suffisamment proches dans le temps.
+        const double maximumGapMs = 300;
+
+        int start = -1;
+        int end = -1;
+
+        // --------------------------------------------------------
+        // Parcours des HitObjects
+        // --------------------------------------------------------
+
+        for (int i = 0; i < objects.Count; i++)
+        {
+            // Seuls les cercles participent actuellement
+            // aux sections Stream / Jump / Tech.
+            if (!IsCircle(objects[i])
+                || !patternObjects[i])
+            {
+                if (start >= 0)
+                {
+                    AddGameplaySection(
+                        sections,
+                        objects,
+                        start,
+                        end,
+                        type,
+                        minimumObjects);
+
+                    start = -1;
+                    end = -1;
+                }
+
+                continue;
+            }
+
+            // ----------------------------------------------------
+            // Début d'une nouvelle section
+            // ----------------------------------------------------
+
+            if (start < 0)
+            {
+                start = i;
+                end = i;
+                continue;
+            }
+
+            // ----------------------------------------------------
+            // Écart temporel avec le dernier objet de la section
+            // ----------------------------------------------------
+
+            double gap =
+                objects[i].Time -
+                objects[end].Time;
+
+            if (gap <= maximumGapMs)
+            {
+                end = i;
+            }
+            else
+            {
+                // La section précédente est terminée.
+                AddGameplaySection(
+                    sections,
+                    objects,
+                    start,
+                    end,
+                    type,
+                    minimumObjects);
+
+                // Nouvelle section.
+                start = i;
+                end = i;
+            }
+        }
+
+        // --------------------------------------------------------
+        // Dernière section
+        // --------------------------------------------------------
+
+        if (start >= 0)
+        {
+            AddGameplaySection(
+                sections,
+                objects,
+                start,
+                end,
+                type,
+                minimumObjects);
+        }
+
+        return sections;
+    }
+
+    /// <summary>
+    /// Calcule la proportion de la durée de la map couverte
+    /// par les sections d'un type de gameplay.
+    ///
+    /// Les sections représentent des zones temporelles cohérentes.
+    /// On mesure donc leur durée totale plutôt que simplement
+    /// le nombre d'objets détectés.
+    /// </summary>
+    private static double CalculateSectionCoverage(
+    IReadOnlyList<GameplaySection> sections,
+    IReadOnlyList<HitObject> objects)
+    {
+        int totalObjects =
+            objects.Count(IsCircle);
+
+        if (totalObjects == 0 || sections.Count == 0)
+            return 0;
+
+        int coveredObjects =
+            sections.Sum(section => section.ObjectCount);
+
+        return Math.Clamp(
+            (double)coveredObjects / totalObjects,
+            0,
+            1);
+    }
+
+    private static int CountSectionCircles(
+    IReadOnlyList<GameplaySection> sections,
+    IReadOnlyList<HitObject> objects)
+    {
+        int count = 0;
+
+        foreach (GameplaySection section in sections)
+        {
+            int start = Math.Max(0, section.StartObjectIndex);
+            int end = Math.Min(objects.Count - 1, section.EndObjectIndex);
+
+            for (int i = start; i <= end; i++)
+            {
+                if (IsCircle(objects[i]))
+                    count++;
+            }
+        }
+
+        return count;
+    }
+
+
+    /// <summary>
+    /// Ajoute une section si elle contient suffisamment d'objets.
+    /// </summary>
+    private static void AddGameplaySection(
+        List<GameplaySection> sections,
+        IReadOnlyList<HitObject> objects,
+        int start,
+        int end,
+        string type,
+        int minimumObjects)
+    {
+        int objectCount =
+            end - start + 1;
+
+        if (objectCount < minimumObjects)
+            return;
+
+        sections.Add(
+            new GameplaySection(
+                type,
+                start,
+                end,
+                objects[start].Time,
+                objects[end].Time,
+                objectCount));
+    }
+
 
     // ============================================================
     // 16. DEBUG
@@ -2738,98 +4612,79 @@ public static class GameplayAnalyzer
     private static void WriteDebug(
         GameplayProfile profile)
     {
-        Debug.WriteLine(
-            "----- GAMEPLAY PROFILE V0 -----");
+        BeatInsight.Diagnostics.DebugLogger.Log(
+         $"----- GAMEPLAY PROFILE V0 -----");
 
-        Debug.WriteLine(
+        BeatInsight.Diagnostics.DebugLogger.Log(
             $"ANALYSED CIRCLES = {profile.AnalysedCircleCount}");
 
-        Debug.WriteLine(
+        BeatInsight.Diagnostics.DebugLogger.Log(
             $"STREAMS = {profile.StreamSequenceCount} sequences / " +
             $"{profile.StreamObjectCount} circles / " +
             $"{profile.StreamRatio:P2}");
 
-        Debug.WriteLine(
+        BeatInsight.Diagnostics.DebugLogger.Log(
             $"JUMPS = {profile.JumpSequenceCount} sequences / " +
             $"{profile.JumpObjectCount} circles / " +
             $"{profile.JumpRatio:P2}");
 
-        Debug.WriteLine(
+        BeatInsight.Diagnostics.DebugLogger.Log(
             $"BURSTS = {profile.BurstSequenceCount} sequences / " +
             $"{profile.BurstObjectCount} circles / " +
             $"{profile.BurstRatio:P2} / " +
             $"Max {profile.LongestBurstLength}");
 
-        Debug.WriteLine(
+        BeatInsight.Diagnostics.DebugLogger.Log(
             $"PRIMARY TYPE = {profile.PrimaryType}");
 
-        Debug.WriteLine(
+        BeatInsight.Diagnostics.DebugLogger.Log(
             $"TECH = {profile.TechObjectCount} circles / " +
             $"{profile.TechRatio:P2} / " +
             $"Signal {profile.TechScore:F0}/100 " +
             $"({profile.TechLevel})");
 
-        Debug.WriteLine(
+
+
+        BeatInsight.Diagnostics.DebugLogger.Log(
             $"TECH SIGNALS = " +
             $"Transition {profile.TechTransitionSignal:P0} / " +
             $"Structure {profile.TechStructureSignal:P0} / " +
             $"Spatial {profile.TechSpatialSignal:P0} / " +
             $"Temporal {profile.TechTemporalSignal:P0}");
 
-        Debug.WriteLine(
+        BeatInsight.Diagnostics.DebugLogger.Log(
             $"READ = {profile.ReadObjectCount} circles / " +
             $"{profile.ReadRatio:P2} / " +
             $"Score {profile.ReadScore:F0}/100 " +
             $"({profile.ReadLevel})");
 
-        Debug.WriteLine(
+        BeatInsight.Diagnostics.DebugLogger.Log(
             $"READ SIGNALS = " +
             $"Density {profile.ReadDensitySignal:P0} / " +
             $"Clutter {profile.ReadClutterSignal:P0} / " +
             $"Persistence {profile.ReadPersistenceSignal:P0} / " +
             $"CS {profile.ReadCSSignal:P0}");
 
-        Debug.WriteLine(
-            $"SPEED = {profile.SpeedRatio:P2} / " +
-            $"Score {profile.SpeedScore:F0}/100 " +
-            $"({profile.SpeedLevel})");
+        BeatInsight.Diagnostics.DebugLogger.Log(
+            $"READ PROFILE = {profile.ReadProfile}");
 
-        Debug.WriteLine(
-            $"SPEED SIGNALS = " +
-            $"Fast {profile.SpeedFastObjectRatio:P0} / " +
-            $"Density {profile.SpeedDensitySignal:P0} / " +
-            $"AR {profile.SpeedARSignal:P0}");
+        BeatInsight.Diagnostics.DebugLogger.Log(
+            $"AIM = Score {profile.AimScore:F0}/100 " +
+            $"({GetAimLevel(profile.AimScore)})");
 
-        Debug.WriteLine(
+        BeatInsight.Diagnostics.DebugLogger.Log(
             $"AIM SIGNALS = " +
             $"Distance {profile.AimDistanceSignal:P0} / " +
             $"Speed {profile.AimSpeedSignal:P0} / " +
             $"Angle {profile.AimAngleSignal:P0} / " +
             $"Temporal {profile.AimTemporalSignal:P0}");
 
+        BeatInsight.Diagnostics.DebugLogger.Log(
+            $"AIM PROFILE = {profile.AimProfile}");
 
-        Debug.WriteLine(
-            $"AIM = Score {profile.AimScore:F0}/100 " +
-            $"({profile.AimLevel})");
+        BeatInsight.Diagnostics.DebugLogger.Log(
+            $"AIM COVERAGE = {profile.AimCoverage:P2}");
 
-        Debug.WriteLine(
-            $"STYLE = {profile.StyleProfile.PrimaryStyle}");
-
-        Debug.WriteLine(
-            $"STYLE SIGNALS = " +
-            $"Aim {profile.StyleProfile.AimInfluence:F0} / " +
-            $"Speed {profile.StyleProfile.SpeedInfluence:F0} / " +
-            $"Tech {profile.StyleProfile.TechInfluence:F0} / " +
-            $"Read {profile.StyleProfile.ReadInfluence:F0}");
-
-        Debug.WriteLine(
-            $"IDENTITY = {profile.Identity.Pattern} {profile.Identity.Primary}");
-
-        Debug.WriteLine(
-            $"CONFIDENCE = {profile.Identity.Confidence:F0}%");
-
-        Debug.WriteLine(
-            $"TRAITS = {string.Join(", ", profile.Identity.Traits)}");
     }
 
 
@@ -2841,35 +4696,129 @@ public static class GameplayAnalyzer
     /// Résultat intermédiaire de l'analyse Tech.
     /// </summary>
     private sealed record TechAnalysis(
-        double Score,
-        int TechObjectCount,
-        int ComplexSliderCount,
-        int SliderSpatialOverlapCount,
-        int SharpTransitionCount,
-        double TransitionSignal,
-        double StructureSignal,
-        double SpatialSignal,
-        double TemporalSignal);
+       double Score,
+       int TechObjectCount,
+       int ComplexSliderCount,
+       int SliderSpatialOverlapCount,
+       int SharpTransitionCount,
+       double TransitionSignal,
+       double StructureSignal,
+       double SpatialSignal,
+       double TemporalSignal,
+       List<GameplaySection> TechSections);
 
     /// <summary>
     /// Résultat intermédiaire de l'analyse Read.
     /// </summary>
     private sealed record ReadAnalysis(
-        int ReadObjectCount,
-        double Ratio,
-        double Score,
-        double DensitySignal,
-        double ClutterSignal,
-        double PersistenceSignal,
-        double CSSignal);
+    int ReadObjectCount,
+    double Ratio,
+    double Score,
+    double DensitySignal,
+    double ClutterSignal,
+    double PersistenceSignal,
+    double CSSignal,
+    IReadOnlyList<GameplaySection> ReadSections);
+
+    private static string GetReadPresenceProfile(double readRatio)
+    {
+        if (readRatio < 0.20)
+            return "Minimal Reading Presence";
+
+        if (readRatio < 0.40)
+            return "Light Reading Presence";
+
+        if (readRatio < 0.60)
+            return "Moderate Reading Presence";
+
+        if (readRatio < 0.80)
+            return "Focused Reading Presence";
+
+        return "Dominant Reading Presence";
+    }
+
+    private static AimProfile GetAimProfile(
+    double aimCoverage,
+    double aimScore)
+    {
+        string profile;
+
+        if (aimCoverage >= 0.75)
+            profile = "Dominant Aim Presence";
+        else if (aimCoverage >= 0.55)
+            profile = "Strong Aim Presence";
+        else if (aimCoverage >= 0.30)
+            profile = "Moderate Aim Presence";
+        else if (aimCoverage >= 0.12)
+            profile = "Light Aim Presence";
+        else
+            profile = "Minimal Aim Presence";
+
+        string intensity;
+
+        if (aimScore >= 70)
+            intensity = "High";
+        else if (aimScore >= 40)
+            intensity = "Medium";
+        else
+            intensity = "Low";
+
+        return new AimProfile(
+            aimCoverage,
+            aimScore,
+            profile,
+            intensity);
+    }
+
+    private static string GetReadIntensity(double score)
+    {
+        if (score < 30)
+            return "Low";
+
+        if (score < 50)
+            return "Medium";
+
+        if (score < 70)
+            return "High";
+
+        if (score < 85)
+            return "Very High";
+
+        return "Extreme";
+    }
+
+    private static string GetSpeedProfile(
+    double coverage,
+    double score)
+    {
+        if (coverage < SpeedLightThreshold)
+            return "Minimal Speed Presence";
+
+        if (coverage < SpeedModerateThreshold)
+            return "Light Speed Presence";
+
+        if (coverage < SpeedStrongThreshold)
+            return "Moderate Speed Presence";
+
+        return "Strong Speed Presence";
+    }
+
+
+    private sealed record AimProfile(
+    double Coverage,
+    double Score,
+    string Profile,
+    string Intensity);
 
     /// <summary>
     /// Résultat intermédiaire de l'analyse Speed.
     /// </summary>
-    private sealed record SpeedAnalysis(
-        double Score,
-        double SpeedRatio,
-        double FastObjectRatio,
-        double DensitySignal,
-        double ARSignal);
+    public record SpeedAnalysis(
+    int SpeedObjectCount,
+    double Score,
+    double SpeedRatio,
+    double FastObjectRatio,
+    double DensitySignal,
+    double ARSignal,
+    IReadOnlyList<GameplaySection> SpeedSections);
 }

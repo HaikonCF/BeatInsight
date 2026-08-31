@@ -12,4 +12,8 @@
     <FileVersion>0.1.0.0</FileVersion>
   </PropertyGroup>
 
+  <ItemGroup>
+    <PackageReference Include="ppy.osu.Game.Rulesets.Osu" Version="2026.702.1" />
+  </ItemGroup>
+
 </Project>
