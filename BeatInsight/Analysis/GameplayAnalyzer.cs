@@ -350,12 +350,12 @@ public static class GameplayAnalyzer
         // Ajustement Tech selon sa présence réelle
         // --------------------------------------------------------
 
-        double techCoverageMultiplier =
-            0.45 +
-            0.55 * Math.Clamp(
-                techCoverage,
-                0.0,
-                1.0);
+        double techPresenceMultiplier =
+            Math.Sqrt(
+                Math.Clamp(
+                    techCoverage,
+                    0.0,
+                    1.0));
 
         double rawTechScore = tech.Score;
 
@@ -363,16 +363,16 @@ public static class GameplayAnalyzer
         {
             Score =
                 Math.Clamp(
-                    tech.Score * techCoverageMultiplier,
+                    tech.Score * techPresenceMultiplier,
                     0.0,
                     100.0)
         };
 
         BeatInsight.Diagnostics.DebugLogger.Detailed(
-            $"TECH COVERAGE ADJUSTMENT | " +
-            $"Raw={rawTechScore:F1} " +
-            $"Coverage={techCoverage:P1} " +
-            $"Multiplier={techCoverageMultiplier:F3} " +
+            $"TECH PRESENCE ADJUSTMENT | " +
+            $"Intensity={rawTechScore:F1} " +
+            $"Presence={techCoverage:P1} " +
+            $"Multiplier={techPresenceMultiplier:F3} " +
             $"Final={tech.Score:F1}");
 
         // --------------------------------------------------------

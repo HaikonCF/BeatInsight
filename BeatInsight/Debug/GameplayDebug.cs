@@ -65,37 +65,6 @@ public static class GameplayDebug
         if (!TechEnabled)
             return;
 
-        double techPresence =
-            Math.Clamp(
-                profile.TechPresence,
-                0.0,
-                1.0);
-
-        double techIntensity =
-            Math.Clamp(
-                profile.TechIntensity,
-                0.0,
-                100.0);
-
-        double currentScore =
-            Math.Clamp(
-                techIntensity *
-                (0.45 + 0.55 * techPresence),
-                0.0,
-                100.0);
-
-        double productScore =
-            Math.Clamp(
-                techIntensity * techPresence,
-                0.0,
-                100.0);
-
-        double sqrtPresenceScore =
-            Math.Clamp(
-                techIntensity * Math.Sqrt(techPresence),
-                0.0,
-                100.0);
-
         DebugLogger.Log(
             "===== TECH PROFILE =====");
 
@@ -112,13 +81,7 @@ public static class GameplayDebug
             $"TECH INTENSITY = {profile.TechIntensity:F0}/100");
 
         DebugLogger.Log(
-            $"TECH SCORE CURRENT = {currentScore:F0}/100");
-
-        DebugLogger.Log(
-            $"TECH SCORE PRODUCT = {productScore:F0}/100");
-
-        DebugLogger.Log(
-            $"TECH SCORE SQRT PRESENCE = {sqrtPresenceScore:F0}/100");
+            $"TECH SCORE FINAL = {profile.TechScore:F0}/100");
 
         DebugLogger.Log(
             $"TECH SIGNALS = " +
