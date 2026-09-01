@@ -950,14 +950,14 @@ namespace BeatInsight.Parser
             double readPresence =
                 gameplay.ReadScore / 100.0;
 
-            double techPresence =
+            double techScoreNormalizedForGameplay =
                 gameplay.TechScore / 100.0;
 
             double gameplayContribution =
                   (aimPresence * 0.20)
                 + (speedPresence * 0.25)
                 + (readPresence * 0.20)
-                + (techPresence * 0.35);
+                + (techScoreNormalizedForGameplay * 0.35);
 
             double gameplayBonus =
                 gameplayContribution * 0.50;
@@ -971,7 +971,9 @@ namespace BeatInsight.Parser
             double maxComponent =
                 Math.Max(
                     Math.Max(aimPresence, speedPresence),
-                    Math.Max(readPresence, techPresence));
+                    Math.Max(
+                        readPresence,
+                        techScoreNormalizedForGameplay));
 
             if (maxComponent > 0.40)
             {
@@ -992,7 +994,8 @@ namespace BeatInsight.Parser
             DebugLogger.Detailed($"Aim Presence   = {aimPresence:F3}");
             DebugLogger.Detailed($"Speed Presence = {speedPresence:F3}");
             DebugLogger.Detailed($"Read Presence  = {readPresence:F3}");
-            DebugLogger.Detailed($"Tech Presence  = {techPresence:F3}");
+            DebugLogger.Detailed(
+                $"Tech Score     = {techScoreNormalizedForGameplay:F3}");
             DebugLogger.Detailed($"Gameplay       = {gameplayContribution:F3}");
             DebugLogger.Detailed($"Gameplay Bonus = {gameplayBonus:F3}");
 
