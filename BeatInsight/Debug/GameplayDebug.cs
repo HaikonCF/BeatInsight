@@ -9,8 +9,8 @@ public static class GameplayDebug
     // ============================================================
 
     public static bool IdentityEnabled = false;
-    public static bool TechEnabled = false;
-    public static bool ReadEnabled = true;
+    public static bool TechEnabled = true;
+    public static bool ReadEnabled = false;
     public static bool SpeedEnabled = false;
     public static bool AimEnabled = false;
     public static bool SummaryEnabled = false;
@@ -65,6 +65,37 @@ public static class GameplayDebug
         if (!TechEnabled)
             return;
 
+        double techPresence =
+            Math.Clamp(
+                profile.TechPresence,
+                0.0,
+                1.0);
+
+        double techIntensity =
+            Math.Clamp(
+                profile.TechIntensity,
+                0.0,
+                100.0);
+
+        double currentScore =
+            Math.Clamp(
+                techIntensity *
+                (0.45 + 0.55 * techPresence),
+                0.0,
+                100.0);
+
+        double productScore =
+            Math.Clamp(
+                techIntensity * techPresence,
+                0.0,
+                100.0);
+
+        double sqrtPresenceScore =
+            Math.Clamp(
+                techIntensity * Math.Sqrt(techPresence),
+                0.0,
+                100.0);
+
         DebugLogger.Log(
             "===== TECH PROFILE =====");
 
@@ -73,6 +104,21 @@ public static class GameplayDebug
             $"{profile.TechRatio:P2} / " +
             $"Score {profile.TechScore:F0}/100 " +
             $"({profile.TechLevel})");
+
+        DebugLogger.Log(
+            $"TECH PRESENCE = {profile.TechPresence:P0}");
+
+        DebugLogger.Log(
+            $"TECH INTENSITY = {profile.TechIntensity:F0}/100");
+
+        DebugLogger.Log(
+            $"TECH SCORE CURRENT = {currentScore:F0}/100");
+
+        DebugLogger.Log(
+            $"TECH SCORE PRODUCT = {productScore:F0}/100");
+
+        DebugLogger.Log(
+            $"TECH SCORE SQRT PRESENCE = {sqrtPresenceScore:F0}/100");
 
         DebugLogger.Log(
             $"TECH SIGNALS = " +
@@ -101,7 +147,7 @@ public static class GameplayDebug
         DebugLogger.Log(
             $"READ = {profile.ReadObjectCount} visual objects / " +
             $"{profile.ReadRatio:P2} / " +
-            $"Score {profile.ReadScore:F0}/100 " +
+            $"Final Score {profile.ReadScore:F0}/100 " +
             $"({profile.ReadLevel})");
 
         DebugLogger.Log(
@@ -130,6 +176,9 @@ public static class GameplayDebug
             $"Temporal {profile.ReadTemporalRegularity:P0} / " +
             $"Spacing {profile.ReadSpacingRegularity:P0} / " +
             $"Trajectory {profile.ReadTrajectoryRepetition:P0}");
+
+        DebugLogger.Log(
+            $"READ AMBIGUITY = {profile.ReadAmbiguity:P0}");
     }
 
     // ============================================================
@@ -194,10 +243,21 @@ public static class GameplayDebug
             $"AIM COVERAGE = {profile.AimCoverage:P2}");
 
         DebugLogger.Log(
+            $"AIM TEMPORAL = Signal {profile.AimTemporalSignal:P0} / " +
+            $"Modifier {profile.AimTemporalModifier:F3}");
+
+        DebugLogger.Log(
+            $"AIM PRECISION = CS {profile.AimPrecisionCS:F2} / " +
+            $"Modifier {profile.AimPrecisionModifier:F3}");
+
+        DebugLogger.Log(
             $"AIM PROFILE = {profile.AimProfile}");
 
         DebugLogger.Log(
-            $"AIM INTENSITY = {profile.AimIntensity}");
+            $"AIM INTENSITY = " +
+            $"Raw {profile.AimRawIntensity:P0} / " +
+            $"Final {profile.AimAdjustedIntensity:P0} " +
+            $"({profile.AimIntensity})");
     }
 
     // ============================================================

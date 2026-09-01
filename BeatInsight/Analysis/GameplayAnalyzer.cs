@@ -198,6 +198,12 @@ public static class GameplayAnalyzer
     private const double ReadClutterDistance = 140.0;
 
     /// <summary>
+    /// Séparation temporelle à laquelle l'ambiguïté visuelle Reading
+    /// atteint sa contribution maximale.
+    /// </summary>
+    private const double ReadAmbiguityTemporalSaturationMs = 300.0;
+
+    /// <summary>
     /// Nombre minimum d'objets Reading dans une section valide.
     /// </summary>
     private const int ReadMinimumSectionObjects = 2;
@@ -321,10 +327,18 @@ public static class GameplayAnalyzer
             $"SECTIONS DEBUG | " +
             $"Tech={tech.TechSections.Count}");
 
-        double techCoverage =
-            CalculateSectionCoverage(
+        // TechCoverage doit utiliser la même base circle-based que
+        // TechRatio : les sliders peuvent structurer une section Tech,
+        // sans être comptés dans sa couverture.
+        int techCircleCount =
+            CountSectionCircles(
                 tech.TechSections,
                 objects);
+
+        double techCoverage =
+            CalculateRatio(
+                techCircleCount,
+                objects.Count(IsCircle));
 
         BeatInsight.Diagnostics.DebugLogger.Detailed(
             $"COVERAGE DEBUG | " +
@@ -387,9 +401,7 @@ public static class GameplayAnalyzer
             objects.Count(IsCircle);
 
         double speedCoverage =
-            CalculateRatio(
-                speed.SpeedObjectCount,
-                analysedCircles);
+            speed.Presence;
 
         string speedProfile =
             GetSpeedPresenceProfile(
@@ -420,11 +432,6 @@ public static class GameplayAnalyzer
         int burstObjectCount =
             burstObjects.Count(value => value);
 
-        int techCircleCount =
-            CountSectionCircles(
-                tech.TechSections,
-                objects);
-
         // --------------------------------------------------------
         // Ratios.
         // --------------------------------------------------------
@@ -449,10 +456,10 @@ public static class GameplayAnalyzer
                 techCircleCount,
                 analysedCircles);
 
+        // AimCoverage représente désormais la présence de mouvements Aim
+        // significatifs, et non le nombre de transitions rapides qualifiées.
         double aimCoverage =
-            CalculateRatio(
-                aim.AimObjectCount,
-                analysedCircles);
+            aim.Presence;
 
         // --------------------------------------------------------
         // Classification globale de la map.
@@ -461,7 +468,7 @@ public static class GameplayAnalyzer
         AimProfile aimProfile =
             GetAimProfile(
                 aimCoverage,
-                aim.Score);
+                aim.Intensity);
 
         string primaryType =
             DeterminePrimaryType(
@@ -539,7 +546,28 @@ public static class GameplayAnalyzer
         // --------------------------------------------------------
         // Construction du profil final.
         // --------------------------------------------------------
+        double readPredictabilityPenalty = 1.0;
 
+        if (read.ReadPredictability > 0.80)
+        {
+            double excess =
+                Math.Clamp(
+                    (read.ReadPredictability - 0.80) / 0.20,
+                    0.0,
+                    1.0);
+
+            double curvedExcess =
+                Math.Sqrt(excess);
+
+            readPredictabilityPenalty =
+                1.0 - (0.80 * curvedExcess);
+        }
+
+        double finalReadScore =
+            Math.Clamp(
+                (read.Score / 100.0) * readPredictabilityPenalty,
+                0.0,
+                1.0) * 100.0;
         GameplayProfile profile = new()
         {
             // ----------------------------
@@ -587,6 +615,8 @@ public static class GameplayAnalyzer
 
             TechObjectCount = techCircleCount,
             TechRatio = techRatio,
+            TechPresence = techCoverage,
+            TechIntensity = rawTechScore,
             TechScore = tech.Score,
             TechLevel = GetTechLevel(tech.Score, techCoverage),
             TechProfile = GetTechProfile(techCoverage, tech.Score),
@@ -616,9 +646,9 @@ public static class GameplayAnalyzer
             ReadRatio =
                 read.Ratio,
             ReadScore =
-                read.Score,
+                finalReadScore,
             ReadLevel =
-                GetReadLevel(read.Score),
+                GetReadLevel(finalReadScore),
             ReadSections =
                 read.ReadSections,
 
@@ -644,6 +674,8 @@ public static class GameplayAnalyzer
                 read.ReadSpacingRegularity,
             ReadTrajectoryRepetition =
                 read.ReadTrajectoryRepetition,
+            ReadAmbiguity =
+                read.ReadAmbiguity,
 
             ReadCoverage =
                 readCoverage,
@@ -667,7 +699,7 @@ public static class GameplayAnalyzer
                     speedProfile,
 
             SpeedIntensity =
-                GetSpeedIntensity(speed.Score),
+                GetSpeedIntensity(speed.Intensity * 100.0),
 
             SpeedSections =
                 speed.SpeedSections,
@@ -690,6 +722,11 @@ public static class GameplayAnalyzer
             AimSpeedSignal = aim.SpeedSignal,
             AimAngleSignal = aim.AngleSignal,
             AimTemporalSignal = aim.TemporalSignal,
+            AimTemporalModifier = aim.TemporalModifier,
+            AimRawIntensity = aim.RawIntensity,
+            AimPrecisionCS = beatmap.CS,
+            AimPrecisionModifier = aim.PrecisionModifier,
+            AimAdjustedIntensity = aim.Intensity,
             AimCoverage = aimProfile.Coverage,
             AimProfile = aimProfile.Profile,
             AimIntensity = aimProfile.Intensity,
@@ -1500,20 +1537,56 @@ public static class GameplayAnalyzer
 
             if (i >= 2)
             {
-                double previousAngle =
-                    GetTechTurnAngle(
-                        objects[i - 2],
-                        objects[i - 1],
-                        objects[i]);
+                HitObject previousPrevious =
+                    objects[i - 2];
 
-                if (previousAngle >= TechStructureAngle
-                    && turnAngle >= TechStructureAngle
+                double previousInterval =
+                    previous.Time - previousPrevious.Time;
+
+                if (!IsSpinner(previousPrevious)
+                    && previousInterval > 0
+                    && previousInterval <= TechStructureMaximumInterval
                     && firstInterval <= TechStructureMaximumInterval
                     && secondInterval <= TechStructureMaximumInterval)
                 {
-                    alternatingTransitions++;
+                    double previousAngle =
+                        GetTechTurnAngle(
+                            previousPrevious,
+                            previous,
+                            current);
 
-                    isAlternating = true;
+                    if (previousAngle >= TechStructureAngle
+                        && turnAngle >= TechStructureAngle)
+                    {
+                        alternatingTransitions++;
+
+                        isAlternating = true;
+                    }
+                }
+            }
+
+            // ----------------------------------------------------
+            // Alternance structurelle
+            //
+            // Deux angles structurels successifs, validés sur une
+            // séquence localement continue, constituent une preuve
+            // suffisante pour alimenter le masque Tech.
+            // ----------------------------------------------------
+
+            if (isStructural && isAlternating)
+            {
+                for (int techIndex = i - 2;
+                     techIndex <= i + 1;
+                     techIndex++)
+                {
+                    techObjects[techIndex] = true;
+
+                    techPatternEvidence[techIndex] =
+                        Math.Max(
+                            techPatternEvidence[techIndex],
+                            IsComplexSlider(objects[techIndex])
+                                ? TechSliderPatternWeight
+                                : TechCirclePatternWeight);
                 }
             }
 
@@ -1753,7 +1826,7 @@ public static class GameplayAnalyzer
     Math.Clamp(score, 0, 1);
 
         BeatInsight.Diagnostics.DebugLogger.Detailed(
-                $"TECH FINAL DEBUG | FinalScore={score * 100:F3}");
+                $"TECH INTENSITY DEBUG | Intensity={score * 100:F3}");
 
         score *= 100;
 
@@ -1894,12 +1967,11 @@ public static class GameplayAnalyzer
             {
                 if (start >= 0)
                 {
-                    AddGameplaySection(
+                    AddTechSection(
                         sections,
                         objects,
                         start,
                         end,
-                        "Tech",
                         minimumObjects);
 
                     start = -1;
@@ -1934,12 +2006,11 @@ public static class GameplayAnalyzer
             }
             else
             {
-                AddGameplaySection(
+                AddTechSection(
                     sections,
                     objects,
                     start,
                     end,
-                    "Tech",
                     minimumObjects);
 
                 start = i;
@@ -1953,16 +2024,45 @@ public static class GameplayAnalyzer
 
         if (start >= 0)
         {
-            AddGameplaySection(
+            AddTechSection(
                 sections,
                 objects,
                 start,
                 end,
-                "Tech",
                 minimumObjects);
         }
 
         return sections;
+    }
+
+    private static void AddTechSection(
+        List<GameplaySection> sections,
+        IReadOnlyList<HitObject> objects,
+        int start,
+        int end,
+        int minimumObjects)
+    {
+        bool containsCircle = false;
+
+        for (int i = start; i <= end; i++)
+        {
+            if (IsCircle(objects[i]))
+            {
+                containsCircle = true;
+                break;
+            }
+        }
+
+        if (!containsCircle)
+            return;
+
+        AddGameplaySection(
+            sections,
+            objects,
+            start,
+            end,
+            "Tech",
+            minimumObjects);
     }
 
     /// <summary>
@@ -2176,6 +2276,7 @@ public static class GameplayAnalyzer
                 0,
                 0,
                 0,
+                0,
                 Array.Empty<GameplaySection>());
 
         double approachTime =
@@ -2186,6 +2287,7 @@ public static class GameplayAnalyzer
 
         if (analysedReadObjects == 0)
             return new ReadAnalysis(
+                0,
                 0,
                 0,
                 0,
@@ -2213,11 +2315,13 @@ public static class GameplayAnalyzer
         double totalTemporalRegularity = 0;
         double totalSpacingRegularity = 0;
         double totalTrajectoryRepetition = 0;
+        double totalAmbiguity = 0;
 
         int predictabilitySampleCount = 0;
         int temporalRegularitySampleCount = 0;
         int spacingRegularitySampleCount = 0;
         int trajectoryRepetitionSampleCount = 0;
+        int ambiguitySampleCount = 0;
 
         // --------------------------------------------------------
         // Analyse objet par objet.
@@ -2340,6 +2444,16 @@ public static class GameplayAnalyzer
                     totalTrajectoryRepetition += trajectoryRepetition;
                     trajectoryRepetitionSampleCount++;
                 }
+
+                double? localAmbiguity =
+                    CalculateReadAmbiguity(
+                        visibleFutureObjects);
+
+                if (localAmbiguity is double ambiguity)
+                {
+                    totalAmbiguity += ambiguity;
+                    ambiguitySampleCount++;
+                }
             }
         }
 
@@ -2365,6 +2479,7 @@ public static class GameplayAnalyzer
         double readTemporalRegularity = 0;
         double readSpacingRegularity = 0;
         double readTrajectoryRepetition = 0;
+        double readAmbiguity = 0;
 
         if (readObjectCount > 0)
         {
@@ -2403,6 +2518,12 @@ public static class GameplayAnalyzer
         {
             readTrajectoryRepetition =
                 totalTrajectoryRepetition / trajectoryRepetitionSampleCount;
+        }
+
+        if (ambiguitySampleCount > 0)
+        {
+            readAmbiguity =
+                totalAmbiguity / ambiguitySampleCount;
         }
 
         // --------------------------------------------------------
@@ -2452,6 +2573,7 @@ public static class GameplayAnalyzer
             readTemporalRegularity,
             readSpacingRegularity,
             readTrajectoryRepetition,
+            readAmbiguity,
             readSections);
     }
 
@@ -2500,6 +2622,63 @@ public static class GameplayAnalyzer
             ? 0
             : Math.Clamp(
                 (double)clutteredPairCount / pairCount,
+                0,
+                1);
+    }
+
+    /// <summary>
+    /// Mesure l'ambiguïté visuelle de paires futures : deux objets proches
+    /// spatialement, mais séparés dans leur ordre temporel, contribuent
+    /// davantage. Cette métrique est strictement observationnelle.
+    /// </summary>
+    private static double? CalculateReadAmbiguity(
+        IReadOnlyList<HitObject> visibleFutureObjects)
+    {
+        if (visibleFutureObjects.Count < 2)
+            return null;
+
+        int pairCount = 0;
+        double totalAmbiguity = 0;
+
+        for (int firstIndex = 0;
+             firstIndex < visibleFutureObjects.Count - 1;
+             firstIndex++)
+        {
+            for (int secondIndex = firstIndex + 1;
+                 secondIndex < visibleFutureObjects.Count;
+                 secondIndex++)
+            {
+                HitObject first =
+                    visibleFutureObjects[firstIndex];
+
+                HitObject second =
+                    visibleFutureObjects[secondIndex];
+
+                double spatialProximity =
+                    Math.Clamp(
+                        1.0 - Distance(first, second)
+                        / ReadClutterDistance,
+                        0,
+                        1);
+
+                double temporalSeparation =
+                    Math.Clamp(
+                        Math.Abs(first.Time - second.Time)
+                        / ReadAmbiguityTemporalSaturationMs,
+                        0,
+                        1);
+
+                totalAmbiguity +=
+                    spatialProximity * temporalSeparation;
+
+                pairCount++;
+            }
+        }
+
+        return pairCount == 0
+            ? null
+            : Math.Clamp(
+                totalAmbiguity / pairCount,
                 0,
                 1);
     }
@@ -2869,14 +3048,15 @@ public static class GameplayAnalyzer
     /// <summary>
     /// Analyse la pression de vitesse de la map.
     ///
-    /// Le score Speed actuel combine :
-    /// - proportion d'objets rapides,
-    /// - densité locale,
-    /// - AR.
+    /// Le score Speed combine l'intensité de cadence des sections
+    /// rapides et leur présence réelle dans la map.
     /// </summary>
     private const double SpeedLightThreshold = 0.25;
     private const double SpeedModerateThreshold = 0.50;
     private const double SpeedStrongThreshold = 0.75;
+    private const double SpeedCadenceSaturationObjectsPerSecond = 12.0;
+    private const int SpeedNoContributionSectionObjects = 2;
+    private const int SpeedFullContributionSectionObjects = 8;
     private static SpeedAnalysis AnalyzeSpeed(IReadOnlyList<HitObject> objects, Beatmap beatmap)
     {
         List<HitObject> circles =
@@ -2893,11 +3073,16 @@ public static class GameplayAnalyzer
                 0,
                 0,
                 0,
+                0,
+                0,
                 Array.Empty<GameplaySection>());
         }
 
         bool[] fastObjects =
-            new bool[circles.Count];
+            new bool[objects.Count];
+
+        bool[] fastTransitionEnds =
+            new bool[objects.Count];
 
         int fastTransitions = 0;
         int totalTransitions = 0;
@@ -2910,12 +3095,18 @@ public static class GameplayAnalyzer
         // --------------------------------------------------------
 
         for (int i = 1;
-             i < circles.Count;
+             i < objects.Count;
              i++)
         {
+            if (!IsCircle(objects[i - 1])
+                || !IsCircle(objects[i]))
+            {
+                continue;
+            }
+
             double interval =
-                circles[i].Time -
-                circles[i - 1].Time;
+                objects[i].Time -
+                objects[i - 1].Time;
 
             if (interval <= 0)
                 continue;
@@ -2930,6 +3121,8 @@ public static class GameplayAnalyzer
                 // considérés comme objets Speed.
                 fastObjects[i] = true;
                 fastObjects[i - 1] = true;
+
+                fastTransitionEnds[i] = true;
             }
         }
 
@@ -2948,8 +3141,17 @@ public static class GameplayAnalyzer
 
         List<GameplaySection> speedSections =
             BuildSpeedSections(
-                circles,
-                fastObjects);
+                objects,
+                fastTransitionEnds);
+
+        double intensity =
+            CalculateSpeedIntensity(
+                speedSections);
+
+        double presence =
+            CalculateSpeedPresence(
+                speedSections,
+                circles.Count);
 
         // --------------------------------------------------------
         // Densité locale.
@@ -2970,9 +3172,7 @@ public static class GameplayAnalyzer
         // --------------------------------------------------------
 
         double score =
-              fastObjectRatio * 0.50
-            + densitySignal * 0.30
-            + arSignal * 0.20;
+            intensity * presence;
 
         score =
             Math.Clamp(score, 0, 1) * 100;
@@ -2984,7 +3184,91 @@ public static class GameplayAnalyzer
                 fastObjectRatio,
                 densitySignal,
                 arSignal,
+                intensity,
+                presence,
                 speedSections);
+    }
+
+    private static double CalculateSpeedIntensity(
+        IReadOnlyList<GameplaySection> speedSections)
+    {
+        double weightedIntensity = 0;
+        double totalWeight = 0;
+
+        foreach (GameplaySection section in speedSections)
+        {
+            double duration =
+                section.EndTime - section.StartTime;
+
+            if (duration <= 0)
+                continue;
+
+            double lengthFactor =
+                CalculateSpeedSectionLengthFactor(
+                    section.ObjectCount);
+
+            if (lengthFactor <= 0)
+                continue;
+
+            double cadence =
+                (section.ObjectCount - 1) * 1000.0
+                / duration;
+
+            double cadenceSignal =
+                Math.Clamp(
+                    cadence / SpeedCadenceSaturationObjectsPerSecond,
+                    0,
+                    1);
+
+            double weight =
+                section.ObjectCount * lengthFactor;
+
+            weightedIntensity +=
+                cadenceSignal * weight;
+
+            totalWeight += weight;
+        }
+
+        return totalWeight == 0
+            ? 0
+            : Math.Clamp(
+                weightedIntensity / totalWeight,
+                0,
+                1);
+    }
+
+    private static double CalculateSpeedPresence(
+        IReadOnlyList<GameplaySection> speedSections,
+        int analysedCircles)
+    {
+        if (analysedCircles == 0)
+            return 0;
+
+        double weightedObjectCount = 0;
+
+        foreach (GameplaySection section in speedSections)
+        {
+            weightedObjectCount +=
+                section.ObjectCount
+                * CalculateSpeedSectionLengthFactor(
+                    section.ObjectCount);
+        }
+
+        return Math.Clamp(
+            weightedObjectCount / analysedCircles,
+            0,
+            1);
+    }
+
+    private static double CalculateSpeedSectionLengthFactor(
+        int objectCount)
+    {
+        return Math.Clamp(
+            (double)(objectCount - SpeedNoContributionSectionObjects)
+            / (SpeedFullContributionSectionObjects
+               - SpeedNoContributionSectionObjects),
+            0,
+            1);
     }
 
     /// <summary>
@@ -3114,29 +3398,29 @@ public static class GameplayAnalyzer
     /// considérés comme rapides.
     /// </summary>
     private static List<GameplaySection> BuildSpeedSections(
-        IReadOnlyList<HitObject> circles,
-        IReadOnlyList<bool> fastObjects)
+        IReadOnlyList<HitObject> objects,
+        IReadOnlyList<bool> fastTransitionEnds)
     {
         List<GameplaySection> sections = new();
 
-        if (circles.Count == 0 ||
-            fastObjects.Count != circles.Count)
+        if (objects.Count == 0 ||
+            fastTransitionEnds.Count != objects.Count)
             return sections;
 
         int sectionStart = -1;
 
-        for (int i = 0; i < circles.Count; i++)
+        for (int i = 1; i < objects.Count; i++)
         {
-            bool isFast =
-                fastObjects[i];
+            bool isFastTransition =
+                fastTransitionEnds[i];
 
             // ----------------------------------------------------
             // Début d'une section Speed.
             // ----------------------------------------------------
 
-            if (isFast && sectionStart == -1)
+            if (isFastTransition && sectionStart == -1)
             {
-                sectionStart = i;
+                sectionStart = i - 1;
                 continue;
             }
 
@@ -3144,7 +3428,7 @@ public static class GameplayAnalyzer
             // Fin d'une section Speed.
             // ----------------------------------------------------
 
-            if (!isFast && sectionStart != -1)
+            if (!isFastTransition && sectionStart != -1)
             {
                 int sectionEnd = i - 1;
 
@@ -3158,8 +3442,8 @@ public static class GameplayAnalyzer
                             "Speed",
                             sectionStart,
                             sectionEnd,
-                            circles[sectionStart].Time,
-                            circles[sectionEnd].Time,
+                            objects[sectionStart].Time,
+                            objects[sectionEnd].Time,
                             objectCount));
                 }
 
@@ -3174,7 +3458,7 @@ public static class GameplayAnalyzer
         if (sectionStart != -1)
         {
             int sectionEnd =
-                circles.Count - 1;
+                objects.Count - 1;
 
             int objectCount =
                 sectionEnd - sectionStart + 1;
@@ -3186,8 +3470,8 @@ public static class GameplayAnalyzer
                         "Speed",
                         sectionStart,
                         sectionEnd,
-                        circles[sectionStart].Time,
-                        circles[sectionEnd].Time,
+                        objects[sectionStart].Time,
+                        objects[sectionEnd].Time,
                         objectCount));
             }
         }
@@ -3224,33 +3508,33 @@ public static class GameplayAnalyzer
         IReadOnlyList<HitObject> objects,
         Beatmap beatmap)
     {
-        List<HitObject> circles = objects
-            .Where(IsCircle)
-            .ToList();
+        double precisionModifier =
+            Math.Clamp(
+                1.0 + 0.05 * (beatmap.CS - 4.0),
+                0.85,
+                1.20);
 
-        if (circles.Count < 2)
-            return new AimAnalysis(
-                0,
-                0,
-                0,
-                0,
-                0,
-                0);
-
-        double totalDistance = 0;
+        double totalSignificantDistance = 0;
         double totalMovementSpeed = 0;
 
         int movementCount = 0;
+        int significantMovementCount = 0;
         int aimObjectCount = 0;
 
         // ---------------------------------------------------------
         // DISTANCE + VITESSE
         // ---------------------------------------------------------
 
-        for (int i = 1; i < circles.Count; i++)
+        for (int i = 1; i < objects.Count; i++)
         {
-            HitObject previous = circles[i - 1];
-            HitObject current = circles[i];
+            HitObject previous = objects[i - 1];
+            HitObject current = objects[i];
+
+            if (!IsCircle(previous)
+                || !IsCircle(current))
+            {
+                continue;
+            }
 
             double distance =
                 Distance(previous, current);
@@ -3277,10 +3561,14 @@ public static class GameplayAnalyzer
                 aimObjectCount++;
             }
 
-            totalDistance += distance;
-            totalMovementSpeed += movementSpeed;
-
             movementCount++;
+
+            if (distance >= AimDistanceBaseline)
+            {
+                totalSignificantDistance += distance;
+                totalMovementSpeed += movementSpeed;
+                significantMovementCount++;
+            }
         }
 
         if (movementCount == 0)
@@ -3288,15 +3576,24 @@ public static class GameplayAnalyzer
                         0,
                         0,
                         0,
+                        precisionModifier,
                         0,
                         0,
-                        0);
+                        0,
+                        0,
+                        0,
+                        0,
+                        0.60);
 
         double averageDistance =
-            totalDistance / movementCount;
+            significantMovementCount == 0
+                ? 0
+                : totalSignificantDistance / significantMovementCount;
 
         double averageMovementSpeed =
-            totalMovementSpeed / movementCount;
+            significantMovementCount == 0
+                ? 0
+                : totalMovementSpeed / significantMovementCount;
 
 
         // ---------------------------------------------------------
@@ -3339,7 +3636,7 @@ public static class GameplayAnalyzer
         //
 
         double angleSignal =
-            CalculateAimAngleSignal(circles);
+            CalculateAimAngleSignal(objects);
 
 
         // ---------------------------------------------------------
@@ -3355,7 +3652,7 @@ public static class GameplayAnalyzer
         //
 
         double temporalSignal =
-            CalculateAimTemporalSignal(circles);
+            CalculateAimTemporalSignal(objects);
 
 
         // ---------------------------------------------------------
@@ -3377,28 +3674,50 @@ public static class GameplayAnalyzer
             + speedSignal * 0.40
             + angleSignal * 0.25;
 
-        double temporalPressure =
-            temporalSignal;
+        double temporalModifier =
+            0.60 + 0.40 * temporalSignal;
+
+        double rawIntensity =
+            Math.Clamp(
+                baseAim * temporalModifier,
+                0,
+                1);
+
+        double intensity =
+            Math.Clamp(
+                rawIntensity * precisionModifier,
+                0,
+                1);
+
+        int analysedCircles =
+            objects.Count(IsCircle);
+
+        double presence =
+            CalculateRatio(
+                significantMovementCount,
+                analysedCircles);
 
         double score =
-            baseAim * temporalPressure;
-
-        score =
-            Math.Clamp(score, 0, 1) * 100;
+            intensity * presence * 100.0;
 
         return new AimAnalysis(
              aimObjectCount,
              score,
+             rawIntensity,
+             precisionModifier,
+             intensity,
+             presence,
              distanceSignal,
              speedSignal,
              angleSignal,
-             temporalSignal);
+             temporalSignal,
+             temporalModifier);
     }
 
     private static double CalculateAimTemporalSignal(
-    IReadOnlyList<HitObject> circles)
+    IReadOnlyList<HitObject> objects)
     {
-        if (circles.Count < 2)
+        if (objects.Count < 2)
             return 0;
 
         int validTransitions = 0;
@@ -3409,10 +3728,22 @@ public static class GameplayAnalyzer
         // pression temporelle.
         const double temporalThresholdMs = 180;
 
-        for (int i = 1; i < circles.Count; i++)
+        for (int i = 1; i < objects.Count; i++)
         {
+            if (!IsCircle(objects[i - 1])
+                || !IsCircle(objects[i]))
+            {
+                continue;
+            }
+
+            double distance =
+                Distance(objects[i - 1], objects[i]);
+
+            if (distance < AimDistanceBaseline)
+                continue;
+
             double interval =
-                circles[i].Time - circles[i - 1].Time;
+                objects[i].Time - objects[i - 1].Time;
 
             if (interval <= 0)
                 continue;
@@ -3438,20 +3769,27 @@ public static class GameplayAnalyzer
     // =============================================================
 
     private static double CalculateAimAngleSignal(
-        IReadOnlyList<HitObject> circles)
+        IReadOnlyList<HitObject> objects)
     {
-        if (circles.Count < 3)
+        if (objects.Count < 3)
             return 0;
 
         int angleCount = 0;
         int sharpAngleCount = 0;
         int reverseCount = 0;
 
-        for (int i = 1; i < circles.Count - 1; i++)
+        for (int i = 1; i < objects.Count - 1; i++)
         {
-            HitObject previous = circles[i - 1];
-            HitObject current = circles[i];
-            HitObject next = circles[i + 1];
+            HitObject previous = objects[i - 1];
+            HitObject current = objects[i];
+            HitObject next = objects[i + 1];
+
+            if (!IsCircle(previous)
+                || !IsCircle(current)
+                || !IsCircle(next))
+            {
+                continue;
+            }
 
             double firstX = current.X - previous.X;
             double firstY = current.Y - previous.Y;
@@ -3467,6 +3805,12 @@ public static class GameplayAnalyzer
 
             if (firstLength == 0 || secondLength == 0)
                 continue;
+
+            if (firstLength < AimDistanceBaseline
+                || secondLength < AimDistanceBaseline)
+            {
+                continue;
+            }
 
             double cosine =
                 (firstX * secondX + firstY * secondY)
@@ -3526,10 +3870,15 @@ public static class GameplayAnalyzer
     private sealed record AimAnalysis(
        int AimObjectCount,
        double Score,
+       double RawIntensity,
+       double PrecisionModifier,
+       double Intensity,
+       double Presence,
        double DistanceSignal,
        double SpeedSignal,
        double AngleSignal,
-       double TemporalSignal);
+       double TemporalSignal,
+       double TemporalModifier);
 
 
     private static string DeterminePrimaryType(
@@ -4931,6 +5280,7 @@ public static class GameplayAnalyzer
     double ReadTemporalRegularity,
     double ReadSpacingRegularity,
     double ReadTrajectoryRepetition,
+    double ReadAmbiguity,
     IReadOnlyList<GameplaySection> ReadSections);
 
     private sealed record ReadPredictabilitySignals(
@@ -4957,34 +5307,34 @@ public static class GameplayAnalyzer
     }
 
     private static AimProfile GetAimProfile(
-    double aimCoverage,
-    double aimScore)
+    double aimPresence,
+    double aimIntensity)
     {
         string profile;
 
-        if (aimCoverage >= 0.75)
+        if (aimPresence >= 0.75)
             profile = "Dominant Aim Presence";
-        else if (aimCoverage >= 0.55)
+        else if (aimPresence >= 0.55)
             profile = "Strong Aim Presence";
-        else if (aimCoverage >= 0.30)
+        else if (aimPresence >= 0.30)
             profile = "Moderate Aim Presence";
-        else if (aimCoverage >= 0.12)
+        else if (aimPresence >= 0.12)
             profile = "Light Aim Presence";
         else
             profile = "Minimal Aim Presence";
 
         string intensity;
 
-        if (aimScore >= 70)
+        if (aimIntensity >= 0.70)
             intensity = "High";
-        else if (aimScore >= 40)
+        else if (aimIntensity >= 0.40)
             intensity = "Medium";
         else
             intensity = "Low";
 
         return new AimProfile(
-            aimCoverage,
-            aimScore,
+            aimPresence,
+            aimIntensity,
             profile,
             intensity);
     }
@@ -5025,7 +5375,7 @@ public static class GameplayAnalyzer
 
     private sealed record AimProfile(
     double Coverage,
-    double Score,
+    double IntensityValue,
     string Profile,
     string Intensity);
 
@@ -5039,5 +5389,7 @@ public static class GameplayAnalyzer
     double FastObjectRatio,
     double DensitySignal,
     double ARSignal,
+    double Intensity,
+    double Presence,
     IReadOnlyList<GameplaySection> SpeedSections);
 }

@@ -112,6 +112,18 @@ public sealed class GameplayProfile
     public double TechRatio { get; init; }
 
     /// <summary>
+    /// Présence structurelle Tech : proportion de cercles appartenant
+    /// aux TechSections validées.
+    /// </summary>
+    public double TechPresence { get; init; }
+
+    /// <summary>
+    /// Intensité technique intrinsèque sur 100, avant modulation
+    /// par la présence structurelle.
+    /// </summary>
+    public double TechIntensity { get; init; }
+
+    /// <summary>
     /// Score composite Tech sur 100.
     ///
     /// Ce score représente le signal Tech détecté par l'analyseur.
@@ -182,8 +194,9 @@ public sealed class GameplayProfile
     /// <summary>
     /// Score Read sur 100.
     ///
-    /// Le score global combine l'intensité locale des zones Reading
-    /// et leur présence validée dans la map.
+    /// Le score global combine l'intensité locale des zones Reading,
+    /// leur présence validée dans la map et une modulation de
+    /// prévisibilité au-delà de 80 %.
     ///
     /// Reading V1 utilise la densité et le clutter des informations
     /// futures visibles. La persistance et le CS sont neutralisés.
@@ -220,7 +233,7 @@ public sealed class GameplayProfile
 
     /// <summary>
     /// Prévisibilité moyenne des séquences Reading qualifiées.
-    /// Cette métrique d'observation ne contribue pas au ReadScore.
+    /// Elle module le ReadScore au-delà de 80 %.
     /// </summary>
     public double ReadPredictability { get; init; }
 
@@ -245,6 +258,11 @@ public sealed class GameplayProfile
     /// </summary>
     public double ReadTrajectoryRepetition { get; init; }
 
+    /// <summary>
+    /// Ambiguïté visuelle moyenne des fenêtres Reading qualifiées.
+    /// Cette métrique d'observation ne contribue pas au ReadScore.
+    /// </summary>
+    public double ReadAmbiguity { get; init; }
 
     // ============================================================
     // 7. SPEED
@@ -253,10 +271,8 @@ public sealed class GameplayProfile
     /// <summary>
     /// Score Speed sur 100.
     ///
-    /// Le score actuel combine :
-    /// - proportion d'objets rapides,
-    /// - densité locale,
-    /// - influence de l'AR.
+    /// Le score combine l'intensité de cadence des sections rapides
+    /// et leur présence réelle dans la map.
     /// </summary>
     public double SpeedScore { get; init; }
 
@@ -282,7 +298,8 @@ public sealed class GameplayProfile
     public double SpeedDensitySignal { get; init; }
 
     /// <summary>
-    /// Signal Speed provenant de l'AR.
+    /// Signal AR conservé à titre d'observation ; il ne contribue pas
+    /// au SpeedScore.
     /// </summary>
     public double SpeedARSignal { get; init; }
 
@@ -307,6 +324,17 @@ public sealed class GameplayProfile
     public double AimSpeedSignal { get; init; }
     public double AimAngleSignal { get; init; }
     public double AimTemporalSignal { get; init; }
+    public double AimTemporalModifier { get; init; } = 0.60;
+    public double AimRawIntensity { get; init; }
+    public double AimPrecisionCS { get; init; }
+    public double AimPrecisionModifier { get; init; } = 1.0;
+    public double AimAdjustedIntensity { get; init; }
+
+    /// <summary>
+    /// Présence des mouvements Aim significatifs : transitions de cercles
+    /// immédiatement adjacents, avec dt &gt; 0 et une distance d'au moins 80 px,
+    /// rapportées au nombre total de cercles analysés.
+    /// </summary>
     public double AimCoverage { get; init; }
 
     public string AimProfile { get; init; } = "";
