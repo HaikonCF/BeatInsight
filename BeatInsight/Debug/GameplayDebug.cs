@@ -340,7 +340,7 @@ public static class GameplayDebug
             $"ANALYSED CIRCLES = {profile.AnalysedCircleCount}");
 
         DebugLogger.Log(
-            $"PRIMARY TYPE = {profile.PrimaryType}");
+            $"PRIMARY TYPE = {profile.Identity.Primary}");
 
         DebugLogger.Log(
             $"STREAMS = {profile.StreamSequenceCount} sequences / " +

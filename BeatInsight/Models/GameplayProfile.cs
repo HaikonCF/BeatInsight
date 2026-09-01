@@ -346,17 +346,6 @@ public sealed class GameplayProfile
     // ============================================================
 
     /// <summary>
-    /// Type principal estimé de la map.
-    ///
-    /// Valeurs actuelles :
-    /// - Stream
-    /// - Jump
-    /// - Tech
-    /// - Classic / Mixed
-    /// </summary>
-    public string PrimaryType { get; init; } = "Classic / Mixed";
-
-    /// <summary>
     /// Explications automatiques utilisées par l'interface
     /// pour expliquer les principaux signaux ayant influencé
     /// la classification gameplay.

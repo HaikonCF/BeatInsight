@@ -462,25 +462,6 @@ public static class GameplayAnalyzer
                 aimCoverage,
                 aim.Intensity);
 
-        string primaryType =
-            DeterminePrimaryType(
-                streamCoverage,
-                jumpCoverage,
-                techCoverage,
-                tech.Score);
-
-        DebugLogger.Detailed(
-            $"PRIMARY DEBUG | " +
-            $"Stream={streamRatio:P1} " +
-            $"Jump={jumpRatio:P1} " +
-            $"TechRatio={techRatio:P1} " +
-            $"Coverage(S/J/T)=" +
-            $"{streamCoverage:P1}/" +
-            $"{jumpCoverage:P1}/" +
-            $"{techCoverage:P1} " +
-            $"TechScore={tech.Score:F1} " +
-            $"=> {primaryType}");
-
         // --------------------------------------------------------
         // Identity
         // --------------------------------------------------------
@@ -717,7 +698,6 @@ public static class GameplayAnalyzer
             // Classification
             // ----------------------------
 
-            PrimaryType = primaryType,
             StyleProfile = style,
             Identity = identity
         };
@@ -3862,81 +3842,6 @@ public static class GameplayAnalyzer
        double TemporalSignal,
        double TemporalModifier);
 
-
-    private static string DeterminePrimaryType(
-    double streamCoverage,
-    double jumpCoverage,
-    double techCoverage,
-    double techScore)
-    {
-        // --------------------------------------------------------
-        // Dominance basée principalement sur la couverture réelle.
-        // --------------------------------------------------------
-
-        double maxCoverage = Math.Max(
-            streamCoverage,
-            Math.Max(jumpCoverage, techCoverage));
-
-        // Pas suffisamment de couverture spécialisée :
-        // on considère la map comme Classic / Mixed.
-        if (maxCoverage < 0.10)
-        {
-            return "Classic / Mixed";
-        }
-
-        // --------------------------------------------------------
-        // Vérification de la dominance.
-        // --------------------------------------------------------
-
-        // Stream dominant
-        if (streamCoverage >= jumpCoverage &&
-            streamCoverage >= techCoverage)
-        {
-            // Si Stream domine réellement la couverture,
-            // TechScore ne doit pas écraser cette classification.
-            if (streamCoverage >= 0.20)
-                return "Stream";
-
-            // Entre deux profils proches => Mixed.
-            if (streamCoverage - Math.Max(jumpCoverage, techCoverage) < 0.05)
-                return "Classic / Mixed";
-
-            return "Stream";
-        }
-
-        // Jump dominant
-        if (jumpCoverage >= streamCoverage &&
-            jumpCoverage >= techCoverage)
-        {
-            if (jumpCoverage >= 0.20)
-                return "Jump";
-
-            if (jumpCoverage - Math.Max(streamCoverage, techCoverage) < 0.05)
-                return "Classic / Mixed";
-
-            return "Jump";
-        }
-
-        // --------------------------------------------------------
-        // Tech dominant
-        // --------------------------------------------------------
-
-        if (techCoverage >= streamCoverage &&
-            techCoverage >= jumpCoverage)
-        {
-            // Tech doit être suffisamment présent ET avoir
-            // un score technique cohérent.
-            if (techCoverage >= 0.10 && techScore >= 55)
-                return "Tech";
-
-            if (techCoverage - Math.Max(streamCoverage, jumpCoverage) < 0.05)
-                return "Classic / Mixed";
-
-            return "Classic / Mixed";
-        }
-
-        return "Classic / Mixed";
-    }
 
     private static int GetTraitPriority(string trait)
     {
