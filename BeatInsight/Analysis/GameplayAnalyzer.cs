@@ -33,14 +33,6 @@ public static class GameplayAnalyzer
     /// </summary>
     private const int MinimumSequenceLength = 4;
 
-    /// <summary>
-    /// Pour qu'un type devienne le type principal d'une map,
-    /// il doit représenter au moins 50 % des cercles analysés.
-    /// </summary>
-    private const double PrimaryTypeThreshold = 0.40;
-
-    private const double SecondaryTypeThreshold = 0.20;
-
     private const double PrimaryIdentityThreshold = 20.0;
 
     // ============================================================
@@ -477,22 +469,6 @@ public static class GameplayAnalyzer
                 techCoverage,
                 tech.Score);
 
-        double confidence =
-            CalculatePrimaryConfidence(
-                primaryType,
-                streamCoverage,
-                jumpCoverage,
-                techCoverage,
-                tech.Score);
-
-
-
-        confidence =
-            Math.Clamp(
-                confidence,
-                0.0,
-                100.0);
-
         DebugLogger.Detailed(
             $"PRIMARY DEBUG | " +
             $"Stream={streamRatio:P1} " +
@@ -504,10 +480,6 @@ public static class GameplayAnalyzer
             $"{techCoverage:P1} " +
             $"TechScore={tech.Score:F1} " +
             $"=> {primaryType}");
-
-        string gameplayIdentity =
-            BuildGameplayIdentity(
-                primaryType);
 
         // --------------------------------------------------------
         // Identity
@@ -523,7 +495,6 @@ public static class GameplayAnalyzer
 
         GameplayIdentity identity =
                 AnalyzeGameplayIdentity(
-                    primaryType,
                     streamCoverage,
                     jumpCoverage,
                     techCoverage,
@@ -747,7 +718,6 @@ public static class GameplayAnalyzer
             // ----------------------------
 
             PrimaryType = primaryType,
-            GameplayIdentity = gameplayIdentity,
             StyleProfile = style,
             Identity = identity
         };
@@ -3968,15 +3938,6 @@ public static class GameplayAnalyzer
         return "Classic / Mixed";
     }
 
-    private static string BuildGameplayIdentity(
-    string primaryType)
-    {
-        if (string.IsNullOrWhiteSpace(primaryType))
-            return "Classic / Mixed";
-
-        return primaryType;
-    }
-
     private static int GetTraitPriority(string trait)
     {
         return trait switch
@@ -4035,7 +3996,6 @@ public static class GameplayAnalyzer
     }
 
     private static List<string> GenerateGameplayConcepts(
-    string primaryType,
     AimAnalysis aim,
     SpeedAnalysis speed,
     TechAnalysis tech,
@@ -4162,40 +4122,7 @@ public static class GameplayAnalyzer
             : "Strong Technical Presence";
     }
 
-    private static double GetStreamIdentityScore(
-    string primaryType,
-    SpeedAnalysis speed)
-    {
-        if (primaryType.Contains(
-                "Stream",
-                StringComparison.OrdinalIgnoreCase))
-        {
-            return 100.0;
-        }
-
-        if (speed.SpeedRatio >= 0.20)
-        {
-            return speed.SpeedRatio * 100.0;
-        }
-
-        return speed.SpeedRatio * 70.0;
-    }
-
-    private static double GetJumpIdentityScore(
-        string primaryType)
-    {
-        if (primaryType.Contains(
-                "Jump",
-                StringComparison.OrdinalIgnoreCase))
-        {
-            return 100.0;
-        }
-
-        return 0.0;
-    }
-
     private static GameplayIdentity AnalyzeGameplayIdentity(
-    string primaryType,
     double streamCoverage,
     double jumpCoverage,
     double techCoverage,
@@ -4404,7 +4331,6 @@ public static class GameplayAnalyzer
 
         List<string> concepts =
             GenerateGameplayConcepts(
-                primary,
                 aim,
                 speed,
                 tech,
@@ -4906,52 +4832,6 @@ public static class GameplayAnalyzer
 
         return identityScore * 100.0;
     }
-
-    private static double CalculatePrimaryConfidence(
-    string primaryType,
-    double streamCoverage,
-    double jumpCoverage,
-    double techCoverage,
-    double techScore)
-    {
-        double stream = streamCoverage;
-        double jump = jumpCoverage;
-
-        double tech =
-            techCoverage *
-            (0.5 + 0.5 * (techScore / 100.0));
-
-        double[] values =
-        {
-        stream,
-        jump,
-        tech
-    };
-
-        Array.Sort(values);
-
-        double highest = values[2];
-        double secondHighest = values[1];
-
-        if (highest <= 0)
-            return 0;
-
-        double dominance =
-            highest / (highest + secondHighest);
-
-        double separation =
-            (highest - secondHighest) / highest;
-
-        double confidence =
-            (dominance * 0.6) +
-            (separation * 0.4);
-
-        return Math.Clamp(
-            confidence * 100.0,
-            0.0,
-            100.0);
-    }
-
 
     // ============================================================
     // 15. UTILITAIRES COMMUNS

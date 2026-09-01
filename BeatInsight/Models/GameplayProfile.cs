@@ -21,7 +21,6 @@ public sealed class GameplayProfile
     /// </summary>
     public int AnalysedCircleCount { get; init; }
 
-    public double Confidence { get; init; }
     public IReadOnlyList<GameplaySection> ReadSections { get; init; }
        = Array.Empty<GameplaySection>();
 
@@ -356,7 +355,6 @@ public sealed class GameplayProfile
     /// - Classic / Mixed
     /// </summary>
     public string PrimaryType { get; init; } = "Classic / Mixed";
-    public string GameplayIdentity { get; set; } = "";
 
     /// <summary>
     /// Explications automatiques utilisées par l'interface
