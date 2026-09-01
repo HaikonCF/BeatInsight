@@ -4225,6 +4225,7 @@ public static class GameplayAnalyzer
         List<string> traits =
             GenerateGameplayTraits(
                 primary,
+                secondary,
                 aim,
                 speed,
                 tech,
@@ -4356,6 +4357,7 @@ public static class GameplayAnalyzer
 
     private static List<string> GenerateGameplayTraits(
     string primaryType,
+    string? secondary,
     AimAnalysis aim,
     SpeedAnalysis speed,
     TechAnalysis tech,
@@ -4518,19 +4520,10 @@ public static class GameplayAnalyzer
         // SECONDARY TYPE
         // ============================================================
 
-        if (primaryType.Contains(" / "))
+        if (!string.IsNullOrWhiteSpace(secondary))
         {
-            string[] parts =
-                primaryType.Split('/');
-
-            if (parts.Length >= 2)
-            {
-                string secondary =
-                    parts[1].Trim();
-
-                traits.Add(
-                    $"{secondary} Secondary");
-            }
+            traits.Add(
+                $"{secondary} Secondary");
         }
 
         return traits
