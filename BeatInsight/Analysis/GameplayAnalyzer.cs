@@ -4413,10 +4413,8 @@ public static class GameplayAnalyzer
         // ============================================================
         // CONFIDENCE
         //
-        // UNIQUEMENT basée sur la structure.
-        //
-        // Plus le Primary domine son Secondary,
-        // plus la confiance augmente.
+        // UNIQUEMENT basée sur la séparation entre les règles
+        // structurelles Primary. Le Secondary n'intervient pas.
         // ============================================================
 
         double confidence;
@@ -4425,13 +4423,51 @@ public static class GameplayAnalyzer
                 "Classic / Mixed",
                 StringComparison.OrdinalIgnoreCase))
         {
-            confidence = 55.0;
+            double streamPressure =
+                Math.Clamp(
+                    streamStructuralScore / PrimaryIdentityThreshold,
+                    0.0,
+                    1.0);
+
+            double jumpPressure =
+                Math.Clamp(
+                    jumpStructuralScore / PrimaryIdentityThreshold,
+                    0.0,
+                    1.0);
+
+            double techPressure =
+                Math.Min(
+                    Math.Clamp(techCoverage / 0.40, 0.0, 1.0),
+                    Math.Min(
+                        Math.Clamp(techIntensity / 40.0, 0.0, 1.0),
+                        Math.Clamp(
+                            techStructuralScore / PrimaryIdentityThreshold,
+                            0.0,
+                            1.0)));
+
+            double primaryPressure =
+                Math.Max(
+                    streamPressure,
+                    Math.Max(jumpPressure, techPressure));
+
+            confidence =
+                Math.Clamp(
+                    95.0 - (40.0 * primaryPressure),
+                    55.0,
+                    95.0);
         }
         else
         {
+            double bestCompetitor =
+                primary.Equals("Stream", StringComparison.OrdinalIgnoreCase)
+                    ? Math.Max(jumpStructuralScore, techStructuralScore)
+                    : primary.Equals("Jump", StringComparison.OrdinalIgnoreCase)
+                        ? Math.Max(streamStructuralScore, techStructuralScore)
+                        : Math.Max(streamStructuralScore, jumpStructuralScore);
+
             double separation =
                 primaryScore > 0.0
-                    ? (primaryScore - secondaryScore)
+                    ? (primaryScore - bestCompetitor)
                       / primaryScore
                     : 0.0;
 
@@ -4442,17 +4478,14 @@ public static class GameplayAnalyzer
                     1.0);
 
             confidence =
-                50.0
-                + (primaryScore * 0.40)
-                + (separation * 30.0);
+                55.0
+                + (40.0 * separation);
 
             confidence =
                 Math.Clamp(
                     confidence,
-                    50.0,
+                    55.0,
                     95.0);
-
-
         }
 
         GameplayDebug.IdentityScores(
