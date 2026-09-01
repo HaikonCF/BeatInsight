@@ -513,12 +513,23 @@ public static class GameplayAnalyzer
         // Identity
         // --------------------------------------------------------
 
+        bool techPrimaryEligible =
+            techCoverage >= 0.40
+            && rawTechScore >= 40.0;
+
+        bool techSecondaryEligible =
+            techCoverage >= 0.08
+            && rawTechScore >= 28.0;
+
         GameplayIdentity identity =
                 AnalyzeGameplayIdentity(
                     primaryType,
                     streamCoverage,
                     jumpCoverage,
                     techCoverage,
+                    rawTechScore,
+                    techPrimaryEligible,
+                    techSecondaryEligible,
                     aim,
                     speed,
                     tech,
@@ -747,6 +758,7 @@ public static class GameplayAnalyzer
         GameplayDebug.Speed(profile);
         GameplayDebug.Aim(profile);
         GameplayDebug.Summary(profile);
+
 
         beatmap.GameplayProfile = profile;
 
@@ -4187,6 +4199,9 @@ public static class GameplayAnalyzer
     double streamCoverage,
     double jumpCoverage,
     double techCoverage,
+    double techIntensity,
+    bool techPrimaryEligible,
+    bool techSecondaryEligible,
     AimAnalysis aim,
     SpeedAnalysis speed,
     TechAnalysis tech,
@@ -4212,29 +4227,38 @@ public static class GameplayAnalyzer
                 streamCoverage,
                 jumpCoverage,
                 techCoverage,
-                tech.Score);
-        DebugLogger.Detailed(
-            $"IDENTITY SCORES | " +
-            $"Stream={streamStructuralScore:F1} | " +
-            $"Jump={jumpStructuralScore:F1} | " +
-            $"Tech={techStructuralScore:F1}");
-        DebugLogger.Detailed(
-            $"TECH IDENTITY DEBUG | " +
-            $"Coverage={techCoverage:P1} " +
-            $"TechScore={tech.Score:F1} " +
-            $"IdentityScore={techStructuralScore:F1}");
+                tech.Score,
+                techIntensity,
+                tech.TransitionSignal,
+                tech.TemporalSignal);
 
+        double primaryTechStructuralScore =
+            techPrimaryEligible
+                ? techStructuralScore
+                : 0.0;
 
-        var structuralScores =
+        double secondaryTechStructuralScore =
+            techSecondaryEligible
+                ? techStructuralScore
+                : 0.0;
+
+        bool streamSecondaryEligible =
+            streamCoverage >= 0.10;
+
+        bool jumpSecondaryEligible =
+            jumpCoverage >= 0.20;
+
+        var primaryStructuralScores =
             new List<(string Name, double Score)>
             {
             ("Stream", streamStructuralScore),
             ("Jump", jumpStructuralScore),
-            ("Tech", techStructuralScore)
+            ("Tech", primaryTechStructuralScore)
             };
 
-        List<(string Name, double Score)> ordered =
-            structuralScores
+
+        List<(string Name, double Score)> orderedPrimary =
+            primaryStructuralScores
                 .OrderByDescending(x => x.Score)
                 .ToList();
 
@@ -4253,10 +4277,10 @@ public static class GameplayAnalyzer
         string primary =
             "Classic / Mixed";
 
-        if (ordered.Count > 0)
+        if (orderedPrimary.Count > 0)
         {
             (string Name, double Score) candidate =
-                ordered[0];
+                orderedPrimary[0];
 
             if (candidate.Score >= PrimaryIdentityThreshold)
             {
@@ -4269,7 +4293,7 @@ public static class GameplayAnalyzer
         // ============================================================
 
         double primaryScore =
-            ordered
+            orderedPrimary
                 .FirstOrDefault(
                     x => x.Name.Equals(
                         primary,
@@ -4281,56 +4305,76 @@ public static class GameplayAnalyzer
         //
         // Seules les identités structurelles peuvent être Secondary.
         //
-        // Conditions :
-        // - au moins 10 % de couverture
-        // - pas trop éloigné du Primary
-        //
-        // Classic / Mixed n'est jamais un Secondary.
+        // Chaque famille doit d'abord être éligible.
+        // Le filtre relatif ne s'applique que si le Primary est
+        // spécialisé ; Classic / Mixed n'a pas de score structurel.
         // ============================================================
 
         string secondary = "";
 
         double secondaryScore = 0.0;
 
-        if (!primary.Equals(
-                "Classic / Mixed",
-                StringComparison.OrdinalIgnoreCase))
+        var secondaryStructuralScores =
+            new List<(string Name, double Score)>();
+
+        if (streamSecondaryEligible)
         {
-            foreach ((string Name, double Score) candidate in ordered)
+            secondaryStructuralScores.Add(
+                ("Stream", streamStructuralScore));
+        }
+
+        if (jumpSecondaryEligible)
+        {
+            secondaryStructuralScores.Add(
+                ("Jump", jumpStructuralScore));
+        }
+
+        if (techSecondaryEligible)
+        {
+            secondaryStructuralScores.Add(
+                ("Tech", secondaryTechStructuralScore));
+        }
+
+        List<(string Name, double Score)> orderedSecondary =
+            secondaryStructuralScores
+                .OrderByDescending(x => x.Score)
+                .ToList();
+
+        bool primaryIsClassic =
+            primary.Equals(
+                "Classic / Mixed",
+                StringComparison.OrdinalIgnoreCase);
+
+        foreach ((string Name, double Score) candidate in orderedSecondary)
+        {
+            if (candidate.Name.Equals(
+                    primary,
+                    StringComparison.OrdinalIgnoreCase))
             {
-                if (candidate.Name.Equals(
-                        primary,
-                        StringComparison.OrdinalIgnoreCase))
-                {
-                    continue;
-                }
+                continue;
+            }
 
-                // Présence structurelle minimale.
-                if (candidate.Score < 10.0)
-                    continue;
+            if (candidate.Score < 10.0)
+                continue;
 
-                // Le Secondary doit avoir une présence significative
-                // par rapport au Primary.
-                //
-                // Exemple :
-                // Jump 32,7 / Tech 23,8 -> accepté
-                // Jump 70 / Tech 8      -> refusé
+            if (!primaryIsClassic)
+            {
                 double relativePresence =
                     primaryScore > 0.0
                         ? candidate.Score / primaryScore
                         : 0.0;
 
-                if (relativePresence >= 0.50)
-                {
-                    secondary =
-                        candidate.Name;
-
-                    secondaryScore =
-                        candidate.Score;
-
-                    break;
-                }
+                if (relativePresence < 0.50)
+                    continue;
             }
+
+            secondary =
+                candidate.Name;
+
+            secondaryScore =
+                candidate.Score;
+
+            break;
         }
 
         // ============================================================
@@ -4407,9 +4451,24 @@ public static class GameplayAnalyzer
                     confidence,
                     50.0,
                     95.0);
+
+
         }
 
+        GameplayDebug.IdentityScores(
+    streamStructuralScore,
+    jumpStructuralScore,
+    techStructuralScore,
+    primaryTechStructuralScore,
+    secondaryTechStructuralScore,
+    GameplayDebug.IdentityEnabled);
 
+        GameplayDebug.TechIdentity(
+    techCoverage,
+    techStructuralScore,
+    techPrimaryEligible,
+    techSecondaryEligible,
+    GameplayDebug.IdentityEnabled);
 
 
         // ============================================================
@@ -4424,9 +4483,10 @@ public static class GameplayAnalyzer
             Confidence = confidence,
             StreamScore = streamStructuralScore,
             JumpScore = jumpStructuralScore,
-            TechScore = techStructuralScore,
+            TechScore = secondaryTechStructuralScore,
             Traits = CleanTraits(traits),
             Concepts = concepts
+
         };
     }
 
@@ -4702,30 +4762,27 @@ public static class GameplayAnalyzer
     double streamCoverage,
     double jumpCoverage,
     double techCoverage,
-    double techScore)
+    double techScore,
+    double techIntensity,
+    double transitionSignal,
+    double temporalSignal)
     {
         // --------------------------------------------------------
-        // 1. Présence structurelle Tech
+        // 1. Intensité et présence Tech
         // --------------------------------------------------------
 
-        double coverageComponent =
+        double normalizedIntensity =
+            Math.Clamp(
+                techIntensity / 100.0,
+                0.0,
+                1.0);
+
+        double effectivePresence =
             Math.Clamp(
                 techCoverage,
                 0.0,
-                1.0);
-
-        // --------------------------------------------------------
-        // 2. Force intrinsèque des patterns Tech
-        //
-        // Le TechScore renforce l'identité,
-        // mais ne doit jamais compenser une faible couverture.
-        // --------------------------------------------------------
-
-        double scoreComponent =
-            Math.Clamp(
-                techScore / 60.0,
-                0.0,
-                1.0);
+                1.0)
+            * normalizedIntensity;
 
         // --------------------------------------------------------
         // 3. Dominance structurelle
@@ -4754,17 +4811,25 @@ public static class GameplayAnalyzer
         }
 
         // --------------------------------------------------------
-        // 4. Identité finale
-        //
-        // La couverture domine.
-        // Le score Tech renforce.
-        // La dominance départage.
+        // 4. Identité finale C
         // --------------------------------------------------------
 
-        double identityScore =
-            (coverageComponent * 0.60)
-            + (scoreComponent * 0.15)
-            + (dominanceComponent * 0.25);
+        double candidateB = Math.Clamp(
+            (effectivePresence * 0.45)
+            + (normalizedIntensity * 0.30)
+            + (dominanceComponent * 0.10)
+            + (Math.Clamp(temporalSignal, 0.0, 1.0) * 0.15),
+            0.0,
+            1.0);
+
+        double identityScore = Math.Clamp(
+            (Math.Clamp(techScore / 100.0, 0.0, 1.0) * 0.25)
+            + (normalizedIntensity * 0.30)
+            + (Math.Clamp(transitionSignal, 0.0, 1.0) * 0.10)
+            + (Math.Clamp(temporalSignal, 0.0, 1.0) * 0.30)
+            + (dominanceComponent * 0.05),
+            0.0,
+            1.0);
 
         // --------------------------------------------------------
         // DEBUG
@@ -4780,22 +4845,28 @@ public static class GameplayAnalyzer
             $"Tech Score          = {techScore:F3}");
 
         DebugLogger.Detailed(
+            $"Tech Intensity      = {techIntensity:F3}");
+
+        DebugLogger.Detailed(
             $"Stream Coverage     = {streamCoverage:F3}");
 
         DebugLogger.Detailed(
             $"Jump Coverage       = {jumpCoverage:F3}");
 
         DebugLogger.Detailed(
-            $"Coverage Component  = {coverageComponent:F3}");
+            $"Effective Presence  = {effectivePresence:F3}");
 
         DebugLogger.Detailed(
-             $"Score Component     = {scoreComponent:F3}");
+            $"Intensity Component = {normalizedIntensity:F3}");
 
         DebugLogger.Detailed(
             $"Dominance Component = {dominanceComponent:F3}");
 
         DebugLogger.Detailed(
-            $"Identity Score      = {identityScore * 100.0:F3}");
+            $"TECH IDENTITY B = {candidateB * 100.0:F3}");
+
+        DebugLogger.Detailed(
+            $"TECH IDENTITY C = {identityScore * 100.0:F3}");
 
         DebugLogger.Detailed(
             "====================================");

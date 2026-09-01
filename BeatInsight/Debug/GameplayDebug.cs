@@ -8,7 +8,7 @@ public static class GameplayDebug
     // DEBUG SWITCHES
     // ============================================================
 
-    public static bool IdentityEnabled = false;
+    public static bool IdentityEnabled = true;
     public static bool TechEnabled = true;
     public static bool ReadEnabled = false;
     public static bool SpeedEnabled = false;
@@ -54,6 +54,34 @@ public static class GameplayDebug
                 ? string.Join(" | ", identity.Concepts)
                 : "None")}");
     }
+    public static void IdentityScores(
+    double streamStructuralScore,
+    double jumpStructuralScore,
+    double techIdentityScore,
+    double primaryTechStructuralScore,
+    double secondaryTechStructuralScore,
+    bool enabled = false)
+    {
+        if (!enabled)
+            return;
+
+        DebugLogger.Log("===== IDENTITY SCORES =====");
+
+        DebugLogger.Log(
+            $"STREAM = {streamStructuralScore:F2}");
+
+        DebugLogger.Log(
+            $"JUMP = {jumpStructuralScore:F2}");
+
+        DebugLogger.Log(
+            $"TECH RAW = {techIdentityScore:F2}");
+
+        DebugLogger.Log(
+            $"TECH PRIMARY = {primaryTechStructuralScore:F2}");
+
+        DebugLogger.Log(
+            $"TECH SECONDARY = {secondaryTechStructuralScore:F2}");
+    }
 
     // ============================================================
     // TECH
@@ -92,6 +120,31 @@ public static class GameplayDebug
 
         DebugLogger.Log(
             $"TECH PROFILE = {profile.TechProfile}");
+    }
+
+    public static void TechIdentity(
+    double techCoverage,
+    double techIdentityScore,
+    bool techPrimaryEligible,
+    bool techSecondaryEligible,
+    bool enabled = false)
+    {
+        if (!enabled)
+            return;
+
+        DebugLogger.Log("===== TECH IDENTITY DEBUG =====");
+
+        DebugLogger.Log(
+            $"TECH COVERAGE = {techCoverage:P2}");
+
+        DebugLogger.Log(
+            $"TECH IDENTITY RAW = {techIdentityScore:F2}");
+
+        DebugLogger.Log(
+            $"TECH PRIMARY ELIGIBLE = {techPrimaryEligible}");
+
+        DebugLogger.Log(
+            $"TECH SECONDARY ELIGIBLE = {techSecondaryEligible}");
     }
 
     // ============================================================
