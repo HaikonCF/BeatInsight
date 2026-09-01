@@ -590,6 +590,23 @@ MinWidth="1000"
                    Foreground="#FFFF5C5C"
                    HorizontalAlignment="Center"/>
 
+                        <Canvas Width="96"
+                Height="28"
+                Margin="0,2"
+                HorizontalAlignment="Center"
+                IsHitTestVisible="False">
+                            <Polyline Points="7,18 20,14 33,10 46,8 59,9 72,13 85,18"
+                      Stroke="#99FF5C5C"
+                      StrokeThickness="0.8"/>
+                            <Ellipse Canvas.Left="4" Canvas.Top="15" Width="6" Height="6" Fill="#CCFF5C5C"/>
+                            <Ellipse Canvas.Left="17" Canvas.Top="11" Width="6" Height="6" Fill="#CCFF5C5C"/>
+                            <Ellipse Canvas.Left="30" Canvas.Top="7" Width="6" Height="6" Fill="#CCFF5C5C"/>
+                            <Ellipse Canvas.Left="43" Canvas.Top="5" Width="6" Height="6" Fill="#CCFF5C5C"/>
+                            <Ellipse Canvas.Left="56" Canvas.Top="6" Width="6" Height="6" Fill="#CCFF5C5C"/>
+                            <Ellipse Canvas.Left="69" Canvas.Top="10" Width="6" Height="6" Fill="#CCFF5C5C"/>
+                            <Ellipse Canvas.Left="82" Canvas.Top="15" Width="6" Height="6" Fill="#CCFF5C5C"/>
+                        </Canvas>
+
                         <TextBlock Text="{Binding GameplayProfile.StreamRatio, StringFormat={}{0:P0}}"
                    FontSize="23"
                    FontWeight="Bold"
@@ -608,6 +625,21 @@ MinWidth="1000"
                    FontWeight="SemiBold"
                    Foreground="#FF61E6FF"
                    HorizontalAlignment="Center"/>
+
+                        <Canvas Width="96"
+                Height="28"
+                Margin="0,2"
+                HorizontalAlignment="Center"
+                IsHitTestVisible="False">
+                            <Polyline Points="8,20 28,6 48,23 69,8 88,21"
+                      Stroke="#9961E6FF"
+                      StrokeThickness="0.8"/>
+                            <Ellipse Canvas.Left="4" Canvas.Top="16" Width="8" Height="8" Fill="#CC61E6FF"/>
+                            <Ellipse Canvas.Left="24" Canvas.Top="2" Width="8" Height="8" Fill="#CC61E6FF"/>
+                            <Ellipse Canvas.Left="44" Canvas.Top="19" Width="8" Height="8" Fill="#CC61E6FF"/>
+                            <Ellipse Canvas.Left="65" Canvas.Top="4" Width="8" Height="8" Fill="#CC61E6FF"/>
+                            <Ellipse Canvas.Left="84" Canvas.Top="17" Width="8" Height="8" Fill="#CC61E6FF"/>
+                        </Canvas>
 
                         <TextBlock Text="{Binding GameplayProfile.JumpRatio, StringFormat={}{0:P0}}"
                    FontSize="23"
@@ -628,6 +660,21 @@ MinWidth="1000"
                    Foreground="#FFFF9A4D"
                    HorizontalAlignment="Center"/>
 
+                        <Canvas Width="96"
+                Height="28"
+                Margin="0,2"
+                HorizontalAlignment="Center"
+                IsHitTestVisible="False">
+                            <Polyline Points="34,18 45,12 56,17 67,11 78,16"
+                      Stroke="#99FF9A4D"
+                      StrokeThickness="0.8"/>
+                            <Ellipse Canvas.Left="30" Canvas.Top="14" Width="8" Height="8" Fill="#CCFF9A4D"/>
+                            <Ellipse Canvas.Left="41" Canvas.Top="8" Width="8" Height="8" Fill="#CCFF9A4D"/>
+                            <Ellipse Canvas.Left="52" Canvas.Top="13" Width="8" Height="8" Fill="#CCFF9A4D"/>
+                            <Ellipse Canvas.Left="63" Canvas.Top="7" Width="8" Height="8" Fill="#CCFF9A4D"/>
+                            <Ellipse Canvas.Left="74" Canvas.Top="12" Width="8" Height="8" Fill="#CCFF9A4D"/>
+                        </Canvas>
+
                         <TextBlock Text="{Binding GameplayProfile.BurstRatio, StringFormat={}{0:P0}}"
                    FontSize="23"
                    FontWeight="Bold"
@@ -647,7 +694,26 @@ MinWidth="1000"
                    Foreground="#FFB46CFF"
                    HorizontalAlignment="Center"/>
 
-                        <TextBlock Text="{Binding GameplayProfile.TechScore, StringFormat={}{0:F0}/100}"
+                        <Canvas Width="96"
+                Height="28"
+                Margin="0,2"
+                HorizontalAlignment="Center"
+                IsHitTestVisible="False">
+                            <Polyline Points="10,19 27,7 44,22 62,6 75,19 88,10"
+                      Stroke="#99B46CFF"
+                      StrokeThickness="0.8"/>
+                            <Line X1="62" Y1="6" X2="95" Y2="6"
+                  Stroke="#66B46CFF"
+                  StrokeThickness="0.8"/>
+                            <Ellipse Canvas.Left="6" Canvas.Top="15" Width="8" Height="8" Fill="#CCB46CFF"/>
+                            <Ellipse Canvas.Left="23" Canvas.Top="3" Width="8" Height="8" Fill="#CCB46CFF"/>
+                            <Ellipse Canvas.Left="40" Canvas.Top="18" Width="8" Height="8" Fill="#CCB46CFF"/>
+                            <Ellipse Canvas.Left="58" Canvas.Top="2" Width="8" Height="8" Fill="#CCB46CFF"/>
+                            <Ellipse Canvas.Left="71" Canvas.Top="15" Width="8" Height="8" Fill="#CCB46CFF"/>
+                            <Ellipse Canvas.Left="84" Canvas.Top="6" Width="8" Height="8" Fill="#CCB46CFF"/>
+                        </Canvas>
+
+                        <TextBlock Text="{Binding GameplayProfile.TechScore, StringFormat={}{0:F0}%}"
                    FontSize="23"
                    FontWeight="Bold"
                    Foreground="#FFB46CFF"
