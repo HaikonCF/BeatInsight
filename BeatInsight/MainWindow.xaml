@@ -245,7 +245,10 @@ MinWidth="1000"
                     <!-- AR / OD / CS / HP -->
                     <RowDefinition Height="Auto"/>
 
-                    <!-- Stream / Jump / Burst / Tech -->
+                    <!-- Structure -->
+                    <RowDefinition Height="Auto"/>
+
+                    <!-- Skill Pressure -->
                     <RowDefinition Height="Auto"/>
 
                     <!-- Objects -->
@@ -572,6 +575,11 @@ MinWidth="1000"
       HorizontalAlignment="Center"
       Margin="0,7,0,0">
 
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="140"/>
                         <ColumnDefinition Width="140"/>
@@ -579,10 +587,20 @@ MinWidth="1000"
                         <ColumnDefinition Width="140"/>
                     </Grid.ColumnDefinitions>
 
+                    <TextBlock Grid.Row="0"
+               Grid.ColumnSpan="4"
+               Text="STRUCTURE"
+               FontSize="10"
+               FontWeight="SemiBold"
+               Foreground="#88FFFFFF"
+               HorizontalAlignment="Center"
+               Margin="0,0,0,2"/>
+
 
                     <!-- STREAM -->
 
-                    <StackPanel Grid.Column="0">
+                    <StackPanel Grid.Row="1"
+                                Grid.Column="0">
 
                         <TextBlock Text="STREAM"
                    FontSize="13"
@@ -618,7 +636,8 @@ MinWidth="1000"
 
                     <!-- JUMP -->
 
-                    <StackPanel Grid.Column="1">
+                    <StackPanel Grid.Row="1"
+                                Grid.Column="1">
 
                         <TextBlock Text="JUMP"
                    FontSize="13"
@@ -652,7 +671,8 @@ MinWidth="1000"
 
                     <!-- BURST -->
 
-                    <StackPanel Grid.Column="2">
+                    <StackPanel Grid.Row="1"
+                                Grid.Column="2">
 
                         <TextBlock Text="BURST"
                    FontSize="13"
@@ -686,7 +706,8 @@ MinWidth="1000"
 
                     <!-- TECH -->
 
-                    <StackPanel Grid.Column="3">
+                    <StackPanel Grid.Row="1"
+                                Grid.Column="3">
 
                         <TextBlock Text="TECH"
                    FontSize="13"
@@ -725,10 +746,145 @@ MinWidth="1000"
 
 
                 <!-- ================================================= -->
+                <!-- SKILL PRESSURE                                     -->
+                <!-- ================================================= -->
+
+                <Grid Grid.Row="4"
+                      HorizontalAlignment="Center"
+                      Margin="0,5,0,0">
+
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="145"/>
+                        <ColumnDefinition Width="145"/>
+                        <ColumnDefinition Width="145"/>
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Grid.Row="0"
+                               Grid.ColumnSpan="3"
+                               Text="SKILL PRESSURE"
+                               FontSize="10"
+                               FontWeight="SemiBold"
+                               Foreground="#88FFFFFF"
+                               HorizontalAlignment="Center"
+                               Margin="0,0,0,3"/>
+
+                    <!-- AIM -->
+
+                    <StackPanel Grid.Row="1"
+                                Grid.Column="0"
+                                Width="125">
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Text="AIM"
+                                       FontSize="11"
+                                       FontWeight="SemiBold"
+                                       Foreground="#FF61E6FF"/>
+
+                            <TextBlock Grid.Column="1"
+                                       Text="{Binding GameplayProfile.AimScore, StringFormat={}{0:F0}%}"
+                                       FontSize="11"
+                                       FontWeight="Bold"
+                                       Foreground="#FF61E6FF"/>
+                        </Grid>
+
+                        <ProgressBar Value="{Binding GameplayProfile.AimScore}"
+                                     Maximum="100"
+                                     Height="4"
+                                     Margin="0,3,0,0"
+                                     Background="#33000000"
+                                     Foreground="#FF61E6FF"
+                                     BorderThickness="0"/>
+
+                    </StackPanel>
+
+
+                    <!-- SPEED -->
+
+                    <StackPanel Grid.Row="1"
+                                Grid.Column="1"
+                                Width="125">
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Text="SPEED"
+                                       FontSize="11"
+                                       FontWeight="SemiBold"
+                                       Foreground="#FFFF5C5C"/>
+
+                            <TextBlock Grid.Column="1"
+                                       Text="{Binding GameplayProfile.SpeedScore, StringFormat={}{0:F0}%}"
+                                       FontSize="11"
+                                       FontWeight="Bold"
+                                       Foreground="#FFFF5C5C"/>
+                        </Grid>
+
+                        <ProgressBar Value="{Binding GameplayProfile.SpeedScore}"
+                                     Maximum="100"
+                                     Height="4"
+                                     Margin="0,3,0,0"
+                                     Background="#33000000"
+                                     Foreground="#FFFF5C5C"
+                                     BorderThickness="0"/>
+
+                    </StackPanel>
+
+
+                    <!-- READING -->
+
+                    <StackPanel Grid.Row="1"
+                                Grid.Column="2"
+                                Width="125">
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Text="READING"
+                                       FontSize="11"
+                                       FontWeight="SemiBold"
+                                       Foreground="#FFB46CFF"/>
+
+                            <TextBlock Grid.Column="1"
+                                       Text="{Binding GameplayProfile.ReadScore, StringFormat={}{0:F0}%}"
+                                       FontSize="11"
+                                       FontWeight="Bold"
+                                       Foreground="#FFB46CFF"/>
+                        </Grid>
+
+                        <ProgressBar Value="{Binding GameplayProfile.ReadScore}"
+                                     Maximum="100"
+                                     Height="4"
+                                     Margin="0,3,0,0"
+                                     Background="#33000000"
+                                     Foreground="#FFB46CFF"
+                                     BorderThickness="0"/>
+
+                    </StackPanel>
+
+                </Grid>
+
+
+                <!-- ================================================= -->
                 <!-- GAMEPLAY IDENTITY + COMMUNITY VALIDATION          -->
                 <!-- ================================================= -->
 
-                <Grid Grid.Row="5"
+                <Grid Grid.Row="6"
       Margin="20,10,20,0">
 
                     <Grid.ColumnDefinitions>
@@ -1150,7 +1306,7 @@ MinWidth="1000"
                 <!-- OBJECTS                                                -->
                 <!-- ===================================================== -->
 
-                <Grid Grid.Row="4"
+                <Grid Grid.Row="5"
       Margin="0,8,0,0"
       HorizontalAlignment="Center"
       VerticalAlignment="Top">
