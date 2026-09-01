@@ -59,5 +59,6 @@ public class Beatmap
     public double SliderTickRate { get; set; }
     internal MovementAnalysis MovementAnalysis { get; set; } = new MovementAnalysis();
     public GameplayTagComparisonResult? TagComparison { get; set; }
+    public CommunityIdentityAgreement? CommunityIdentityAgreement { get; set; }
 
 }

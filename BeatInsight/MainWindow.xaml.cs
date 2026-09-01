@@ -189,16 +189,16 @@ namespace BeatInsight
             text.AppendLine("SCORES");
 
             text.AppendLine(
-                $"Tech: {profile.TechScore:F0}/100");
+                $"Tech: {profile.TechScore:F0}%");
 
             text.AppendLine(
-                $"Read: {profile.ReadScore:F0}/100");
+                $"Read: {profile.ReadScore:F0}%");
 
             text.AppendLine(
-                $"Speed: {profile.SpeedScore:F0}/100");
+                $"Speed: {profile.SpeedScore:F0}%");
 
             text.AppendLine(
-                $"Aim: {profile.AimScore:F0}/100");
+                $"Aim: {profile.AimScore:F0}%");
 
             text.AppendLine();
 
@@ -233,6 +233,9 @@ namespace BeatInsight
                 $"Read: Regularity Temporal {profile.ReadTemporalRegularity:P0} / " +
                 $"Spacing {profile.ReadSpacingRegularity:P0} / " +
                 $"Trajectory {profile.ReadTrajectoryRepetition:P0}");
+
+            text.AppendLine(
+                $"Read: Ambiguity {profile.ReadAmbiguity:P0}");
 
             text.AppendLine(
                 $"Speed: Fast {profile.SpeedFastObjectRatio * 100:F0}% / " +
@@ -307,10 +310,10 @@ namespace BeatInsight
 
 ### Scores
 
-- Tech: {profile.TechScore:F0}/100
-- Read: {profile.ReadScore:F0}/100
-- Speed: {profile.SpeedScore:F0}/100
-- Aim: {profile.AimScore:F0}/100
+- Tech: {profile.TechScore:F0}%
+- Read: {profile.ReadScore:F0}%
+- Speed: {profile.SpeedScore:F0}%
+- Aim: {profile.AimScore:F0}%
 
 ## Expected classification
 
@@ -649,8 +652,26 @@ namespace BeatInsight
             currentBeatmapUrl = $"https://osu.ppy.sh/b/{beatmapId}";
 
 
-            Beatmap beatmap = await Task.Run(() =>
-            BeatmapParser.Load(chemin));
+            Beatmap beatmap;
+
+            try
+            {
+                beatmap = await Task.Run(() =>
+                    BeatmapParser.Load(chemin));
+            }
+            catch (Exception ex)
+            {
+                DebugLogger.Log(
+                    $"EXCEPTION = {ex.GetType().FullName}");
+
+                DebugLogger.Log(
+                    $"MESSAGE = {ex.Message}");
+
+                DebugLogger.Log(
+                    $"STACK TRACE = {ex.StackTrace ?? "Unavailable"}");
+
+                throw;
+            }
 
             // ============================================================
             // COMMUNITY TAGS
@@ -697,6 +718,17 @@ namespace BeatInsight
 
             beatmap.TagComparison =
                 tagComparison;
+
+            CommunityIdentityAgreement communityIdentityAgreement =
+                CommunityIdentityAgreementComparer.Compare(
+                    beatmap.CommunityTags,
+                    identity);
+
+            beatmap.CommunityIdentityAgreement =
+                communityIdentityAgreement;
+
+            GameplayDebug.CommunityIdentityAgreement(
+                communityIdentityAgreement);
 
             // ------------------------------------------------------------
             // Community

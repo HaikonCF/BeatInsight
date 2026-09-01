@@ -84,6 +84,53 @@ public static class GameplayDebug
     }
 
     // ============================================================
+    // COMMUNITY IDENTITY AGREEMENT
+    // ============================================================
+
+    public static void CommunityIdentityAgreement(
+        CommunityIdentityAgreement agreement)
+    {
+        if (!CommunityTagsEnabled)
+            return;
+
+        DebugLogger.Log(
+            "===== COMMUNITY IDENTITY AGREEMENT =====");
+
+        if (!agreement.HasStructuralEvidence)
+        {
+            DebugLogger.Log(
+                "AGREEMENT = Unavailable | No structural community evidence");
+
+            DebugLogger.Log(
+                $"RELIABILITY = {agreement.Reliability:P1}");
+
+            return;
+        }
+
+        DebugLogger.Log(
+            $"AGREEMENT = {agreement.Agreement!.Value:P1}");
+
+        DebugLogger.Log(
+            $"RELIABILITY = {agreement.Reliability:P1}");
+
+        DebugLogger.Log(
+            $"RELEVANT VOTES = {agreement.RelevantVotes}");
+
+        DebugLogger.Log(
+            $"VOTE MASS = {agreement.RelevantVoteMass:F3}");
+
+        DebugLogger.Log(
+            $"MATCHED FAMILIES = {(agreement.MatchedFamilies.Count > 0
+                ? string.Join(" | ", agreement.MatchedFamilies)
+                : "None")}");
+
+        DebugLogger.Log(
+            $"CONFLICTING FAMILIES = {(agreement.ConflictingFamilies.Count > 0
+                ? string.Join(" | ", agreement.ConflictingFamilies)
+                : "None")}");
+    }
+
+    // ============================================================
     // TECH
     // ============================================================
 
