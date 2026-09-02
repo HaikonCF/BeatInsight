@@ -24,6 +24,7 @@ public sealed class BeatmapLibraryScannerTests : IDisposable
     private readonly string directory;
     private readonly string songsRoot;
     private readonly string databasePath;
+    private readonly string failureLogPath;
     private readonly BeatmapAnalysisRepository repository;
     private readonly BeatmapLibraryScanner scanner;
 
@@ -37,10 +38,15 @@ public sealed class BeatmapLibraryScannerTests : IDisposable
         Directory.CreateDirectory(songsRoot);
 
         databasePath = Path.Combine(directory, "scan.db");
+        failureLogPath = Path.Combine(
+            directory,
+            "Logs",
+            "library-scan-failures.log");
         repository = new BeatmapAnalysisRepository(databasePath);
 
         scanner = new BeatmapLibraryScanner(
-            new BeatmapAnalysisCacheService(repository));
+            new BeatmapAnalysisCacheService(repository),
+            new LibraryScanFailureLogger(failureLogPath));
     }
 
     public void Dispose()
@@ -268,6 +274,55 @@ public sealed class BeatmapLibraryScannerTests : IDisposable
         Assert.Equal(1, second.FailedFiles);
     }
 
+    [Fact]
+    public void InvalidOsuFile_IsRecordedInDedicatedFailureLog()
+    {
+        string broken = WriteMap("broken.osu", InvalidOsu);
+
+        LibraryScanResult result = scanner.Scan(songsRoot);
+
+        Assert.Equal(1, result.FailedFiles);
+        Assert.True(File.Exists(failureLogPath));
+
+        string log = File.ReadAllText(failureLogPath);
+
+        Assert.Contains(broken, log);
+        Assert.Contains("Exception: System.FormatException", log);
+        Assert.Contains("Message:", log);
+        Assert.Matches(@"^\[\d{4}-\d{2}-\d{2}T.*Z\]", log);
+        Assert.Equal(
+            1,
+            log.Split('\n').Count(line => line.StartsWith('[')));
+    }
+
+    [Fact]
+    public void ValidScan_DoesNotCreateFailureLogEntry()
+    {
+        WriteMap("valid.osu");
+
+        LibraryScanResult result = scanner.Scan(songsRoot);
+
+        Assert.Equal(0, result.FailedFiles);
+        Assert.False(File.Exists(failureLogPath));
+    }
+
+    [Fact]
+    public void FailureLoggerError_DoesNotStopScan()
+    {
+        var scannerWithThrowingLogger = new BeatmapLibraryScanner(
+            new BeatmapAnalysisCacheService(repository),
+            new ThrowingFailureLogger());
+
+        WriteMap("broken.osu", InvalidOsu);
+        WriteMap("valid.osu");
+
+        LibraryScanResult result = scannerWithThrowingLogger.Scan(songsRoot);
+
+        Assert.Equal(2, result.ProcessedFiles);
+        Assert.Equal(1, result.FailedFiles);
+        Assert.Equal(1, result.AnalyzedFiles);
+    }
+
 
     // ============================================================
     // ANNULATION
@@ -479,6 +534,14 @@ public sealed class BeatmapLibraryScannerTests : IDisposable
             Assert.Equal(
                 mtimeBefore,
                 File.GetLastWriteTimeUtc(realDbPath));
+        }
+    }
+
+    private sealed class ThrowingFailureLogger : ILibraryScanFailureLogger
+    {
+        public void LogFailure(string filePath, Exception exception)
+        {
+            throw new IOException("Test failure logger is unavailable.");
         }
     }
 }

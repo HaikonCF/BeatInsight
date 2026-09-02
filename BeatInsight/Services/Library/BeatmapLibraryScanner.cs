@@ -37,13 +37,17 @@ internal sealed class BeatmapLibraryScanner
     private const string OsuFileExtension = ".osu";
 
     private readonly BeatmapAnalysisCacheService cacheService;
+    private readonly ILibraryScanFailureLogger failureLogger;
 
     internal BeatmapLibraryScanner(
-        BeatmapAnalysisCacheService cacheService)
+        BeatmapAnalysisCacheService cacheService,
+        ILibraryScanFailureLogger? failureLogger = null)
     {
         ArgumentNullException.ThrowIfNull(cacheService);
 
         this.cacheService = cacheService;
+        this.failureLogger = failureLogger
+            ?? new LibraryScanFailureLogger();
     }
 
     /// <summary>
@@ -117,6 +121,7 @@ internal sealed class BeatmapLibraryScanner
                 // Un fichier illisible ou invalide ne doit pas
                 // interrompre le scan des autres maps.
                 failedFiles++;
+                LogFailureSafely(file, ex);
             }
 
             processedFiles++;
@@ -143,6 +148,24 @@ internal sealed class BeatmapLibraryScanner
             WasCancelled = wasCancelled,
             Elapsed = stopwatch.Elapsed,
         };
+    }
+
+
+    // ============================================================
+    // ÉCHECS
+    // ============================================================
+
+    private void LogFailureSafely(string filePath, Exception exception)
+    {
+        try
+        {
+            failureLogger.LogFailure(filePath, exception);
+        }
+        catch
+        {
+            // Un logger alternatif ne doit pas pouvoir interrompre
+            // le scan ni modifier ses compteurs.
+        }
     }
 
 
