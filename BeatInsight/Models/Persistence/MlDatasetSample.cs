@@ -64,7 +64,8 @@ internal sealed class MlDatasetSample
 
     /// <summary>
     /// Features de sections optionnelles, sous forme de document JSON.
-    /// Aucune section n'est encore extraite à cette étape.
+    /// La capture ML peut y conserver des résumés déterministes de
+    /// sections, sans sérialiser tous les HitObjects.
     /// </summary>
     internal string? SectionFeaturesJson { get; init; }
 
