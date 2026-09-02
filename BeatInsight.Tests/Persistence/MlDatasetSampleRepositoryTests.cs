@@ -14,6 +14,7 @@ public sealed class MlDatasetSampleRepositoryTests : IDisposable
 {
     private const string PathA = @"C:\Songs\set-a\map-a.osu";
     private const string PathB = @"C:\Songs\set-b\map-b.osu";
+    private const string PathC = @"C:\Songs\set-c\map-c.osu";
 
     private readonly string directory;
     private readonly string databasePath;
@@ -322,6 +323,27 @@ public sealed class MlDatasetSampleRepositoryTests : IDisposable
         Assert.Null(repository.FindBySourceFilePath(PathA));
         Assert.NotNull(repository.FindBySourceFilePath(PathB));
         Assert.False(repository.Delete(PathA));
+    }
+
+    [Fact]
+    public void GetStatistics_CountsSamplesValidatedAndUnlabeled()
+    {
+        repository.EnsureSchema();
+        repository.Upsert(CreateSample(PathA));
+        repository.Upsert(CreateSample(
+            PathB,
+            MlHumanLabel.Tech,
+            humanValidated: true));
+        repository.Upsert(CreateSample(
+            PathC,
+            MlHumanLabel.Jump,
+            humanValidated: false));
+
+        MlDatasetSampleStatistics statistics = repository.GetStatistics();
+
+        Assert.Equal(3, statistics.SampleCount);
+        Assert.Equal(1, statistics.HumanValidatedCount);
+        Assert.Equal(1, statistics.UnlabeledCount);
     }
 
 

@@ -181,6 +181,105 @@
                     </StackPanel>
                 </Border>
 
+                <!-- ===================================================== -->
+                <!-- ML DATASET                                             -->
+                <!-- ===================================================== -->
+
+                <Border Margin="0,14,0,0"
+                        Padding="8"
+                        MaxWidth="300"
+                        Background="#16000000"
+                        BorderBrush="#33FFFFFF"
+                        BorderThickness="1"
+                        CornerRadius="4">
+                    <StackPanel>
+                        <TextBlock Text="ML DATASET"
+                                   FontSize="11"
+                                   FontWeight="Bold"
+                                   Foreground="#88FFFFFF"/>
+
+                        <TextBlock x:Name="DatasetSampleCountText"
+                                   Text="Samples: 0"
+                                   FontSize="10"
+                                   Foreground="#CCFFFFFF"
+                                   Margin="0,5,0,0"/>
+                        <TextBlock x:Name="DatasetValidatedCountText"
+                                   Text="Validated: 0"
+                                   FontSize="10"
+                                   Foreground="#CCFFFFFF"/>
+                        <TextBlock x:Name="DatasetUnlabeledCountText"
+                                   Text="Unlabeled: 0"
+                                   FontSize="10"
+                                   Foreground="#CCFFFFFF"/>
+
+                        <Button x:Name="BuildDatasetButton"
+                                Content="Build Dataset"
+                                Click="BuildDataset_Click"
+                                Padding="10,4"
+                                Margin="0,7,0,0"
+                                HorizontalAlignment="Left"/>
+
+                        <Border x:Name="DatasetBuildProgressPanel"
+                                Visibility="Collapsed"
+                                Margin="0,8,0,0"
+                                Padding="8"
+                                Background="#1EFFFFFF"
+                                BorderBrush="#44FFFFFF"
+                                BorderThickness="1"
+                                CornerRadius="4">
+                            <StackPanel>
+                                <TextBlock x:Name="DatasetBuildStatusText"
+                                           Text="Building ML dataset..."
+                                           FontSize="11"
+                                           FontWeight="SemiBold"
+                                           Foreground="White"/>
+                                <ProgressBar x:Name="DatasetBuildProgressBar"
+                                             Minimum="0"
+                                             Maximum="100"
+                                             Height="6"
+                                             Margin="0,6,0,0"/>
+                                <TextBlock x:Name="DatasetBuildProgressText"
+                                           Text="0 / 0"
+                                           FontSize="10"
+                                           Foreground="#CCFFFFFF"
+                                           Margin="0,5,0,0"/>
+                                <TextBlock x:Name="DatasetBuildPercentText"
+                                           Text="0.0%"
+                                           FontSize="10"
+                                           Foreground="#CCFFFFFF"/>
+                                <TextBlock x:Name="DatasetBuildCapturedText"
+                                           Text="Captured: 0"
+                                           FontSize="10"
+                                           Foreground="#CCFFFFFF"/>
+                                <TextBlock x:Name="DatasetBuildUpToDateText"
+                                           Text="Up to date: 0"
+                                           FontSize="10"
+                                           Foreground="#CCFFFFFF"/>
+                                <TextBlock x:Name="DatasetBuildUnsupportedText"
+                                           Text="Unsupported: 0"
+                                           FontSize="10"
+                                           Foreground="#CCFFFFFF"/>
+                                <TextBlock x:Name="DatasetBuildFailedText"
+                                           Text="Failed: 0"
+                                           FontSize="10"
+                                           Foreground="#CCFFFFFF"/>
+                                <TextBlock x:Name="DatasetBuildCurrentFileText"
+                                           Text="Current: —"
+                                           FontSize="10"
+                                           Foreground="#99FFFFFF"
+                                           Margin="0,4,0,0"
+                                           TextTrimming="CharacterEllipsis"/>
+                                <Button x:Name="CancelDatasetBuildButton"
+                                        Content="Cancel Dataset Build"
+                                        Click="CancelDatasetBuild_Click"
+                                        Padding="8,3"
+                                        Margin="0,7,0,0"
+                                        HorizontalAlignment="Left"/>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </Border>
+
             </StackPanel>
 
 

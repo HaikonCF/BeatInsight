@@ -150,6 +150,39 @@ internal sealed class MlDatasetSampleRepository
         return samples;
     }
 
+    /// <summary>
+    /// Retourne les compteurs nécessaires à la présentation du corpus ML.
+    /// Cette agrégation reste dans le repository afin que les appelants, y
+    /// compris l'UI, ne construisent jamais de SQL eux-mêmes.
+    /// </summary>
+    internal MlDatasetSampleStatistics GetStatistics()
+    {
+        using SqliteConnection connection = OpenConnection();
+        using SqliteCommand command = connection.CreateCommand();
+
+        command.CommandText = """
+            SELECT
+                COUNT(*),
+                COALESCE(SUM(
+                    CASE WHEN HumanValidated <> 0 THEN 1 ELSE 0 END), 0),
+                COALESCE(SUM(
+                    CASE WHEN HumanLabel IS NULL THEN 1 ELSE 0 END), 0)
+            FROM MlDatasetSample;
+            """;
+
+        using SqliteDataReader reader = command.ExecuteReader();
+
+        if (!reader.Read())
+        {
+            return new MlDatasetSampleStatistics(0, 0, 0);
+        }
+
+        return new MlDatasetSampleStatistics(
+            SampleCount: checked((int)reader.GetInt64(0)),
+            HumanValidatedCount: checked((int)reader.GetInt64(1)),
+            UnlabeledCount: checked((int)reader.GetInt64(2)));
+    }
+
 
     // ============================================================
     // ÉCRITURE

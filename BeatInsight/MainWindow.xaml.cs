@@ -2,9 +2,12 @@
 using BeatInsight.Diagnostics;
 using BeatInsight.Models;
 using BeatInsight.Models.Library;
+using BeatInsight.Models.Ml;
+using BeatInsight.Models.Persistence;
 using BeatInsight.Parser;
 using BeatInsight.Services;
 using BeatInsight.Services.Library;
+using BeatInsight.Services.Ml;
 using BeatInsight.Services.Persistence;
 using System;
 using System.Diagnostics;
@@ -52,6 +55,11 @@ namespace BeatInsight
             new(new BeatmapAnalysisRepository(
                 BeatmapAnalysisRepository.DefaultDatabasePath));
 
+        // Dataset ML indépendant du cache runtime : cette instance ne sert
+        // qu'aux statistiques et au builder de captures fraîches.
+        private readonly MlDatasetSampleRepository mlDatasetRepository =
+            new(MlDatasetSampleRepository.DefaultDatabasePath);
+
         // Résolution du dossier Songs (préférence manuelle > tosu).
         private readonly SongsPathResolver songsPathResolver = new();
 
@@ -66,6 +74,16 @@ namespace BeatInsight
         private CancellationTokenSource? libraryScanCancellation;
         private bool isLibraryScanRunning;
         private bool acceptsLibraryScanProgress;
+
+        // État autonome du backfill ML. Il bloque les actions concurrentes
+        // de bibliothèque et la boucle Tosu, mais ne modifie jamais le scan
+        // runtime ni son cache.
+        private CancellationTokenSource? datasetBuildCancellation;
+        private bool isDatasetBuildRunning;
+        private bool acceptsDatasetBuildProgress;
+
+        private bool IsBackgroundLibraryWorkRunning =>
+            isLibraryScanRunning || isDatasetBuildRunning;
 
         private async Task TestOsuApi(int beatmapId)
         {
@@ -112,6 +130,7 @@ namespace BeatInsight
             mapTimer.Start();
 
             RefreshSongsFolderDisplay();
+            RefreshDatasetStatistics();
         }
 
         public string AppVersion => $"BeatInsight v{Assembly.GetExecutingAssembly().GetName().Version?.ToString(3)}";
@@ -120,7 +139,7 @@ namespace BeatInsight
 
         private async void MapTimer_Tick(object? sender, EventArgs e)
         {
-            if (isUpdating || isLibraryScanRunning)
+            if (isUpdating || IsBackgroundLibraryWorkRunning)
                 return;
 
             isUpdating = true;
@@ -437,7 +456,7 @@ namespace BeatInsight
             object sender,
             RoutedEventArgs e)
         {
-            if (isLibraryScanRunning)
+            if (IsBackgroundLibraryWorkRunning)
                 return;
 
             string? songsFolder =
@@ -475,7 +494,7 @@ namespace BeatInsight
 
         private async Task StartLibraryScanAsync(string songsFolder)
         {
-            if (isLibraryScanRunning)
+            if (IsBackgroundLibraryWorkRunning)
                 return;
 
             CancellationTokenSource cancellation = new();
@@ -561,8 +580,12 @@ namespace BeatInsight
 
         private void SetLibraryScanControls(bool isScanning)
         {
-            ChangeSongsFolderButton.IsEnabled = !isScanning;
-            ScanLibraryButton.IsEnabled = !isScanning;
+            ChangeSongsFolderButton.IsEnabled =
+                !isScanning && !isDatasetBuildRunning;
+            ScanLibraryButton.IsEnabled =
+                !isScanning && !isDatasetBuildRunning;
+            BuildDatasetButton.IsEnabled =
+                !isScanning && !isDatasetBuildRunning;
             CancelLibraryScanButton.Visibility = isScanning
                 ? Visibility.Visible
                 : Visibility.Collapsed;
@@ -660,6 +683,287 @@ namespace BeatInsight
             LibraryScanCurrentFileText.Text =
                 $"Error: {exception.Message}";
             LibraryScanCurrentFileText.ToolTip = exception.ToString();
+        }
+
+
+        // ============================================================
+        // ML DATASET
+        // ============================================================
+
+        private MlDatasetSampleStatistics? RefreshDatasetStatistics()
+        {
+            try
+            {
+                mlDatasetRepository.EnsureSchema();
+
+                MlDatasetSampleStatistics statistics =
+                    mlDatasetRepository.GetStatistics();
+
+                DatasetSampleCountText.Text =
+                    $"Samples: {statistics.SampleCount:N0}";
+                DatasetValidatedCountText.Text =
+                    $"Validated: {statistics.HumanValidatedCount:N0}";
+                DatasetUnlabeledCountText.Text =
+                    $"Unlabeled: {statistics.UnlabeledCount:N0}";
+
+                return statistics;
+            }
+            catch (Exception ex)
+            {
+                // Une base temporairement indisponible ne doit pas empêcher
+                // l'ouverture de la fenêtre. Le builder rapportera ensuite
+                // son échec global dans son propre panneau, sans MessageBox.
+                DatasetSampleCountText.Text = "Samples: 0";
+                DatasetValidatedCountText.Text = "Validated: 0";
+                DatasetUnlabeledCountText.Text = "Unlabeled: 0";
+
+                DebugLogger.Log($"ML DATASET STATS ERROR | {ex.Message}");
+                DebugLogger.Detailed(ex.ToString());
+
+                return null;
+            }
+        }
+
+        private async void BuildDataset_Click(
+            object sender,
+            RoutedEventArgs e)
+        {
+            if (IsBackgroundLibraryWorkRunning)
+                return;
+
+            string? songsFolder =
+                songsPathResolver.Resolve(lastTosuSongsPath);
+
+            if (songsFolder is null)
+            {
+                if (!PromptForManualSongsFolder())
+                    return;
+
+                songsFolder = songsPathResolver.Resolve(lastTosuSongsPath);
+            }
+
+            if (string.IsNullOrWhiteSpace(songsFolder))
+                return;
+
+            MlDatasetSampleStatistics? statistics =
+                RefreshDatasetStatistics();
+
+            // La confirmation est réservée au premier corpus vide. Les
+            // passages suivants sont incrémentaux et ne refont qu'une analyse
+            // fraîche des fichiers absents ou périmés.
+            if (statistics?.SampleCount == 0)
+            {
+                MessageBoxResult confirmation = MessageBox.Show(
+                    this,
+                    $"BeatInsight va construire un dataset ML local depuis :\n"
+                        + $"{songsFolder}\n\n"
+                        + "Le premier backfill peut prendre plusieurs minutes.\n"
+                        + "Aucun entraînement ni label automatique ne sera créé.",
+                    "⚠ Build ML Dataset",
+                    MessageBoxButton.OKCancel,
+                    MessageBoxImage.Warning);
+
+                if (confirmation != MessageBoxResult.OK)
+                    return;
+            }
+
+            await StartDatasetBuildAsync(songsFolder);
+        }
+
+        private async Task StartDatasetBuildAsync(string songsFolder)
+        {
+            if (IsBackgroundLibraryWorkRunning)
+                return;
+
+            CancellationTokenSource cancellation = new();
+            datasetBuildCancellation = cancellation;
+            isDatasetBuildRunning = true;
+            acceptsDatasetBuildProgress = true;
+
+            SetDatasetBuildControls(isBuilding: true);
+            ShowDatasetBuildPreparingState();
+
+            try
+            {
+                // Une mise à jour Tosu déjà lancée termine avant le backfill.
+                // La garde IsBackgroundLibraryWorkRunning bloque ensuite tout
+                // nouvel appel Tosu et donc tout appel Community/API.
+                while (isUpdating)
+                    await Task.Delay(50);
+
+                cancellation.Token.ThrowIfCancellationRequested();
+
+                IProgress<MlDatasetBuildProgress> progress =
+                    new Progress<MlDatasetBuildProgress>(
+                        UpdateDatasetBuildProgress);
+
+                MlDatasetBuilder builder = new(mlDatasetRepository);
+
+                MlDatasetBuildResult result = await Task.Run(() =>
+                    builder.Build(
+                        songsFolder,
+                        progress,
+                        cancellation.Token));
+
+                acceptsDatasetBuildProgress = false;
+                ShowDatasetBuildSummary(result);
+            }
+            catch (OperationCanceledException)
+                when (cancellation.IsCancellationRequested)
+            {
+                acceptsDatasetBuildProgress = false;
+                ShowDatasetBuildCancelledWithoutResult();
+            }
+            catch (Exception ex)
+            {
+                acceptsDatasetBuildProgress = false;
+
+                DebugLogger.Log($"ML DATASET BUILD ERROR | {ex.Message}");
+                DebugLogger.Detailed(ex.ToString());
+
+                ShowDatasetBuildFailure(ex);
+            }
+            finally
+            {
+                isDatasetBuildRunning = false;
+                acceptsDatasetBuildProgress = false;
+
+                if (ReferenceEquals(datasetBuildCancellation, cancellation))
+                {
+                    datasetBuildCancellation = null;
+                    cancellation.Dispose();
+                }
+
+                RefreshDatasetStatistics();
+                SetDatasetBuildControls(isBuilding: false);
+            }
+        }
+
+        private void CancelDatasetBuild_Click(
+            object sender,
+            RoutedEventArgs e)
+        {
+            if (datasetBuildCancellation is not {
+                IsCancellationRequested: false
+            } cancellation)
+            {
+                return;
+            }
+
+            cancellation.Cancel();
+            CancelDatasetBuildButton.IsEnabled = false;
+            DatasetBuildStatusText.Text = "Cancelling dataset build...";
+        }
+
+        private void SetDatasetBuildControls(bool isBuilding)
+        {
+            ChangeSongsFolderButton.IsEnabled =
+                !isBuilding && !isLibraryScanRunning;
+            ScanLibraryButton.IsEnabled =
+                !isBuilding && !isLibraryScanRunning;
+            BuildDatasetButton.IsEnabled =
+                !isBuilding && !isLibraryScanRunning;
+            CancelDatasetBuildButton.Visibility = isBuilding
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+
+            if (isBuilding)
+                CancelDatasetBuildButton.IsEnabled = true;
+        }
+
+        private void ShowDatasetBuildPreparingState()
+        {
+            DatasetBuildProgressPanel.Visibility = Visibility.Visible;
+            DatasetBuildStatusText.Text = "Building ML dataset...";
+            DatasetBuildProgressBar.Value = 0;
+            DatasetBuildProgressText.Text = "Finding beatmaps...";
+            DatasetBuildPercentText.Text = "0.0%";
+            DatasetBuildCapturedText.Text = "Captured: 0";
+            DatasetBuildUpToDateText.Text = "Up to date: 0";
+            DatasetBuildUnsupportedText.Text = "Unsupported: 0";
+            DatasetBuildFailedText.Text = "Failed: 0";
+            DatasetBuildCurrentFileText.Text = "Current: —";
+            DatasetBuildCurrentFileText.ToolTip = null;
+        }
+
+        private void UpdateDatasetBuildProgress(
+            MlDatasetBuildProgress progress)
+        {
+            if (!acceptsDatasetBuildProgress)
+                return;
+
+            DatasetBuildProgressPanel.Visibility = Visibility.Visible;
+            DatasetBuildStatusText.Text = "Building ML dataset...";
+            DatasetBuildProgressBar.Value = Math.Clamp(
+                progress.Percent,
+                0.0,
+                100.0);
+            DatasetBuildProgressText.Text =
+                $"{progress.ProcessedFiles:N0} / {progress.TotalFiles:N0} "
+                    + $"— {progress.Percent:0.0}%";
+            DatasetBuildPercentText.Text = $"{progress.Percent:0.0}%";
+            DatasetBuildCapturedText.Text =
+                $"Captured: {progress.CapturedFiles:N0}";
+            DatasetBuildUpToDateText.Text =
+                $"Up to date: {progress.DatasetUpToDateFiles:N0}";
+            DatasetBuildUnsupportedText.Text =
+                $"Unsupported: {progress.UnsupportedFiles:N0}";
+            DatasetBuildFailedText.Text =
+                $"Failed: {progress.FailedFiles:N0}";
+
+            string currentFile = string.IsNullOrWhiteSpace(progress.CurrentFile)
+                ? "—"
+                : Path.GetFileName(progress.CurrentFile);
+
+            DatasetBuildCurrentFileText.Text = $"Current: {currentFile}";
+            DatasetBuildCurrentFileText.ToolTip = progress.CurrentFile;
+        }
+
+        private void ShowDatasetBuildSummary(MlDatasetBuildResult result)
+        {
+            double percent = result.TotalFiles == 0
+                ? 0.0
+                : result.ProcessedFiles * 100.0 / result.TotalFiles;
+
+            DatasetBuildProgressPanel.Visibility = Visibility.Visible;
+            DatasetBuildStatusText.Text = result.WasCancelled
+                ? "ML dataset build cancelled"
+                : "ML dataset build complete";
+            DatasetBuildProgressBar.Value = Math.Clamp(percent, 0.0, 100.0);
+            DatasetBuildProgressText.Text =
+                $"{result.ProcessedFiles:N0} / {result.TotalFiles:N0} "
+                    + $"— {percent:0.0}%";
+            DatasetBuildPercentText.Text = $"{percent:0.0}%";
+            DatasetBuildCapturedText.Text =
+                $"Captured: {result.CapturedFiles:N0}";
+            DatasetBuildUpToDateText.Text =
+                $"Up to date: {result.DatasetUpToDateFiles:N0}";
+            DatasetBuildUnsupportedText.Text =
+                $"Unsupported: {result.UnsupportedFiles:N0}";
+            DatasetBuildFailedText.Text =
+                $"Failed: {result.FailedFiles:N0}";
+            DatasetBuildCurrentFileText.Text = result.WasCancelled
+                ? $"Cancelled after {result.Elapsed:mm\\:ss}."
+                : $"Completed in {result.Elapsed:mm\\:ss}.";
+            DatasetBuildCurrentFileText.ToolTip = null;
+        }
+
+        private void ShowDatasetBuildCancelledWithoutResult()
+        {
+            DatasetBuildProgressPanel.Visibility = Visibility.Visible;
+            DatasetBuildStatusText.Text = "ML dataset build cancelled";
+            DatasetBuildCurrentFileText.Text =
+                "Cancelled before a final summary was available.";
+            DatasetBuildCurrentFileText.ToolTip = null;
+        }
+
+        private void ShowDatasetBuildFailure(Exception exception)
+        {
+            DatasetBuildProgressPanel.Visibility = Visibility.Visible;
+            DatasetBuildStatusText.Text = "ML dataset build failed";
+            DatasetBuildCurrentFileText.Text =
+                $"Error: {exception.Message}";
+            DatasetBuildCurrentFileText.ToolTip = exception.ToString();
         }
 
         private async Task<List<CommunityTag>> GetCommunityTags(int beatmapId)
@@ -843,7 +1147,7 @@ namespace BeatInsight
         }
         private async Task UpdateMap()
         {
-            if (isLibraryScanRunning)
+            if (IsBackgroundLibraryWorkRunning)
                 return;
 
             // ============================================================
@@ -998,10 +1302,10 @@ namespace BeatInsight
                 throw;
             }
 
-            // Le scan de bibliothèque suspend les appels Community
-            // Tags. Cette seconde garde couvre une demande de scan
-            // faite pendant l'analyse locale de la map active.
-            if (isLibraryScanRunning)
+            // Les opérations longues de bibliothèque suspendent les appels
+            // Community Tags. Cette seconde garde couvre une demande de scan
+            // ou de backfill faite pendant l'analyse locale de la map active.
+            if (IsBackgroundLibraryWorkRunning)
                 return;
 
             // ============================================================
