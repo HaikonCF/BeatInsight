@@ -622,6 +622,12 @@ public static class GameplayAnalyzer
             ReadSections =
                 read.ReadSections,
 
+            // Même source que ReadSections : le compteur reste donc
+            // strictement égal à ReadSections.Count sur une analyse
+            // fraîche.
+            ReadSectionCount =
+                read.ReadSections.Count,
+
             ReadDensitySignal =
                 read.DensitySignal,
 

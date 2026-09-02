@@ -24,6 +24,24 @@ public sealed class GameplayProfile
     public IReadOnlyList<GameplaySection> ReadSections { get; init; }
        = Array.Empty<GameplaySection>();
 
+    /// <summary>
+    /// Nombre de sections Reading détectées.
+    ///
+    /// Cette valeur scalaire double volontairement
+    /// <see cref="ReadSections"/> : sur une analyse fraîche, elle est
+    /// strictement égale à ReadSections.Count et provient de la même
+    /// source.
+    ///
+    /// Elle existe parce que les sections elles-mêmes ne sont pas
+    /// persistées. Un profil restauré depuis un cache conserve donc
+    /// ce compteur alors que ReadSections reste vide, ce qui évite de
+    /// fabriquer des sections factices juste pour afficher un nombre.
+    ///
+    /// Les consommateurs doivent lire cette propriété plutôt que
+    /// ReadSections.Count.
+    /// </summary>
+    public int ReadSectionCount { get; init; }
+
     // ============================================================
     // 2. STREAM
     // ============================================================

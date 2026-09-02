@@ -223,7 +223,7 @@ namespace BeatInsight
             text.AppendLine(
                 $"Read: Intensity {profile.ReadIntensity} / " +
                 $"Presence {profile.ReadCoverage:P0} / " +
-                $"Sections {profile.ReadSections.Count}");
+                $"Sections {profile.ReadSectionCount}");
 
             text.AppendLine(
                 $"Read: Predictability {profile.ReadPredictability:P0} / " +

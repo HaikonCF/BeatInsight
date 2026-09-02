@@ -222,7 +222,7 @@ public static class GameplayDebug
 
         DebugLogger.Log(
             $"READ PRESENCE = {profile.ReadCoverage:P2} / " +
-            $"Sections {profile.ReadSections.Count}");
+            $"Sections {profile.ReadSectionCount}");
 
         DebugLogger.Log(
             $"READ PROFILE = {profile.ReadProfile}");
