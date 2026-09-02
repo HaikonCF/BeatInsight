@@ -3,6 +3,7 @@ using BeatInsight.Diagnostics;
 using BeatInsight.Models;
 using BeatInsight.Parser;
 using BeatInsight.Services;
+using BeatInsight.Services.Persistence;
 using System;
 using System.Diagnostics;
 using System.IO;
@@ -36,6 +37,17 @@ namespace BeatInsight
         private bool tosuConnected;
         private string? currentBeatmapUrl;
         private readonly OsuApiService osuApiService = new();
+
+        // Index persistant des analyses.
+        //
+        // Le service exécute le pipeline local inchangé en cas de miss
+        // et se contente de restituer un résultat déjà calculé en cas
+        // de hit. Toute défaillance de la base dégrade silencieusement
+        // vers le pipeline V1.
+        private readonly BeatmapAnalysisCacheService analysisCache =
+            new(new BeatmapAnalysisRepository(
+                BeatmapAnalysisRepository.DefaultDatabasePath));
+
         private async Task TestOsuApi(int beatmapId)
         {
             try
@@ -657,7 +669,7 @@ namespace BeatInsight
             try
             {
                 beatmap = await Task.Run(() =>
-                    BeatmapParser.Load(chemin));
+                    analysisCache.GetOrAnalyze(chemin, beatmapId));
             }
             catch (Exception ex)
             {
