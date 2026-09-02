@@ -9,11 +9,11 @@ public static class GameplayDebug
     // ============================================================
 
     public static bool IdentityEnabled = true;
-    public static bool TechEnabled = true;
+    public static bool TechEnabled = false;
     public static bool ReadEnabled = false;
     public static bool SpeedEnabled = false;
-    public static bool AimEnabled = false;
-    public static bool SummaryEnabled = false;
+    public static bool AimEnabled = true;
+    public static bool SummaryEnabled = true;
     public static bool CommunityTagsEnabled = true;
 
     // ============================================================
