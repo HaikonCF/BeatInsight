@@ -1,6 +1,7 @@
 ﻿using AutoMapper;
 using BeatInsight.Diagnostics;
 using BeatInsight.Models;
+using BeatInsight.Models.Library;
 using BeatInsight.Parser;
 using BeatInsight.Services;
 using BeatInsight.Services.Library;
@@ -13,6 +14,8 @@ using System.Net.Http;
 using System.Reflection;
 using System.Text;
 using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
@@ -56,6 +59,13 @@ namespace BeatInsight
         // les actions de la bibliothèque puissent résoudre un chemin
         // même entre deux mises à jour de MapTimer_Tick.
         private string? lastTosuSongsPath;
+
+        // État du scan manuel de la bibliothèque. Un seul scan peut
+        // utiliser le cache à la fois afin de préserver un traitement
+        // strictement séquentiel et d'éviter toute course avec Tosu.
+        private CancellationTokenSource? libraryScanCancellation;
+        private bool isLibraryScanRunning;
+        private bool acceptsLibraryScanProgress;
 
         private async Task TestOsuApi(int beatmapId)
         {
@@ -110,7 +120,7 @@ namespace BeatInsight
 
         private async void MapTimer_Tick(object? sender, EventArgs e)
         {
-            if (isUpdating)
+            if (isUpdating || isLibraryScanRunning)
                 return;
 
             isUpdating = true;
@@ -423,45 +433,228 @@ namespace BeatInsight
             return true;
         }
 
-        private void ScanLibrary_Click(object sender, RoutedEventArgs e)
+        private async void ScanLibrary_Click(
+            object sender,
+            RoutedEventArgs e)
         {
+            if (isLibraryScanRunning)
+                return;
+
             string? songsFolder =
                 songsPathResolver.Resolve(lastTosuSongsPath);
 
             // Aucun chemin résolu : on ouvre directement le
             // sélecteur plutôt que d'afficher une confirmation vide.
-            // BeatmapLibraryScanner n'est volontairement pas appelé
-            // ici : cette sous-phase ne fait que compter les fichiers.
             if (songsFolder is null)
             {
-                PromptForManualSongsFolder();
+                if (!PromptForManualSongsFolder())
+                    return;
 
-                return;
+                songsFolder =
+                    songsPathResolver.Resolve(lastTosuSongsPath);
             }
 
-            int beatmapCount = Directory
-                .EnumerateFiles(
-                    songsFolder,
-                    "*.osu",
-                    SearchOption.AllDirectories)
-                .Count();
+            if (string.IsNullOrWhiteSpace(songsFolder))
+                return;
 
-            // MessageBox ne permet pas de personnaliser le texte des
-            // boutons ([Cancel] / [Start Scan]) sans une fenêtre
-            // dédiée : OK/Cancel standards sont utilisés ici pour
-            // garder le diff minimal. Quel que soit le bouton choisi,
-            // BeatmapLibraryScanner n'est pas encore invoqué : le
-            // branchement réel est prévu pour la sous-phase 2.2.3b.
-            MessageBox.Show(
+            MessageBoxResult confirmation = MessageBox.Show(
                 this,
-                $"BeatInsight a trouvé {beatmapCount} beatmaps dans :\n"
-                    + $"{songsFolder}\n\n"
+                $"BeatInsight va scanner :\n{songsFolder}\n\n"
                     + "Le premier scan peut prendre plusieurs minutes.\n"
                     + "Les résultats seront enregistrés localement et "
                     + "réutilisés ensuite.",
                 "⚠ Library Scan",
                 MessageBoxButton.OKCancel,
                 MessageBoxImage.Warning);
+
+            if (confirmation != MessageBoxResult.OK)
+                return;
+
+            await StartLibraryScanAsync(songsFolder);
+        }
+
+        private async Task StartLibraryScanAsync(string songsFolder)
+        {
+            if (isLibraryScanRunning)
+                return;
+
+            CancellationTokenSource cancellation = new();
+            libraryScanCancellation = cancellation;
+            isLibraryScanRunning = true;
+            acceptsLibraryScanProgress = true;
+
+            SetLibraryScanControls(isScanning: true);
+            ShowLibraryScanPreparingState();
+
+            try
+            {
+                // Une mise à jour Tosu déjà lancée termine avant le
+                // scan. La garde isLibraryScanRunning bloque ensuite
+                // tout nouvel appel Tosu ou Community Tags.
+                while (isUpdating)
+                    await Task.Delay(50);
+
+                cancellation.Token.ThrowIfCancellationRequested();
+
+                IProgress<LibraryScanProgress> progress =
+                    new Progress<LibraryScanProgress>(
+                        UpdateLibraryScanProgress);
+
+                BeatmapLibraryScanner scanner =
+                    new(analysisCache);
+
+                LibraryScanResult result = await Task.Run(() =>
+                    scanner.Scan(
+                        songsFolder,
+                        progress,
+                        cancellation.Token));
+
+                acceptsLibraryScanProgress = false;
+                ShowLibraryScanSummary(result);
+            }
+            catch (OperationCanceledException)
+                when (cancellation.IsCancellationRequested)
+            {
+                acceptsLibraryScanProgress = false;
+                ShowLibraryScanCancelledWithoutResult();
+            }
+            catch (Exception ex)
+            {
+                acceptsLibraryScanProgress = false;
+                DebugLogger.Log(
+                    $"LIBRARY SCAN ERROR | {ex.Message}");
+
+                DebugLogger.Detailed(ex.ToString());
+
+                ShowLibraryScanFailure(ex);
+            }
+            finally
+            {
+                isLibraryScanRunning = false;
+                acceptsLibraryScanProgress = false;
+
+                if (ReferenceEquals(libraryScanCancellation, cancellation))
+                {
+                    libraryScanCancellation = null;
+                    cancellation.Dispose();
+                }
+
+                SetLibraryScanControls(isScanning: false);
+            }
+        }
+
+        private void CancelLibraryScan_Click(
+            object sender,
+            RoutedEventArgs e)
+        {
+            if (libraryScanCancellation is not {
+                IsCancellationRequested: false
+            } cancellation)
+            {
+                return;
+            }
+
+            cancellation.Cancel();
+            CancelLibraryScanButton.IsEnabled = false;
+            LibraryScanStatusText.Text = "Cancelling scan...";
+        }
+
+        private void SetLibraryScanControls(bool isScanning)
+        {
+            ChangeSongsFolderButton.IsEnabled = !isScanning;
+            ScanLibraryButton.IsEnabled = !isScanning;
+            CancelLibraryScanButton.Visibility = isScanning
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+
+            if (isScanning)
+                CancelLibraryScanButton.IsEnabled = true;
+        }
+
+        private void ShowLibraryScanPreparingState()
+        {
+            LibraryScanProgressPanel.Visibility = Visibility.Visible;
+            LibraryScanStatusText.Text = "Scanning library...";
+            LibraryScanProgressBar.Value = 0;
+            LibraryScanProgressText.Text = "Finding beatmaps...";
+            LibraryScanPercentText.Text = "0.0%";
+            LibraryScanAnalyzedText.Text = "Analyzed: 0";
+            LibraryScanUpToDateText.Text = "Up to date: 0";
+            LibraryScanFailedText.Text = "Failed: 0";
+            LibraryScanCurrentFileText.Text = "Current file: —";
+            LibraryScanCurrentFileText.ToolTip = null;
+        }
+
+        private void UpdateLibraryScanProgress(
+            LibraryScanProgress progress)
+        {
+            if (!acceptsLibraryScanProgress)
+                return;
+
+            LibraryScanProgressPanel.Visibility = Visibility.Visible;
+            LibraryScanStatusText.Text = "Scanning library...";
+            LibraryScanProgressBar.Value = Math.Clamp(
+                progress.Percent,
+                0.0,
+                100.0);
+            LibraryScanProgressText.Text =
+                $"Processed {progress.ProcessedFiles} / {progress.TotalFiles}";
+            LibraryScanPercentText.Text = $"{progress.Percent:0.0}%";
+            LibraryScanAnalyzedText.Text =
+                $"Analyzed: {progress.AnalyzedFiles}";
+            LibraryScanUpToDateText.Text =
+                $"Up to date: {progress.SkippedUpToDateFiles}";
+            LibraryScanFailedText.Text =
+                $"Failed: {progress.FailedFiles}";
+
+            string currentFile = string.IsNullOrWhiteSpace(progress.CurrentFile)
+                ? "—"
+                : Path.GetFileName(progress.CurrentFile);
+
+            LibraryScanCurrentFileText.Text =
+                $"Current file: {currentFile}";
+            LibraryScanCurrentFileText.ToolTip = progress.CurrentFile;
+        }
+
+        private void ShowLibraryScanSummary(LibraryScanResult result)
+        {
+            double percent = result.TotalFiles == 0
+                ? 0.0
+                : result.ProcessedFiles * 100.0 / result.TotalFiles;
+
+            LibraryScanProgressPanel.Visibility = Visibility.Visible;
+            LibraryScanStatusText.Text = result.WasCancelled
+                ? "Library scan cancelled"
+                : "Library scan complete";
+            LibraryScanProgressBar.Value = Math.Clamp(percent, 0.0, 100.0);
+            LibraryScanProgressText.Text =
+                $"Processed {result.ProcessedFiles} / {result.TotalFiles}";
+            LibraryScanPercentText.Text = $"{percent:0.0}%";
+            LibraryScanAnalyzedText.Text = $"Analyzed: {result.AnalyzedFiles}";
+            LibraryScanUpToDateText.Text =
+                $"Up to date: {result.SkippedUpToDateFiles}";
+            LibraryScanFailedText.Text = $"Failed: {result.FailedFiles}";
+            LibraryScanCurrentFileText.Text = result.WasCancelled
+                ? $"Cancelled after {result.Elapsed:mm\\:ss}."
+                : $"Completed in {result.Elapsed:mm\\:ss}.";
+            LibraryScanCurrentFileText.ToolTip = null;
+        }
+
+        private void ShowLibraryScanCancelledWithoutResult()
+        {
+            LibraryScanStatusText.Text = "Library scan cancelled";
+            LibraryScanCurrentFileText.Text =
+                "Cancelled before a final summary was available.";
+            LibraryScanCurrentFileText.ToolTip = null;
+        }
+
+        private void ShowLibraryScanFailure(Exception exception)
+        {
+            LibraryScanProgressPanel.Visibility = Visibility.Visible;
+            LibraryScanStatusText.Text = "Library scan failed";
+            LibraryScanCurrentFileText.Text =
+                $"Error: {exception.Message}";
+            LibraryScanCurrentFileText.ToolTip = exception.ToString();
         }
 
         private async Task<List<CommunityTag>> GetCommunityTags(int beatmapId)
@@ -645,6 +838,9 @@ namespace BeatInsight
         }
         private async Task UpdateMap()
         {
+            if (isLibraryScanRunning)
+                return;
+
             // ============================================================
             // TOSU CONNECTION
             // ============================================================
@@ -796,6 +992,12 @@ namespace BeatInsight
 
                 throw;
             }
+
+            // Le scan de bibliothèque suspend les appels Community
+            // Tags. Cette seconde garde couvre une demande de scan
+            // faite pendant l'analyse locale de la map active.
+            if (isLibraryScanRunning)
+                return;
 
             // ============================================================
             // COMMUNITY TAGS

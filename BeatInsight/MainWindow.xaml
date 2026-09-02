@@ -109,15 +109,73 @@
                             Margin="0,6,0,0">
 
                     <Button Content="Change Folder"
+                            x:Name="ChangeSongsFolderButton"
                             Click="ChangeSongsFolder_Click"
                             Padding="10,4"/>
 
                     <Button Content="Scan Library"
+                            x:Name="ScanLibraryButton"
                             Click="ScanLibrary_Click"
                             Padding="10,4"
                             Margin="6,0,0,0"/>
 
                 </StackPanel>
+
+                <Border x:Name="LibraryScanProgressPanel"
+                        Visibility="Collapsed"
+                        Margin="0,8,0,0"
+                        Padding="8"
+                        MaxWidth="300"
+                        Background="#1EFFFFFF"
+                        BorderBrush="#44FFFFFF"
+                        BorderThickness="1"
+                        CornerRadius="4">
+                    <StackPanel>
+                        <TextBlock x:Name="LibraryScanStatusText"
+                                   Text="Scanning library..."
+                                   FontSize="11"
+                                   FontWeight="SemiBold"
+                                   Foreground="White"/>
+                        <ProgressBar x:Name="LibraryScanProgressBar"
+                                     Minimum="0"
+                                     Maximum="100"
+                                     Height="6"
+                                     Margin="0,6,0,0"/>
+                        <TextBlock x:Name="LibraryScanProgressText"
+                                   Text="Processed 0 / 0"
+                                   FontSize="10"
+                                   Foreground="#CCFFFFFF"
+                                   Margin="0,5,0,0"/>
+                        <TextBlock x:Name="LibraryScanPercentText"
+                                   Text="0.0%"
+                                   FontSize="10"
+                                   Foreground="#CCFFFFFF"/>
+                        <TextBlock x:Name="LibraryScanAnalyzedText"
+                                   Text="Analyzed: 0"
+                                   FontSize="10"
+                                   Foreground="#CCFFFFFF"/>
+                        <TextBlock x:Name="LibraryScanUpToDateText"
+                                   Text="Up to date: 0"
+                                   FontSize="10"
+                                   Foreground="#CCFFFFFF"/>
+                        <TextBlock x:Name="LibraryScanFailedText"
+                                   Text="Failed: 0"
+                                   FontSize="10"
+                                   Foreground="#CCFFFFFF"/>
+                        <TextBlock x:Name="LibraryScanCurrentFileText"
+                                   Text="Current file: —"
+                                   FontSize="10"
+                                   Foreground="#99FFFFFF"
+                                   Margin="0,4,0,0"
+                                   TextTrimming="CharacterEllipsis"/>
+                        <Button x:Name="CancelLibraryScanButton"
+                                Content="Cancel Scan"
+                                Click="CancelLibraryScan_Click"
+                                Padding="8,3"
+                                Margin="0,7,0,0"
+                                HorizontalAlignment="Left"/>
+                    </StackPanel>
+                </Border>
 
             </StackPanel>
 
