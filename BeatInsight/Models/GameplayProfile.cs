@@ -89,6 +89,12 @@ public sealed class GameplayProfile
     public double BurstRatio { get; init; }
 
     /// <summary>
+    /// Niveau de présence Burst basé uniquement sur BurstRatio :
+    /// None / Low / Moderate / High / Intense.
+    /// </summary>
+    public string BurstPresence { get; init; } = "None";
+
+    /// <summary>
     /// Indique si au moins un Burst a été détecté.
     /// </summary>
     public bool HasBursts =>

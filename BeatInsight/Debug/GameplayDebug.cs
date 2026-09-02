@@ -357,5 +357,8 @@ public static class GameplayDebug
             $"{profile.BurstObjectCount} circles / " +
             $"{profile.BurstRatio:P2} / " +
             $"Max {profile.LongestBurstLength}");
+
+        DebugLogger.Log(
+            $"BURST PRESENCE = {profile.BurstPresence}");
     }
 }

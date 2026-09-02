@@ -570,6 +570,7 @@ public static class GameplayAnalyzer
                     ? 0
                     : bursts.Max(sequence => sequence.ObjectCount),
             BurstRatio = burstRatio,
+            BurstPresence = GetBurstPresence(burstRatio),
             BurstSequences = bursts,
 
             // ----------------------------
@@ -3354,6 +3355,24 @@ public static class GameplayAnalyzer
             return "Light Speed Presence";
 
         return "Minimal Speed Presence";
+    }
+
+    private static string GetBurstPresence(
+        double burstRatio)
+    {
+        if (burstRatio <= 0.0)
+            return "None";
+
+        if (burstRatio < 0.08)
+            return "Low";
+
+        if (burstRatio < 0.15)
+            return "Moderate";
+
+        if (burstRatio < 0.30)
+            return "High";
+
+        return "Intense";
     }
     /// <summary>
     /// Construit les sections Speed à partir des objets
