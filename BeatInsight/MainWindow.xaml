@@ -80,6 +80,49 @@
 
 
             <!-- ===================================================== -->
+            <!-- OSU! LIBRARY                                           -->
+            <!-- ===================================================== -->
+
+            <StackPanel HorizontalAlignment="Left"
+                        VerticalAlignment="Top"
+                        Margin="10,115,0,0"
+                        Panel.ZIndex="20">
+
+                <TextBlock Text="OSU! LIBRARY"
+                           FontSize="11"
+                           FontWeight="Bold"
+                           Foreground="#88FFFFFF"/>
+
+                <TextBlock Text="Songs folder:"
+                           FontSize="11"
+                           Foreground="#88FFFFFF"
+                           Margin="0,4,0,0"/>
+
+                <TextBlock x:Name="SongsFolderText"
+                           Text="Not set"
+                           FontSize="11"
+                           Foreground="White"
+                           MaxWidth="260"
+                           TextTrimming="CharacterEllipsis"/>
+
+                <StackPanel Orientation="Horizontal"
+                            Margin="0,6,0,0">
+
+                    <Button Content="Change Folder"
+                            Click="ChangeSongsFolder_Click"
+                            Padding="10,4"/>
+
+                    <Button Content="Scan Library"
+                            Click="ScanLibrary_Click"
+                            Padding="10,4"
+                            Margin="6,0,0,0"/>
+
+                </StackPanel>
+
+            </StackPanel>
+
+
+            <!-- ===================================================== -->
             <!-- HEADER                                                  -->
             <!-- ===================================================== -->
 

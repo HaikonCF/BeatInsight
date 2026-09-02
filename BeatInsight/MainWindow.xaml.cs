@@ -3,6 +3,7 @@ using BeatInsight.Diagnostics;
 using BeatInsight.Models;
 using BeatInsight.Parser;
 using BeatInsight.Services;
+using BeatInsight.Services.Library;
 using BeatInsight.Services.Persistence;
 using System;
 using System.Diagnostics;
@@ -48,6 +49,14 @@ namespace BeatInsight
             new(new BeatmapAnalysisRepository(
                 BeatmapAnalysisRepository.DefaultDatabasePath));
 
+        // Résolution du dossier Songs (préférence manuelle > tosu).
+        private readonly SongsPathResolver songsPathResolver = new();
+
+        // Dernier chemin Songs rapporté par tosu, mémorisé afin que
+        // les actions de la bibliothèque puissent résoudre un chemin
+        // même entre deux mises à jour de MapTimer_Tick.
+        private string? lastTosuSongsPath;
+
         private async Task TestOsuApi(int beatmapId)
         {
             try
@@ -90,7 +99,10 @@ namespace BeatInsight
             };
 
             mapTimer.Tick += MapTimer_Tick;
-            mapTimer.Start(); }
+            mapTimer.Start();
+
+            RefreshSongsFolderDisplay();
+        }
 
         public string AppVersion => $"BeatInsight v{Assembly.GetExecutingAssembly().GetName().Version?.ToString(3)}";
 
@@ -355,6 +367,103 @@ namespace BeatInsight
         UseShellExecute = true
     });
 }
+
+        // ============================================================
+        // OSU! LIBRARY
+        // ============================================================
+
+        // Met à jour l'affichage du dossier Songs résolu (préférence
+        // manuelle prioritaire, sinon chemin tosu). N'écrit jamais la
+        // préférence : cette méthode ne fait que lire et afficher.
+        private void RefreshSongsFolderDisplay()
+        {
+            string? resolved =
+                songsPathResolver.Resolve(lastTosuSongsPath);
+
+            SongsFolderText.Text = resolved ?? "Not set";
+        }
+
+        private void ChangeSongsFolder_Click(
+            object sender,
+            RoutedEventArgs e)
+        {
+            PromptForManualSongsFolder();
+        }
+
+        // Ouvre le sélecteur de dossier et, en cas de sélection
+        // valide, sauvegarde la préférence manuelle. Un chemin manuel
+        // déjà valide n'est jamais écrasé silencieusement : ce n'est
+        // que lorsque l'utilisateur choisit explicitement un nouveau
+        // dossier ici que la préférence change.
+        private bool PromptForManualSongsFolder()
+        {
+            var dialog = new Microsoft.Win32.OpenFolderDialog
+            {
+                Title = "Select osu! Songs folder",
+            };
+
+            string? current =
+                songsPathResolver.Resolve(lastTosuSongsPath);
+
+            if (!string.IsNullOrWhiteSpace(current)
+                && Directory.Exists(current))
+            {
+                dialog.InitialDirectory = current;
+            }
+
+            if (dialog.ShowDialog(this) != true
+                || string.IsNullOrWhiteSpace(dialog.FolderName))
+            {
+                return false;
+            }
+
+            songsPathResolver.SaveManualPath(dialog.FolderName);
+            RefreshSongsFolderDisplay();
+
+            return true;
+        }
+
+        private void ScanLibrary_Click(object sender, RoutedEventArgs e)
+        {
+            string? songsFolder =
+                songsPathResolver.Resolve(lastTosuSongsPath);
+
+            // Aucun chemin résolu : on ouvre directement le
+            // sélecteur plutôt que d'afficher une confirmation vide.
+            // BeatmapLibraryScanner n'est volontairement pas appelé
+            // ici : cette sous-phase ne fait que compter les fichiers.
+            if (songsFolder is null)
+            {
+                PromptForManualSongsFolder();
+
+                return;
+            }
+
+            int beatmapCount = Directory
+                .EnumerateFiles(
+                    songsFolder,
+                    "*.osu",
+                    SearchOption.AllDirectories)
+                .Count();
+
+            // MessageBox ne permet pas de personnaliser le texte des
+            // boutons ([Cancel] / [Start Scan]) sans une fenêtre
+            // dédiée : OK/Cancel standards sont utilisés ici pour
+            // garder le diff minimal. Quel que soit le bouton choisi,
+            // BeatmapLibraryScanner n'est pas encore invoqué : le
+            // branchement réel est prévu pour la sous-phase 2.2.3b.
+            MessageBox.Show(
+                this,
+                $"BeatInsight a trouvé {beatmapCount} beatmaps dans :\n"
+                    + $"{songsFolder}\n\n"
+                    + "Le premier scan peut prendre plusieurs minutes.\n"
+                    + "Les résultats seront enregistrés localement et "
+                    + "réutilisés ensuite.",
+                "⚠ Library Scan",
+                MessageBoxButton.OKCancel,
+                MessageBoxImage.Warning);
+        }
+
         private async Task<List<CommunityTag>> GetCommunityTags(int beatmapId)
         {
             try
@@ -605,6 +714,9 @@ namespace BeatInsight
                 .GetProperty("folders")
                 .GetProperty("songs")
                 .GetString()!;
+
+            lastTosuSongsPath = songs;
+            RefreshSongsFolderDisplay();
 
             // On récupère le chemin du background associé à la difficulté actuelle.
 
