@@ -104,6 +104,74 @@ public sealed class BeatmapLibraryScannerTests : IDisposable
         """;
 
     /// <summary>
+    /// Fichier osu!standard syntaxiquement lisible mais sans objet
+    /// jouable. Il doit échouer explicitement au parseur, et non par
+    /// un accès d'index hors limites.
+    /// </summary>
+    private const string EmptyStandardOsu = """
+        osu file format v14
+
+        [General]
+        Mode: 0
+
+        [Difficulty]
+        ApproachRate:5
+        OverallDifficulty:5
+        CircleSize:4
+        HPDrainRate:5
+        SliderMultiplier:1.4
+        SliderTickRate:1
+
+        [HitObjects]
+        """;
+
+    /// <summary>
+    /// Map standard avec deux objets simultanés : le parseur doit
+    /// ignorer cette transition pour le calcul de vitesse legacy, sans
+    /// générer de valeur non finie dans le rating final.
+    /// </summary>
+    private const string ZeroIntervalOsu = """
+        osu file format v14
+
+        [General]
+        Mode: 0
+
+        [Metadata]
+        Title:Zero Interval
+        Artist:Test Artist
+        Creator:Test Creator
+        Version:Normal
+
+        [Difficulty]
+        ApproachRate:5
+        OverallDifficulty:5
+        CircleSize:4
+        HPDrainRate:5
+        SliderMultiplier:1.4
+        SliderTickRate:1
+
+        [TimingPoints]
+        0,500,4,2,0,50,1,0
+
+        [HitObjects]
+        100,100,0,1,0,0:0:0:0:
+        200,100,0,1,0,0:0:0:0:
+        200,100,600,1,0,0:0:0:0:
+        """;
+
+    /// <summary>
+    /// Un mode non-standard volontairement incomplet : s'il atteignait
+    /// le cache ou le parseur, il échouerait. Son statut skipped prouve
+    /// donc que le filtrage intervient avant le pipeline d'analyse.
+    /// </summary>
+    private const string UnsupportedModeOsu = """
+        osu file format v14
+
+        [General]
+        Mode: 3
+        """;
+
+    /// <summary>
     /// Fichier .osu dont le contenu fait échouer le parsing d'une
     /// valeur numérique : reproduit une map réellement corrompue,
     /// sans dépendre d'une simplification artificielle du parser.
@@ -146,6 +214,7 @@ public sealed class BeatmapLibraryScannerTests : IDisposable
         Assert.Equal(0, result.ProcessedFiles);
         Assert.Equal(0, result.AnalyzedFiles);
         Assert.Equal(0, result.SkippedUpToDateFiles);
+        Assert.Equal(0, result.SkippedUnsupportedFiles);
         Assert.Equal(0, result.FailedFiles);
         Assert.False(result.WasCancelled);
     }
@@ -323,6 +392,63 @@ public sealed class BeatmapLibraryScannerTests : IDisposable
         Assert.Equal(1, result.AnalyzedFiles);
     }
 
+    [Fact]
+    public void UnsupportedMode_IsSkippedBeforeCacheAndParser()
+    {
+        string unsupported = WriteMap(
+            "mania.osu",
+            UnsupportedModeOsu);
+
+        // Le scanner ne doit pas atteindre le cache pour ce fichier.
+        // Le schéma est donc créé ici uniquement pour pouvoir vérifier
+        // l'absence d'enregistrement ensuite.
+        repository.EnsureSchema();
+
+        LibraryScanResult result = scanner.Scan(songsRoot);
+
+        Assert.Equal(1, result.TotalFiles);
+        Assert.Equal(1, result.ProcessedFiles);
+        Assert.Equal(0, result.AnalyzedFiles);
+        Assert.Equal(0, result.SkippedUpToDateFiles);
+        Assert.Equal(1, result.SkippedUnsupportedFiles);
+        Assert.Equal(0, result.FailedFiles);
+        Assert.Null(repository.Find(unsupported));
+        Assert.False(File.Exists(failureLogPath));
+    }
+
+    [Fact]
+    public void EmptyStandardMap_IsCountedAsFailedWithExplicitError()
+    {
+        WriteMap("empty.osu", EmptyStandardOsu);
+
+        LibraryScanResult result = scanner.Scan(songsRoot);
+
+        Assert.Equal(1, result.FailedFiles);
+        Assert.Equal(0, result.SkippedUnsupportedFiles);
+        Assert.True(File.Exists(failureLogPath));
+        Assert.Contains(
+            "Beatmap contains no hit objects.",
+            File.ReadAllText(failureLogPath));
+    }
+
+    [Fact]
+    public void ZeroIntervalStandardMap_ProducesFiniteRatings()
+    {
+        string mapPath = WriteMap("zero-interval.osu", ZeroIntervalOsu);
+
+        LibraryScanResult result = scanner.Scan(songsRoot);
+
+        Assert.Equal(0, result.FailedFiles);
+
+        var record = repository.Find(mapPath);
+
+        Assert.NotNull(record);
+        Assert.False(double.IsNaN(record.OsuStarRating));
+        Assert.False(double.IsInfinity(record.OsuStarRating));
+        Assert.False(double.IsNaN(record.BeatInsightRating));
+        Assert.False(double.IsInfinity(record.BeatInsightRating));
+    }
+
 
     // ============================================================
     // ANNULATION
@@ -413,6 +539,7 @@ public sealed class BeatmapLibraryScannerTests : IDisposable
     {
         WriteMap("a.osu");
         WriteMap("broken.osu", InvalidOsu);
+        WriteMap("unsupported.osu", UnsupportedModeOsu);
         WriteMap("b.osu");
 
         var reports = new List<LibraryScanProgress>();
@@ -425,12 +552,13 @@ public sealed class BeatmapLibraryScannerTests : IDisposable
 
         foreach (LibraryScanProgress report in reports)
         {
-            Assert.Equal(3, report.TotalFiles);
+            Assert.Equal(4, report.TotalFiles);
 
             Assert.Equal(
                 report.ProcessedFiles,
                 report.AnalyzedFiles
                     + report.SkippedUpToDateFiles
+                    + report.SkippedUnsupportedFiles
                     + report.FailedFiles);
 
             Assert.InRange(report.Percent, 0.0, 100.0);
@@ -445,7 +573,16 @@ public sealed class BeatmapLibraryScannerTests : IDisposable
         Assert.Equal(
             result.SkippedUpToDateFiles,
             last.SkippedUpToDateFiles);
+        Assert.Equal(
+            result.SkippedUnsupportedFiles,
+            last.SkippedUnsupportedFiles);
         Assert.Equal(result.FailedFiles, last.FailedFiles);
+        Assert.Equal(
+            result.TotalFiles,
+            result.AnalyzedFiles
+                + result.SkippedUpToDateFiles
+                + result.SkippedUnsupportedFiles
+                + result.FailedFiles);
         Assert.Null(last.CurrentFile);
         Assert.Equal(100.0, last.Percent);
     }

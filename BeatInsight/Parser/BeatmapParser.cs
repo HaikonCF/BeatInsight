@@ -234,6 +234,12 @@ namespace BeatInsight.Parser
                 }
             }
 
+            if (beatmap.HitObjects.Count == 0)
+            {
+                throw new InvalidDataException(
+                    "Beatmap contains no hit objects.");
+            }
+
             int length = beatmap.HitObjects[beatmap.HitObjects.Count - 1].Time - beatmap.HitObjects[0].Time;
             TimeSpan duree = TimeSpan.FromMilliseconds(length);
             beatmap.Length = duree;
@@ -433,6 +439,13 @@ namespace BeatInsight.Parser
                             // On calcule le temps nécessaire pour passer
                             // de l'objet précédent à l'objet actuel.
                             double deltaTime = current.Time - previous.Time;
+
+                            // Une transition simultanée n'a pas de vitesse
+                            // de mouvement définie. Elle conserve sa
+                            // contribution de densité, mais ne participe pas
+                            // au calcul distance / temps de cette section.
+                            if (deltaTime <= 0)
+                                continue;
 
                             // On calcule la différence de position entre
                             // l'objet précédent et l'objet actuel.

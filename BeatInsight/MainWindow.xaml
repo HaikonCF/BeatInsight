@@ -158,6 +158,10 @@
                                    Text="Up to date: 0"
                                    FontSize="10"
                                    Foreground="#CCFFFFFF"/>
+                        <TextBlock x:Name="LibraryScanUnsupportedText"
+                                   Text="Unsupported: 0"
+                                   FontSize="10"
+                                   Foreground="#CCFFFFFF"/>
                         <TextBlock x:Name="LibraryScanFailedText"
                                    Text="Failed: 0"
                                    FontSize="10"

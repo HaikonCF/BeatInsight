@@ -81,6 +81,7 @@ internal sealed class BeatmapLibraryScanner
         int processedFiles = 0;
         int analyzedFiles = 0;
         int skippedUpToDateFiles = 0;
+        int skippedUnsupportedFiles = 0;
         int failedFiles = 0;
         bool wasCancelled = false;
 
@@ -98,21 +99,33 @@ internal sealed class BeatmapLibraryScanner
                 processedFiles,
                 analyzedFiles,
                 skippedUpToDateFiles,
+                skippedUnsupportedFiles,
                 failedFiles,
                 currentFile: file);
 
             try
             {
-                BeatmapAnalysisOutcome outcome =
-                    cacheService.GetOrAnalyzeDetailed(file);
-
-                if (outcome.WasCacheHit)
+                // BeatInsight analyse exclusivement osu!standard.
+                // La lecture de l'en-tête évite de créer une beatmap,
+                // d'appeler le cache ou de lancer l'analyse pour les
+                // modes non supportés.
+                if (!BeatmapGameModeReader.IsSupportedForAnalysis(file))
                 {
-                    skippedUpToDateFiles++;
+                    skippedUnsupportedFiles++;
                 }
                 else
                 {
-                    analyzedFiles++;
+                    BeatmapAnalysisOutcome outcome =
+                        cacheService.GetOrAnalyzeDetailed(file);
+
+                    if (outcome.WasCacheHit)
+                    {
+                        skippedUpToDateFiles++;
+                    }
+                    else
+                    {
+                        analyzedFiles++;
+                    }
                 }
             }
             catch (Exception ex) when (
@@ -135,6 +148,7 @@ internal sealed class BeatmapLibraryScanner
             processedFiles,
             analyzedFiles,
             skippedUpToDateFiles,
+            skippedUnsupportedFiles,
             failedFiles,
             currentFile: null);
 
@@ -144,6 +158,7 @@ internal sealed class BeatmapLibraryScanner
             ProcessedFiles = processedFiles,
             AnalyzedFiles = analyzedFiles,
             SkippedUpToDateFiles = skippedUpToDateFiles,
+            SkippedUnsupportedFiles = skippedUnsupportedFiles,
             FailedFiles = failedFiles,
             WasCancelled = wasCancelled,
             Elapsed = stopwatch.Elapsed,
@@ -203,6 +218,7 @@ internal sealed class BeatmapLibraryScanner
         int processedFiles,
         int analyzedFiles,
         int skippedUpToDateFiles,
+        int skippedUnsupportedFiles,
         int failedFiles,
         string? currentFile)
     {
@@ -212,6 +228,7 @@ internal sealed class BeatmapLibraryScanner
             ProcessedFiles = processedFiles,
             AnalyzedFiles = analyzedFiles,
             SkippedUpToDateFiles = skippedUpToDateFiles,
+            SkippedUnsupportedFiles = skippedUnsupportedFiles,
             FailedFiles = failedFiles,
             CurrentFile = currentFile,
             Percent = totalFiles == 0

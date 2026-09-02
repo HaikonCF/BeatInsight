@@ -580,6 +580,7 @@ namespace BeatInsight
             LibraryScanPercentText.Text = "0.0%";
             LibraryScanAnalyzedText.Text = "Analyzed: 0";
             LibraryScanUpToDateText.Text = "Up to date: 0";
+            LibraryScanUnsupportedText.Text = "Unsupported: 0";
             LibraryScanFailedText.Text = "Failed: 0";
             LibraryScanCurrentFileText.Text = "Current file: —";
             LibraryScanCurrentFileText.ToolTip = null;
@@ -604,6 +605,8 @@ namespace BeatInsight
                 $"Analyzed: {progress.AnalyzedFiles}";
             LibraryScanUpToDateText.Text =
                 $"Up to date: {progress.SkippedUpToDateFiles}";
+            LibraryScanUnsupportedText.Text =
+                $"Unsupported: {progress.SkippedUnsupportedFiles}";
             LibraryScanFailedText.Text =
                 $"Failed: {progress.FailedFiles}";
 
@@ -633,6 +636,8 @@ namespace BeatInsight
             LibraryScanAnalyzedText.Text = $"Analyzed: {result.AnalyzedFiles}";
             LibraryScanUpToDateText.Text =
                 $"Up to date: {result.SkippedUpToDateFiles}";
+            LibraryScanUnsupportedText.Text =
+                $"Unsupported: {result.SkippedUnsupportedFiles}";
             LibraryScanFailedText.Text = $"Failed: {result.FailedFiles}";
             LibraryScanCurrentFileText.Text = result.WasCancelled
                 ? $"Cancelled after {result.Elapsed:mm\\:ss}."

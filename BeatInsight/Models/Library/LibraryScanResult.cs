@@ -33,6 +33,12 @@ internal sealed class LibraryScanResult
     internal required int SkippedUpToDateFiles { get; init; }
 
     /// <summary>
+    /// Nombre de fichiers ignorés parce que leur mode osu! n'est pas
+    /// pris en charge par BeatInsight (tout mode différent de 0).
+    /// </summary>
+    internal required int SkippedUnsupportedFiles { get; init; }
+
+    /// <summary>
     /// Nombre de fichiers dont l'analyse a échoué.
     /// </summary>
     internal required int FailedFiles { get; init; }
