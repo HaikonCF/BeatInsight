@@ -344,24 +344,37 @@ internal sealed class BeatmapAnalysisRepository
         };
 
         SqliteConnection connection = new(builder.ToString());
-        connection.Open();
 
-        using SqliteCommand pragma = connection.CreateCommand();
+        // Si l'ouverture ou les PRAGMA échouent (fichier illisible,
+        // base corrompue, verrou), la connexion doit être libérée
+        // avant que l'exception ne remonte. Sans cela elle fuirait et
+        // conserverait un handle sur le fichier.
+        try
+        {
+            connection.Open();
 
-        // WAL survit à la fermeture (propriété du fichier) et permet
-        // des lectures concurrentes pendant une écriture, ce dont le
-        // futur scan incrémental aura besoin.
-        //
-        // synchronous=NORMAL est propre à la connexion et doit donc
-        // être réappliqué à chaque ouverture.
-        pragma.CommandText = """
-            PRAGMA journal_mode=WAL;
-            PRAGMA synchronous=NORMAL;
-            """;
+            using SqliteCommand pragma = connection.CreateCommand();
 
-        pragma.ExecuteNonQuery();
+            // WAL survit à la fermeture (propriété du fichier) et
+            // permet des lectures concurrentes pendant une écriture,
+            // ce dont le futur scan incrémental aura besoin.
+            //
+            // synchronous=NORMAL est propre à la connexion et doit
+            // donc être réappliqué à chaque ouverture.
+            pragma.CommandText = """
+                PRAGMA journal_mode=WAL;
+                PRAGMA synchronous=NORMAL;
+                """;
 
-        return connection;
+            pragma.ExecuteNonQuery();
+
+            return connection;
+        }
+        catch
+        {
+            connection.Dispose();
+            throw;
+        }
     }
 
 
