@@ -448,6 +448,32 @@ public static class GameplayAnalyzer
                 techCircleCount,
                 analysedCircles);
 
+        string burstPresence =
+            GetBurstPresence(burstRatio);
+
+        double readPredictabilityPenalty = 1.0;
+
+        if (read.ReadPredictability > 0.80)
+        {
+            double excess =
+                Math.Clamp(
+                    (read.ReadPredictability - 0.80) / 0.20,
+                    0.0,
+                    1.0);
+
+            double curvedExcess =
+                Math.Sqrt(excess);
+
+            readPredictabilityPenalty =
+                1.0 - (0.80 * curvedExcess);
+        }
+
+        double finalReadScore =
+            Math.Clamp(
+                (read.Score / 100.0) * readPredictabilityPenalty,
+                0.0,
+                1.0) * 100.0;
+
         // AimCoverage représente désormais la présence de mouvements Aim
         // significatifs, et non le nombre de transitions rapides qualifiées.
         double aimCoverage =
@@ -482,6 +508,8 @@ public static class GameplayAnalyzer
                     rawTechScore,
                     techPrimaryEligible,
                     techSecondaryEligible,
+                    burstPresence,
+                    finalReadScore,
                     aim,
                     speed,
                     tech,
@@ -509,28 +537,6 @@ public static class GameplayAnalyzer
         // --------------------------------------------------------
         // Construction du profil final.
         // --------------------------------------------------------
-        double readPredictabilityPenalty = 1.0;
-
-        if (read.ReadPredictability > 0.80)
-        {
-            double excess =
-                Math.Clamp(
-                    (read.ReadPredictability - 0.80) / 0.20,
-                    0.0,
-                    1.0);
-
-            double curvedExcess =
-                Math.Sqrt(excess);
-
-            readPredictabilityPenalty =
-                1.0 - (0.80 * curvedExcess);
-        }
-
-        double finalReadScore =
-            Math.Clamp(
-                (read.Score / 100.0) * readPredictabilityPenalty,
-                0.0,
-                1.0) * 100.0;
         GameplayProfile profile = new()
         {
             // ----------------------------
@@ -570,7 +576,7 @@ public static class GameplayAnalyzer
                     ? 0
                     : bursts.Max(sequence => sequence.ObjectCount),
             BurstRatio = burstRatio,
-            BurstPresence = GetBurstPresence(burstRatio),
+            BurstPresence = burstPresence,
             BurstSequences = bursts,
 
             // ----------------------------
@@ -3890,23 +3896,32 @@ public static class GameplayAnalyzer
     {
         return trait switch
         {
-            "High Speed Pressure" => 100,
-            "High Aim Pressure" => 95,
-            "High Reading Demand" => 90,
-            "High Technical Pressure" => 85,
+            // Les traits structurels issus de l'Identity restent visibles
+            // avant les pressions et les caractéristiques descriptives.
+            "Stream Heavy" => 100,
+            "Jump Heavy" => 100,
+            "Stream Secondary" => 95,
+            "Jump Secondary" => 95,
+            "Tech Secondary" => 95,
+            "Mixed Secondary" => 95,
+            "Technical Patterns" => 90,
 
-            "Stream Heavy" => 80,
-            "Jump Heavy" => 80,
-            "Burst Heavy" => 75,
+            "High Speed Pressure" => 80,
+            "High Aim Pressure" => 79,
+            "High Reading Demand" => 78,
+            "High Technical Pressure" => 77,
 
             "Speed Influence" => 60,
             "Aim Influence" => 60,
+            "Burst Influence" => 56,
             "Reading Influence" => 55,
             "Technical Influence" => 50,
-
-            "Stream Secondary" => 35,
-            "Jump Secondary" => 35,
-            "Mixed Secondary" => 30,
+            "Burst Heavy" => 45,
+            "Fast Patterns" => 40,
+            "High Density" => 40,
+            "Large Spacing" => 35,
+            "Directional Changes" => 35,
+            "Aim Timing Pressure" => 35,
 
             _ => 0
         };
@@ -4075,6 +4090,8 @@ public static class GameplayAnalyzer
     double techIntensity,
     bool techPrimaryEligible,
     bool techSecondaryEligible,
+    string burstPresence,
+    double finalReadScore,
     AimAnalysis aim,
     SpeedAnalysis speed,
     TechAnalysis tech,
@@ -4268,6 +4285,8 @@ public static class GameplayAnalyzer
                 primary,
                 secondary,
                 techSecondaryEligible,
+                burstPresence,
+                finalReadScore,
                 aim,
                 speed,
                 tech,
@@ -4401,6 +4420,8 @@ public static class GameplayAnalyzer
     string primaryType,
     string? secondary,
     bool techSecondaryEligible,
+    string burstPresence,
+    double finalReadScore,
     AimAnalysis aim,
     SpeedAnalysis speed,
     TechAnalysis tech,
@@ -4434,11 +4455,11 @@ public static class GameplayAnalyzer
             traits.Add("Aim Influence");
         }
 
-        if (read.Score >= 60)
+        if (finalReadScore >= 60)
         {
             traits.Add("High Reading Demand");
         }
-        else if (read.Score >= 35)
+        else if (finalReadScore >= 35)
         {
             traits.Add("Reading Influence");
         }
@@ -4478,13 +4499,11 @@ public static class GameplayAnalyzer
         // BURSTS
         // ============================================================
 
-        if (primaryType.Contains(
-                "Stream",
-                StringComparison.OrdinalIgnoreCase)
-            || speed.SpeedRatio >= 0.20)
+        if (!burstPresence.Equals(
+                "None",
+                StringComparison.OrdinalIgnoreCase))
         {
-            // Le Burst est particulièrement pertinent
-            // lorsque la pression Speed est présente.
+            // Le trait repose uniquement sur une présence Burst détectée.
             traits.Add("Burst Influence");
         }
 
