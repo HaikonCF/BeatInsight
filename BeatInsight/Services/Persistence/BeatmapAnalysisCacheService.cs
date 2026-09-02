@@ -76,6 +76,22 @@ internal sealed class BeatmapAnalysisCacheService
         string filePath,
         int? beatmapId = null)
     {
+        return GetOrAnalyzeDetailed(filePath, beatmapId).Beatmap;
+    }
+
+    /// <summary>
+    /// Équivalent de <see cref="GetOrAnalyze"/>, mais indique en plus
+    /// explicitement si le résultat provient du cache.
+    ///
+    /// Destiné aux appelants qui doivent distinguer hit et miss pour
+    /// leurs propres besoins (par exemple des compteurs de
+    /// progression), sans avoir à inférer cette information de l'état
+    /// interne de la beatmap retournée.
+    /// </summary>
+    internal BeatmapAnalysisOutcome GetOrAnalyzeDetailed(
+        string filePath,
+        int? beatmapId = null)
+    {
         ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
 
         FileInfo fileInfo = new(filePath);
@@ -89,7 +105,11 @@ internal sealed class BeatmapAnalysisCacheService
             if (record is not null
                 && IsValid(record, filePath, fileInfo))
             {
-                return BeatmapAnalysisMapper.ToBeatmap(record);
+                return new BeatmapAnalysisOutcome
+                {
+                    Beatmap = BeatmapAnalysisMapper.ToBeatmap(record),
+                    WasCacheHit = true,
+                };
             }
         }
 
@@ -107,7 +127,11 @@ internal sealed class BeatmapAnalysisCacheService
             TryPersist(beatmap, filePath, fileInfo, beatmapId);
         }
 
-        return beatmap;
+        return new BeatmapAnalysisOutcome
+        {
+            Beatmap = beatmap,
+            WasCacheHit = false,
+        };
     }
 
 
