@@ -881,7 +881,7 @@ MinWidth="1000"
 
 
                 <!-- ================================================= -->
-                <!-- GAMEPLAY IDENTITY + COMMUNITY VALIDATION          -->
+                <!-- GAMEPLAY IDENTITY + COMMUNITY EVIDENCE            -->
                 <!-- ================================================= -->
 
                 <Grid Grid.Row="6"
@@ -1124,7 +1124,7 @@ MinWidth="1000"
 
 
                     <!-- ================================================= -->
-                    <!-- COMMUNITY VALIDATION                             -->
+                    <!-- COMMUNITY EVIDENCE                               -->
                     <!-- ================================================= -->
 
                     <Border Grid.Column="2"
@@ -1162,135 +1162,126 @@ MinWidth="1000"
                                 <!-- TITLE -->
                                 <!-- ================================================= -->
 
-                                <TextBlock Text="COMMUNITY VALIDATION"
+                                <TextBlock Text="COMMUNITY EVIDENCE"
                FontSize="11"
                FontWeight="SemiBold"
                Foreground="#AAFFFFFF"
                HorizontalAlignment="Center"/>
 
+                                <Grid Margin="0,10,0,0">
 
-                                <!-- ================================================= -->
-                                <!-- STATUS -->
-                                <!-- ================================================= -->
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
 
-                                <TextBlock Text="{Binding TagComparison.Status}"
-               FontSize="17"
-               FontWeight="Bold"
-               Foreground="White"
-               HorizontalAlignment="Center"
-               TextAlignment="Center"
-               TextWrapping="Wrap"
-               Margin="0,3,0,0"/>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
 
+                                    <TextBlock Grid.Row="0"
+                                               Text="AGREEMENT"
+                                               FontSize="10"
+                                               FontWeight="SemiBold"
+                                               Foreground="#88FFFFFF"
+                                               Margin="0,0,12,5"/>
 
-                                <!-- ================================================= -->
-                                <!-- CONSISTENCY -->
-                                <!-- ================================================= -->
+                                    <TextBlock Grid.Row="0"
+                                               Grid.Column="1"
+                                               Text="{Binding CommunityIdentityAgreement.Agreement,
+                                                      StringFormat={}{0:P0},
+                                                      TargetNullValue=—}"
+                                               FontSize="11"
+                                               FontWeight="SemiBold"
+                                               Foreground="#FFB56CFF"
+                                               HorizontalAlignment="Right"/>
 
-                                <TextBlock Text="{Binding TagComparison.Score,
-                       StringFormat=Consistency {0:P0}}"
-               FontSize="12"
-               Foreground="#BFFFFFFF"
-               HorizontalAlignment="Center"
-               Margin="0,2,0,5"/>
+                                    <TextBlock Grid.Row="1"
+                                               Text="RELIABILITY"
+                                               FontSize="10"
+                                               FontWeight="SemiBold"
+                                               Foreground="#88FFFFFF"
+                                               Margin="0,0,12,5"/>
 
+                                    <TextBlock Grid.Row="1"
+                                               Grid.Column="1"
+                                               Text="{Binding CommunityIdentityAgreement.Reliability,
+                                                      StringFormat={}{0:P0}}"
+                                               FontSize="11"
+                                               Foreground="#DDFFFFFF"
+                                               HorizontalAlignment="Right"/>
 
-                                <ProgressBar Value="{Binding TagComparison.Score}"
-                 Maximum="1"
-                 Height="4"
-                 Width="230"
-                 HorizontalAlignment="Center"
-                 Background="#33FFFFFF"
-                 Foreground="#FFB56CFF"
-                 BorderThickness="0"
-                 Margin="0,0,0,10"/>
+                                    <TextBlock Grid.Row="2"
+                                               Text="RELEVANT VOTES"
+                                               FontSize="10"
+                                               FontWeight="SemiBold"
+                                               Foreground="#88FFFFFF"
+                                               Margin="0,0,12,5"/>
 
+                                    <TextBlock Grid.Row="2"
+                                               Grid.Column="1"
+                                               Text="{Binding CommunityIdentityAgreement.RelevantVotes}"
+                                               FontSize="11"
+                                               Foreground="#DDFFFFFF"
+                                               HorizontalAlignment="Right"/>
 
-                                <!-- ================================================= -->
-                                <!-- VOTES -->
-                                <!-- ================================================= -->
+                                    <TextBlock Grid.Row="3"
+                                               Text="MATCHED"
+                                               FontSize="10"
+                                               FontWeight="SemiBold"
+                                               Foreground="#88FFFFFF"
+                                               Margin="0,0,12,5"/>
 
-                                <TextBlock Text="{Binding TagComparison.TotalVotes,
-                       StringFormat={}{0} community votes}"
-               FontSize="12"
-               Foreground="#99FFFFFF"
-               HorizontalAlignment="Center"
-               Margin="0,0,0,10"/>
+                                    <TextBlock Grid.Row="3"
+                                               Grid.Column="1"
+                                               Text="{Binding CommunityIdentityAgreement.MatchedFamiliesDisplay,
+                                                      TargetNullValue=None}"
+                                               FontSize="11"
+                                               Foreground="#DDFFFFFF"
+                                               HorizontalAlignment="Right"
+                                               TextWrapping="Wrap"
+                                               TextAlignment="Right"/>
 
+                                    <TextBlock Grid.Row="4"
+                                               Text="CONFLICTS"
+                                               FontSize="10"
+                                               FontWeight="SemiBold"
+                                               Foreground="#88FFFFFF"
+                                               Margin="0,0,12,0"/>
 
-                                <!-- ================================================= -->
-                                <!-- COMMUNITY TAGS -->
-                                <!-- ================================================= -->
+                                    <TextBlock Grid.Row="4"
+                                               Grid.Column="1"
+                                               Text="{Binding CommunityIdentityAgreement.ConflictingFamiliesDisplay,
+                                                      TargetNullValue=None}"
+                                               FontSize="11"
+                                               Foreground="#DDFFFFFF"
+                                               HorizontalAlignment="Right"
+                                               TextWrapping="Wrap"
+                                               TextAlignment="Right"/>
 
-                                <ItemsControl ItemsSource="{Binding TagComparison.Matches}"
-                  MaxWidth="520"
-                  HorizontalAlignment="Center">
+                                </Grid>
 
-                                    <ItemsControl.ItemTemplate>
-
-                                        <DataTemplate>
-
-                                            <Border Background="#18FFFFFF"
-                        BorderBrush="#20FFFFFF"
-                        BorderThickness="1"
-                        CornerRadius="8"
-                        Padding="9,5"
-                        Margin="0,2">
-
-                                                <Grid>
-
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="Auto"/>
-                                                        <ColumnDefinition Width="*"/>
-                                                        <ColumnDefinition Width="Auto"/>
-                                                    </Grid.ColumnDefinitions>
-
-
-                                                    <!-- STATUS -->
-
-                                                    <TextBlock Grid.Column="0"
-                                   Text="{Binding Status}"
-                                   FontSize="10"
-                                   Foreground="#DDFFFFFF"
-                                   VerticalAlignment="Center"
-                                   Margin="0,0,8,0"/>
-
-
-                                                    <!-- TAG -->
-
-                                                    <TextBlock Grid.Column="1"
-                                   Text="{Binding Tag}"
-                                   FontSize="11"
-                                   Foreground="#DDFFFFFF"
-                                   VerticalAlignment="Center"
-                                   TextWrapping="Wrap"
-                                   Margin="0,0,6,0"/>
-
-
-                                                    <!-- VOTES + SCORE -->
-
-                                                    <TextBlock Grid.Column="2"
-                                   FontSize="10"
-                                   Foreground="#99FFFFFF"
-                                   VerticalAlignment="Center"
-                                   HorizontalAlignment="Right">
-
-                            <Run Text="{Binding Votes}"/>
-                            <Run Text=" votes  ·  "/>
-                            <Run Text="{Binding Score,
-                                               StringFormat={}{0:P0}}"/>
-
-                                                    </TextBlock>
-
-                                                </Grid>
-
-                                            </Border>
-
-                                        </DataTemplate>
-
-                                    </ItemsControl.ItemTemplate>
-
-                                </ItemsControl>
+                                <TextBlock Text="No structural community evidence"
+                                           FontSize="10"
+                                           Foreground="#7799A9B8"
+                                           HorizontalAlignment="Center"
+                                           Margin="0,9,0,0">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding CommunityIdentityAgreement.HasStructuralEvidence}"
+                                                             Value="False">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
 
                             </StackPanel>
 

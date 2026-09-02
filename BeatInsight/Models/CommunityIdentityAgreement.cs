@@ -39,6 +39,16 @@ public sealed class CommunityIdentityAgreement
 
     public List<string> ConflictingFamilies { get; init; } = [];
 
+    public string MatchedFamiliesDisplay =>
+        MatchedFamilies.Count == 0
+            ? "None"
+            : string.Join(" · ", MatchedFamilies);
+
+    public string ConflictingFamiliesDisplay =>
+        ConflictingFamilies.Count == 0
+            ? "None"
+            : string.Join(" · ", ConflictingFamilies);
+
     public List<CommunityIdentityEvidence> Evidence { get; init; } = [];
 }
 
