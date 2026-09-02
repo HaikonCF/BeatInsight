@@ -941,22 +941,22 @@ namespace BeatInsight.Parser
             // ============================================================
             // GAMEPLAY DIFFICULTY CONTRIBUTION
             // ============================================================
-            double aimPresence =
+            double aimScoreNormalizedForGameplay =
                 gameplay.AimScore / 100.0;
 
-            double speedPresence =
+            double speedScoreNormalizedForGameplay =
                 gameplay.SpeedScore / 100.0;
 
-            double readPresence =
+            double readScoreNormalizedForGameplay =
                 gameplay.ReadScore / 100.0;
 
             double techScoreNormalizedForGameplay =
                 gameplay.TechScore / 100.0;
 
             double gameplayContribution =
-                  (aimPresence * 0.20)
-                + (speedPresence * 0.25)
-                + (readPresence * 0.20)
+                  (aimScoreNormalizedForGameplay * 0.20)
+                + (speedScoreNormalizedForGameplay * 0.25)
+                + (readScoreNormalizedForGameplay * 0.20)
                 + (techScoreNormalizedForGameplay * 0.35);
 
             double gameplayBonus =
@@ -970,9 +970,11 @@ namespace BeatInsight.Parser
 
             double maxComponent =
                 Math.Max(
-                    Math.Max(aimPresence, speedPresence),
                     Math.Max(
-                        readPresence,
+                        aimScoreNormalizedForGameplay,
+                        speedScoreNormalizedForGameplay),
+                    Math.Max(
+                        readScoreNormalizedForGameplay,
                         techScoreNormalizedForGameplay));
 
             if (maxComponent > 0.40)
@@ -981,8 +983,10 @@ namespace BeatInsight.Parser
                     (maxComponent - 0.40) * 0.20;
             }
 
-            if (gameplay.TechScore >= 40.0 &&
-                gameplay.TechRatio >= 0.20)
+            // Une spécialisation Tech exige à la fois une présence
+            // structurelle large et une intensité intrinsèque élevée.
+            if (gameplay.TechPresence >= 0.40 &&
+                gameplay.TechIntensity >= 40.0)
             {
                 specializationBonus += 0.05;
             }
@@ -991,9 +995,12 @@ namespace BeatInsight.Parser
                 $"Specialization Bonus = {specializationBonus:F3}");
 
             DebugLogger.Detailed("----- GAMEPLAY DIFFICULTY -----");
-            DebugLogger.Detailed($"Aim Presence   = {aimPresence:F3}");
-            DebugLogger.Detailed($"Speed Presence = {speedPresence:F3}");
-            DebugLogger.Detailed($"Read Presence  = {readPresence:F3}");
+            DebugLogger.Detailed(
+                $"Aim Score      = {aimScoreNormalizedForGameplay:F3}");
+            DebugLogger.Detailed(
+                $"Speed Score    = {speedScoreNormalizedForGameplay:F3}");
+            DebugLogger.Detailed(
+                $"Read Score     = {readScoreNormalizedForGameplay:F3}");
             DebugLogger.Detailed(
                 $"Tech Score     = {techScoreNormalizedForGameplay:F3}");
             DebugLogger.Detailed($"Gameplay       = {gameplayContribution:F3}");
