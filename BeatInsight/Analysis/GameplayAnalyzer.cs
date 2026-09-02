@@ -583,7 +583,7 @@ public static class GameplayAnalyzer
             TechIntensity = rawTechScore,
             TechScore = tech.Score,
             TechLevel = GetTechLevel(tech.Score, techCoverage),
-            TechProfile = GetTechProfile(techCoverage, tech.Score),
+            TechProfile = GetTechProfile(techCoverage, rawTechScore),
             TechTransitionSignal = tech.TransitionSignal,
             TechStructureSignal = tech.StructureSignal,
             TechSpatialSignal = tech.SpatialSignal,
@@ -4003,7 +4003,7 @@ public static class GameplayAnalyzer
         // TECH
         // ============================================================
 
-        if (tech.Score >= 35)
+        if (tech.Score >= 12)
             concepts.Add("tech");
 
         if (tech.StructureSignal >= 0.45)
@@ -4036,13 +4036,13 @@ public static class GameplayAnalyzer
         if (coverage < 0.05)
             return "Minor";
 
-        if (score < 25)
+        if (score < 10)
             return "Low";
 
-        if (score < 50)
+        if (score < 20)
             return "Medium";
 
-        if (score < 75)
+        if (score < 30)
             return "High";
 
         return "Extreme";
@@ -4050,24 +4050,22 @@ public static class GameplayAnalyzer
 
     private static string GetTechProfile(
     double coverage,
-    double score)
+    double intensity)
     {
-        if (coverage < 0.05)
-            return "Minor Technical Presence";
+        string presenceScope =
+            coverage < 0.05 ? "Minor"
+            : coverage < 0.15 ? "Localized"
+            : coverage < 0.40 ? "Present"
+            : "Widespread";
 
-        if (coverage < 0.10)
-            return score >= 60
-                ? "Focused Technical Presence"
-                : "Moderate Technical Presence";
+        string intensityQualifier =
+            intensity < 28.0 ? "Light"
+            : intensity < 40.0 ? "Pronounced"
+            : "Intense";
 
-        if (coverage < 0.20)
-            return score >= 60
-                ? "Strong Technical Presence"
-                : "Moderate Technical Presence";
-
-        return score >= 60
-            ? "Dominant Technical Presence"
-            : "Strong Technical Presence";
+        return
+            $"{presenceScope} Technical Presence / " +
+            $"{intensityQualifier} Intensity";
     }
 
     private static GameplayIdentity AnalyzeGameplayIdentity(
@@ -4269,6 +4267,7 @@ public static class GameplayAnalyzer
             GenerateGameplayTraits(
                 primary,
                 secondary,
+                techSecondaryEligible,
                 aim,
                 speed,
                 tech,
@@ -4401,6 +4400,7 @@ public static class GameplayAnalyzer
     private static List<string> GenerateGameplayTraits(
     string primaryType,
     string? secondary,
+    bool techSecondaryEligible,
     AimAnalysis aim,
     SpeedAnalysis speed,
     TechAnalysis tech,
@@ -4443,11 +4443,11 @@ public static class GameplayAnalyzer
             traits.Add("Reading Influence");
         }
 
-        if (tech.Score >= 60)
+        if (tech.Score >= 28)
         {
             traits.Add("High Technical Pressure");
         }
-        else if (tech.Score >= 35)
+        else if (tech.Score >= 12 && tech.Score < 28)
         {
             traits.Add("Technical Influence");
         }
@@ -4525,7 +4525,7 @@ public static class GameplayAnalyzer
         // TECH STRUCTURE
         // ============================================================
 
-        if (tech.Score >= 45)
+        if (techSecondaryEligible)
         {
             traits.Add("Technical Patterns");
         }

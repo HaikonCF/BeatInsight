@@ -470,15 +470,15 @@ public sealed class GameplayProfile
                 $"Reading demand is low ({ReadScore:F0}/100)");
         }
 
-        if (TechScore >= 60)
+        if (TechScore >= 28)
         {
             reasons.Add(
                 $"Technical pressure is high ({TechScore:F0}/100)");
         }
-        else if (TechScore >= 40)
+        else if (TechScore >= 12 && TechScore < 28)
         {
             reasons.Add(
-                $"Technical influence is moderate ({TechScore:F0}/100)");
+                $"Technical pressure is moderate ({TechScore:F0}/100)");
         }
 
         return reasons;
