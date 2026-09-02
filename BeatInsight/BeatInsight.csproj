@@ -14,6 +14,12 @@
 
   <ItemGroup>
     <PackageReference Include="ppy.osu.Game.Rulesets.Osu" Version="2026.702.1" />
+
+    <!-- Référence explicite : Microsoft.Data.Sqlite arrivait déjà de
+         manière transitive via ppy.osu.Game.Rulesets.Osu. La déclarer
+         ici évite qu'une future montée de version d'osu! ne la retire
+         ou n'en change silencieusement la version. -->
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.9" />
   </ItemGroup>
 
 </Project>
