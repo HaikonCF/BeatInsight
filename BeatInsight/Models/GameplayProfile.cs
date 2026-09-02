@@ -6,8 +6,8 @@ namespace BeatInsight.Models;
 /// GameplayProfile rassemble les résultats des différents analyseurs
 /// de BeatInsight.
 ///
-/// Ces données décrivent actuellement le gameplay de la map et
-/// n'influencent pas directement le Star Rating.
+/// Ces données décrivent le gameplay de la map. Les scores de pression
+/// alimentent le BeatInsight Rating, sans modifier le Star Rating osu! source.
 /// </summary>
 public sealed class GameplayProfile
 {
@@ -112,7 +112,8 @@ public sealed class GameplayProfile
     public int TechObjectCount { get; init; }
 
     /// <summary>
-    /// Proportion des cercles impliqués dans des structures Tech.
+    /// Alias de compatibilité de <see cref="TechPresence"/> : proportion
+    /// circle-based des cercles impliqués dans des structures Tech.
     /// </summary>
     public double TechRatio { get; init; }
 
@@ -129,9 +130,8 @@ public sealed class GameplayProfile
     public double TechIntensity { get; init; }
 
     /// <summary>
-    /// Score composite Tech sur 100.
-    ///
-    /// Ce score représente le signal Tech détecté par l'analyseur.
+    /// Pression technique globale sur 100 : l'intensité intrinsèque
+    /// modulée par la racine carrée de la présence structurelle.
     /// </summary>
     public double TechScore { get; init; }
 

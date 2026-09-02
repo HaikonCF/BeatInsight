@@ -145,7 +145,7 @@ public static class GameplayDebug
 
         DebugLogger.Log(
             $"TECH = {profile.TechObjectCount} circles / " +
-            $"{profile.TechRatio:P2} / " +
+            $"{profile.TechPresence:P2} / " +
             $"Score {profile.TechScore:F0}/100 " +
             $"({profile.TechLevel})");
 
@@ -185,7 +185,7 @@ public static class GameplayDebug
             $"TECH COVERAGE = {techCoverage:P2}");
 
         DebugLogger.Log(
-            $"TECH IDENTITY RAW = {techIdentityScore:F2}");
+            $"TECH IDENTITY CANDIDATE = {techIdentityScore:F2}");
 
         DebugLogger.Log(
             $"TECH PRIMARY ELIGIBLE = {techPrimaryEligible}");

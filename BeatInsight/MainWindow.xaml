@@ -734,7 +734,7 @@ MinWidth="1000"
                             <Ellipse Canvas.Left="84" Canvas.Top="6" Width="8" Height="8" Fill="#CCB46CFF"/>
                         </Canvas>
 
-                        <TextBlock Text="{Binding GameplayProfile.TechScore, StringFormat={}{0:F0}%}"
+                        <TextBlock Text="{Binding GameplayProfile.TechPresence, StringFormat={}{0:F0}%}"
                    FontSize="23"
                    FontWeight="Bold"
                    Foreground="#FFB46CFF"
