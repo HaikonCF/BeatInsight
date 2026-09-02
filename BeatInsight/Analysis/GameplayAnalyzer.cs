@@ -665,6 +665,9 @@ public static class GameplayAnalyzer
             SpeedIntensity =
                 GetSpeedIntensity(speed.Intensity * 100.0),
 
+            SpeedIntensityValue =
+                speed.Intensity,
+
             SpeedSections =
                 speed.SpeedSections,
 
@@ -674,6 +677,10 @@ public static class GameplayAnalyzer
             SpeedFastObjectRatio = speed.FastObjectRatio,
             SpeedDensitySignal = speed.DensitySignal,
             SpeedARSignal = speed.ARSignal,
+            SpeedNearThresholdTransitionCount =
+                speed.NearThresholdTransitionCount,
+            SpeedNearThresholdTransitionRatio =
+                speed.NearThresholdTransitionRatio,
 
 
             // ----------------------------
@@ -3038,6 +3045,8 @@ public static class GameplayAnalyzer
                 0,
                 0,
                 0,
+                0,
+                0,
                 Array.Empty<GameplaySection>());
         }
 
@@ -3049,9 +3058,10 @@ public static class GameplayAnalyzer
 
         int fastTransitions = 0;
         int totalTransitions = 0;
+        int nearThresholdTransitions = 0;
 
-        // 125 ms correspond à environ 8 objets/seconde.
-        const double fastInterval = 125;
+        // 135 ms correspond à environ 7,4 objets/seconde.
+        const double fastInterval = 135;
 
         // --------------------------------------------------------
         // Détection des transitions rapides.
@@ -3076,6 +3086,12 @@ public static class GameplayAnalyzer
 
             totalTransitions++;
 
+            if (interval > fastInterval
+                && interval <= 150)
+            {
+                nearThresholdTransitions++;
+            }
+
             if (interval <= fastInterval)
             {
                 fastTransitions++;
@@ -3093,6 +3109,12 @@ public static class GameplayAnalyzer
             totalTransitions == 0
                 ? 0
                 : (double)fastTransitions
+                  / totalTransitions;
+
+        double nearThresholdTransitionRatio =
+            totalTransitions == 0
+                ? 0
+                : (double)nearThresholdTransitions
                   / totalTransitions;
 
         double fastObjectRatio =
@@ -3149,6 +3171,8 @@ public static class GameplayAnalyzer
                 arSignal,
                 intensity,
                 presence,
+                nearThresholdTransitions,
+                nearThresholdTransitionRatio,
                 speedSections);
     }
 
@@ -5292,5 +5316,7 @@ public static class GameplayAnalyzer
     double ARSignal,
     double Intensity,
     double Presence,
+    int NearThresholdTransitionCount,
+    double NearThresholdTransitionRatio,
     IReadOnlyList<GameplaySection> SpeedSections);
 }

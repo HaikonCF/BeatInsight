@@ -314,6 +314,27 @@ public sealed class GameplayProfile
 
     public string SpeedProfile { get; init; } = "";
     public string SpeedIntensity { get; set; } = "";
+
+    /// <summary>
+    /// Intensité Speed brute, avant modulation par la présence.
+    /// Valeur diagnostique normalisée dans [0, 1].
+    /// </summary>
+    public double SpeedIntensityValue { get; init; }
+
+    /// <summary>
+    /// Nombre de transitions cercle-à-cercle adjacentes dont l'intervalle
+    /// est juste au-dessus du seuil Speed actif, entre 126 et 150 ms.
+    /// Valeur diagnostique sans effet sur le score.
+    /// </summary>
+    public int SpeedNearThresholdTransitionCount { get; init; }
+
+    /// <summary>
+    /// Proportion de transitions cercle-à-cercle adjacentes valides dont
+    /// l'intervalle est compris entre 126 et 150 ms.
+    /// Valeur diagnostique sans effet sur le score.
+    /// </summary>
+    public double SpeedNearThresholdTransitionRatio { get; init; }
+
     public IReadOnlyList<GameplaySection> SpeedSections { get; set; }
     = Array.Empty<GameplaySection>();
 

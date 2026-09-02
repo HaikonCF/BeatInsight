@@ -11,8 +11,8 @@ public static class GameplayDebug
     public static bool IdentityEnabled = true;
     public static bool TechEnabled = false;
     public static bool ReadEnabled = false;
-    public static bool SpeedEnabled = false;
-    public static bool AimEnabled = true;
+    public static bool SpeedEnabled = true;
+    public static bool AimEnabled = false;
     public static bool SummaryEnabled = true;
     public static bool CommunityTagsEnabled = true;
 
@@ -174,7 +174,7 @@ public static class GameplayDebug
     double techIdentityScore,
     bool techPrimaryEligible,
     bool techSecondaryEligible,
-    bool enabled = false)
+    bool enabled = true)
     {
         if (!enabled)
             return;
@@ -257,20 +257,67 @@ public static class GameplayDebug
         DebugLogger.Log(
             "===== SPEED PROFILE =====");
 
+        IReadOnlyList<GameplaySection> speedSections =
+            profile.SpeedSections;
+
+        double averageSectionLength =
+            speedSections.Count == 0
+                ? 0
+                : speedSections.Average(
+                    section => section.ObjectCount);
+
+        int maxSectionLength =
+            speedSections.Count == 0
+                ? 0
+                : speedSections.Max(
+                    section => section.ObjectCount);
+
+        double averageSectionCadence =
+            speedSections
+                .Where(section =>
+                    section.EndTime > section.StartTime)
+                .Select(section =>
+                    (section.ObjectCount - 1) * 1000.0
+                    / (section.EndTime - section.StartTime))
+                .DefaultIfEmpty(0)
+                .Average();
+
         DebugLogger.Log(
-            $"SPEED = {profile.SpeedObjectCount} circles / " +
-            $"{profile.SpeedRatio:P2} / " +
-            $"Score {profile.SpeedScore:F0}/100 " +
+            $"SPEED SCORE = {profile.SpeedScore:F0}/100 " +
             $"({profile.SpeedLevel})");
 
         DebugLogger.Log(
-            $"SPEED COVERAGE = {profile.SpeedCoverage:P2}");
+            $"SPEED INTENSITY = {profile.SpeedIntensityValue:P0}");
+
+        DebugLogger.Log(
+            $"SPEED PRESENCE = {profile.SpeedCoverage:P2}");
+
+        DebugLogger.Log(
+            $"FAST TRANSITIONS = {profile.SpeedRatio:P2}");
+
+        DebugLogger.Log(
+            $"FAST OBJECTS = {profile.SpeedObjectCount} circles / " +
+            $"{profile.SpeedFastObjectRatio:P2}");
+
+        DebugLogger.Log(
+            $"SPEED SECTIONS = {speedSections.Count}");
+
+        DebugLogger.Log(
+            $"AVG SECTION LENGTH = {averageSectionLength:F1}");
+
+        DebugLogger.Log(
+            $"MAX SECTION LENGTH = {maxSectionLength}");
+
+        DebugLogger.Log(
+            $"AVG CADENCE = {averageSectionCadence:F1} obj/s");
+
+        DebugLogger.Log(
+            $"TRANSITIONS 136-150 MS = " +
+            $"{profile.SpeedNearThresholdTransitionCount} / " +
+            $"{profile.SpeedNearThresholdTransitionRatio:P2}");
 
         DebugLogger.Log(
             $"SPEED PROFILE = {profile.SpeedProfile}");
-
-        DebugLogger.Log(
-            $"SPEED INTENSITY = {profile.SpeedIntensity}");
 
         DebugLogger.Log(
             $"SPEED SIGNALS = " +
