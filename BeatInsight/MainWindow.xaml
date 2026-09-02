@@ -3,9 +3,9 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="BeatInsight"
          Width="1200"
-        Height="900"
-MinWidth="1000"
-        MinHeight="800"
+         Height="980"
+         MinWidth="1000"
+         MinHeight="950"
     WindowStartupLocation="CenterScreen"
         ResizeMode="CanResize"
         Background="Black">
