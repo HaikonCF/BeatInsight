@@ -573,7 +573,7 @@ MinWidth="1000"
 
                 <Grid Grid.Row="3"
       HorizontalAlignment="Center"
-      Margin="0,7,0,0">
+      Margin="0,8,0,0">
 
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -592,9 +592,9 @@ MinWidth="1000"
                Text="STRUCTURE"
                FontSize="10"
                FontWeight="SemiBold"
-               Foreground="#88FFFFFF"
+               Foreground="#BFFFFFFF"
                HorizontalAlignment="Center"
-               Margin="0,0,0,2"/>
+               Margin="0,0,0,4"/>
 
 
                     <!-- STREAM -->
@@ -751,7 +751,7 @@ MinWidth="1000"
 
                 <Grid Grid.Row="4"
                       HorizontalAlignment="Center"
-                      Margin="0,5,0,0">
+                      Margin="0,10,0,0">
 
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -769,9 +769,9 @@ MinWidth="1000"
                                Text="SKILL PRESSURE"
                                FontSize="10"
                                FontWeight="SemiBold"
-                               Foreground="#88FFFFFF"
+                               Foreground="#BFFFFFFF"
                                HorizontalAlignment="Center"
-                               Margin="0,0,0,3"/>
+                               Margin="0,0,0,4"/>
 
                     <!-- AIM -->
 
@@ -885,7 +885,7 @@ MinWidth="1000"
                 <!-- ================================================= -->
 
                 <Grid Grid.Row="6"
-      Margin="20,10,20,0">
+      Margin="20,12,20,0">
 
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
@@ -903,7 +903,7 @@ MinWidth="1000"
             BorderBrush="#66888888"
             BorderThickness="1"
             CornerRadius="16"
-            Padding="20,12">
+            Padding="20,14">
 
                         <Grid>
 
@@ -932,9 +932,9 @@ MinWidth="1000"
                                 <!-- TITLE -->
 
                                 <TextBlock Text="GAMEPLAY IDENTITY"
-               FontSize="11"
-               FontWeight="SemiBold"
-               Foreground="#AAFFFFFF"
+               FontSize="12"
+               FontWeight="Bold"
+               Foreground="#CCFFFFFF"
                HorizontalAlignment="Center"/>
 
 
@@ -999,7 +999,7 @@ MinWidth="1000"
                                             <TextBlock Text="PRIMARY"
                            FontSize="9"
                            FontWeight="SemiBold"
-                           Foreground="#88FFFFFF"
+                           Foreground="#AAFFFFFF"
                            HorizontalAlignment="Center"/>
 
                                             <TextBlock Text="{Binding GameplayProfile.Identity.Primary}"
@@ -1029,15 +1029,36 @@ MinWidth="1000"
                                             <TextBlock Text="SECONDARY"
                            FontSize="9"
                            FontWeight="SemiBold"
-                           Foreground="#88FFFFFF"
+                           Foreground="#AAFFFFFF"
                            HorizontalAlignment="Center"/>
 
-                                            <TextBlock Text="{Binding GameplayProfile.Identity.Secondary}"
-                           FontSize="15"
-                           FontWeight="Bold"
-                           Foreground="#FFB56CFF"
-                           HorizontalAlignment="Center"
-                           Margin="0,2,0,0"/>
+                                            <Grid Margin="0,2,0,0">
+
+                                                <TextBlock Text="{Binding GameplayProfile.Identity.Secondary}"
+                                                           FontSize="15"
+                                                           FontWeight="Bold"
+                                                           Foreground="#FFB56CFF"
+                                                           HorizontalAlignment="Center"/>
+
+                                                <TextBlock Text="—"
+                                                           FontSize="15"
+                                                           FontWeight="Bold"
+                                                           Foreground="#99FFFFFF"
+                                                           HorizontalAlignment="Center">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding GameplayProfile.Identity.Secondary}"
+                                                                             Value="">
+                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+
+                                            </Grid>
 
                                         </StackPanel>
 
@@ -1051,7 +1072,7 @@ MinWidth="1000"
                                 <TextBlock Text="TRAITS"
                FontSize="10"
                FontWeight="SemiBold"
-               Foreground="#88FFFFFF"
+               Foreground="#AAFFFFFF"
                HorizontalAlignment="Center"
                Margin="0,0,0,4"/>
 
@@ -1079,7 +1100,7 @@ MinWidth="1000"
                                 <TextBlock Text="WHY THIS CLASSIFICATION?"
                FontSize="10"
                FontWeight="SemiBold"
-               Foreground="#88FFFFFF"
+               Foreground="#AAFFFFFF"
                HorizontalAlignment="Center"
                Margin="0,11,0,4"/>
 
@@ -1132,7 +1153,7 @@ MinWidth="1000"
             BorderBrush="#66888888"
             BorderThickness="1"
             CornerRadius="16"
-            Padding="20,12">
+            Padding="20,14">
 
                         <Grid>
 
@@ -1165,14 +1186,14 @@ MinWidth="1000"
                                 <TextBlock Text="COMMUNITY EVIDENCE"
                FontSize="11"
                FontWeight="SemiBold"
-               Foreground="#AAFFFFFF"
+               Foreground="#BFFFFFFF"
                HorizontalAlignment="Center"/>
 
-                                <Grid Margin="0,10,0,0">
+                                <Grid Margin="8,11,8,0">
 
                                     <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="150"/>
                                         <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
 
                                     <Grid.RowDefinitions>
@@ -1187,89 +1208,112 @@ MinWidth="1000"
                                                Text="AGREEMENT"
                                                FontSize="10"
                                                FontWeight="SemiBold"
-                                               Foreground="#88FFFFFF"
-                                               Margin="0,0,12,5"/>
+                                               Foreground="#AAFFFFFF"
+                                               HorizontalAlignment="Right"
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,16,6"/>
 
                                     <TextBlock Grid.Row="0"
                                                Grid.Column="1"
                                                Text="{Binding CommunityIdentityAgreement.Agreement,
                                                       StringFormat={}{0:P0},
                                                       TargetNullValue=—}"
-                                               FontSize="11"
+                                               FontSize="12"
                                                FontWeight="SemiBold"
                                                Foreground="#FFB56CFF"
-                                               HorizontalAlignment="Right"/>
+                                               HorizontalAlignment="Left"
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,0,6"/>
 
                                     <TextBlock Grid.Row="1"
                                                Text="RELIABILITY"
                                                FontSize="10"
                                                FontWeight="SemiBold"
-                                               Foreground="#88FFFFFF"
-                                               Margin="0,0,12,5"/>
+                                               Foreground="#AAFFFFFF"
+                                               HorizontalAlignment="Right"
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,16,6"/>
 
                                     <TextBlock Grid.Row="1"
                                                Grid.Column="1"
                                                Text="{Binding CommunityIdentityAgreement.Reliability,
                                                       StringFormat={}{0:P0}}"
-                                               FontSize="11"
+                                               FontSize="12"
+                                               FontWeight="SemiBold"
                                                Foreground="#DDFFFFFF"
-                                               HorizontalAlignment="Right"/>
+                                               HorizontalAlignment="Left"
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,0,6"/>
 
                                     <TextBlock Grid.Row="2"
                                                Text="RELEVANT VOTES"
                                                FontSize="10"
                                                FontWeight="SemiBold"
-                                               Foreground="#88FFFFFF"
-                                               Margin="0,0,12,5"/>
+                                               Foreground="#AAFFFFFF"
+                                               HorizontalAlignment="Right"
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,16,6"/>
 
                                     <TextBlock Grid.Row="2"
                                                Grid.Column="1"
                                                Text="{Binding CommunityIdentityAgreement.RelevantVotes}"
-                                               FontSize="11"
+                                               FontSize="12"
+                                               FontWeight="SemiBold"
                                                Foreground="#DDFFFFFF"
-                                               HorizontalAlignment="Right"/>
+                                               HorizontalAlignment="Left"
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,0,6"/>
 
                                     <TextBlock Grid.Row="3"
                                                Text="MATCHED"
                                                FontSize="10"
                                                FontWeight="SemiBold"
-                                               Foreground="#88FFFFFF"
-                                               Margin="0,0,12,5"/>
+                                               Foreground="#AAFFFFFF"
+                                               HorizontalAlignment="Right"
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,16,6"/>
 
                                     <TextBlock Grid.Row="3"
                                                Grid.Column="1"
                                                Text="{Binding CommunityIdentityAgreement.MatchedFamiliesDisplay,
                                                       TargetNullValue=None}"
-                                               FontSize="11"
+                                               FontSize="12"
+                                               FontWeight="SemiBold"
                                                Foreground="#DDFFFFFF"
-                                               HorizontalAlignment="Right"
+                                               HorizontalAlignment="Left"
+                                               VerticalAlignment="Center"
                                                TextWrapping="Wrap"
-                                               TextAlignment="Right"/>
+                                               TextAlignment="Left"
+                                               Margin="0,0,0,6"/>
 
                                     <TextBlock Grid.Row="4"
                                                Text="CONFLICTS"
                                                FontSize="10"
                                                FontWeight="SemiBold"
-                                               Foreground="#88FFFFFF"
-                                               Margin="0,0,12,0"/>
+                                               Foreground="#AAFFFFFF"
+                                               HorizontalAlignment="Right"
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,16,0"/>
 
                                     <TextBlock Grid.Row="4"
                                                Grid.Column="1"
                                                Text="{Binding CommunityIdentityAgreement.ConflictingFamiliesDisplay,
                                                       TargetNullValue=None}"
-                                               FontSize="11"
+                                               FontSize="12"
+                                               FontWeight="SemiBold"
                                                Foreground="#DDFFFFFF"
-                                               HorizontalAlignment="Right"
+                                               HorizontalAlignment="Left"
+                                               VerticalAlignment="Center"
                                                TextWrapping="Wrap"
-                                               TextAlignment="Right"/>
+                                               TextAlignment="Left"/>
 
                                 </Grid>
 
                                 <TextBlock Text="No structural community evidence"
-                                           FontSize="10"
-                                           Foreground="#7799A9B8"
+                                           FontSize="11"
+                                           Foreground="#AA99A9B8"
                                            HorizontalAlignment="Center"
-                                           Margin="0,9,0,0">
+                                           Margin="0,10,0,0">
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">
                                             <Setter Property="Visibility" Value="Collapsed"/>
@@ -1298,7 +1342,7 @@ MinWidth="1000"
                 <!-- ===================================================== -->
 
                 <Grid Grid.Row="5"
-      Margin="0,8,0,0"
+      Margin="0,10,0,0"
       HorizontalAlignment="Center"
       VerticalAlignment="Top">
 
