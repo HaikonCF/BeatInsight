@@ -64,6 +64,35 @@
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
+            <!-- ===================================================== -->
+            <!-- WORKSPACE SELECTOR                                      -->
+            <!-- ===================================================== -->
+
+            <Border Grid.Row="0"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Top"
+                    Panel.ZIndex="30"
+                    Background="#22090B12"
+                    BorderBrush="#4462D9FF"
+                    BorderThickness="1"
+                    CornerRadius="12"
+                    Padding="3"
+                    Margin="0,0,0,0">
+                <StackPanel Orientation="Horizontal">
+                    <Button x:Name="AnalyzerWorkspaceButton"
+                            Content="Analyzer"
+                            Click="AnalyzerWorkspace_Click"
+                            Padding="10,4"
+                            MinWidth="82"/>
+                    <Button x:Name="MlLabWorkspaceButton"
+                            Content="ML Lab"
+                            Click="MlLabWorkspace_Click"
+                            Padding="10,4"
+                            MinWidth="72"
+                            Margin="4,0,0,0"/>
+                </StackPanel>
+            </Border>
+
 
             <!-- ===================================================== -->
             <!-- TOSU STATUS                                            -->
@@ -85,12 +114,13 @@
             <!-- ===================================================== -->
 
             <Grid HorizontalAlignment="Stretch"
-                  VerticalAlignment="Top"
-                  Margin="10,115,10,0"
-                  Panel.ZIndex="20">
+                   VerticalAlignment="Top"
+                   Panel.ZIndex="20">
 
-                <StackPanel HorizontalAlignment="Left"
-                            VerticalAlignment="Top">
+                <StackPanel x:Name="AnalyzerLibraryPanel"
+                            HorizontalAlignment="Left"
+                            VerticalAlignment="Top"
+                            Margin="10,115,0,0">
 
                 <TextBlock Text="OSU! LIBRARY"
                            FontSize="11"
@@ -191,9 +221,12 @@
                 <!-- TOP DASHBOARD                                          -->
                 <!-- ===================================================== -->
 
-                <Grid HorizontalAlignment="Right"
-                      VerticalAlignment="Top"
-                      Width="620">
+                <Grid x:Name="MlLabWorkspacePanel"
+                       Visibility="Collapsed"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Top"
+                       Width="860"
+                       Margin="0,40,0,0">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
@@ -494,9 +527,13 @@
                 <!-- BEATINSIGHT IDENTITY                                 -->
                 <!-- ===================================================== -->
 
+                <!-- Identity is deliberately absent from the normal ML
+                     labeling flow. Human labels remain manual and
+                     independent from the analyzer classification. -->
                 <Border Grid.Row="1"
-                        Grid.ColumnSpan="3"
-                        Margin="0,8,0,0"
+                         Grid.ColumnSpan="3"
+                         Visibility="Collapsed"
+                         Margin="0,8,0,0"
                         Padding="10,8"
                         Background="#16000000"
                         BorderBrush="#33FFFFFF"
@@ -722,7 +759,8 @@
             <!-- HEADER                                                  -->
             <!-- ===================================================== -->
 
-            <Grid Grid.Row="0">
+            <Grid x:Name="AnalyzerHeaderPanel"
+                  Grid.Row="0">
 
 
                 <!-- ================================================= -->
@@ -849,7 +887,8 @@
                 <!-- ================================================= -->
 
                 <StackPanel HorizontalAlignment="Right"
-                            VerticalAlignment="Top">
+                             VerticalAlignment="Top"
+                             Margin="0,42,0,0">
 
                     <TextBlock Text="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=AppVersion}"
                                FontSize="11"
@@ -871,7 +910,8 @@
             <!-- CENTRE                                                  -->
             <!-- ===================================================== -->
 
-            <Grid Grid.Row="1"
+            <Grid x:Name="AnalyzerWorkspacePanel"
+                  Grid.Row="1"
                   Margin="0,8,0,5">
 
                 <Grid.RowDefinitions>

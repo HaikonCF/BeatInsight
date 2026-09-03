@@ -131,6 +131,12 @@ namespace BeatInsight
         private bool isBeatmapIdBackfillRunning;
         private bool acceptsBeatmapIdBackfillProgress;
 
+        // Les workspaces ne sont qu'une séparation de présentation : le
+        // pipeline d'analyse, les queues ML et leurs états restent partagés.
+        private enum ActiveWorkspace { Analyzer, MlLab }
+
+        private ActiveWorkspace activeWorkspace = ActiveWorkspace.Analyzer;
+
         private bool IsBackgroundLibraryWorkRunning =>
             isLibraryScanRunning
                 || isDatasetBuildRunning
@@ -169,6 +175,8 @@ namespace BeatInsight
 
             InitializeComponent();
 
+            SetActiveWorkspace(ActiveWorkspace.Analyzer);
+
 
 
 
@@ -187,6 +195,37 @@ namespace BeatInsight
         }
 
         public string AppVersion => $"BeatInsight v{Assembly.GetExecutingAssembly().GetName().Version?.ToString(3)}";
+
+        private void AnalyzerWorkspace_Click(object sender, RoutedEventArgs e)
+        {
+            SetActiveWorkspace(ActiveWorkspace.Analyzer);
+        }
+
+        private void MlLabWorkspace_Click(object sender, RoutedEventArgs e)
+        {
+            SetActiveWorkspace(ActiveWorkspace.MlLab);
+        }
+
+        private void SetActiveWorkspace(ActiveWorkspace workspace)
+        {
+            activeWorkspace = workspace;
+
+            bool isAnalyzer = workspace == ActiveWorkspace.Analyzer;
+
+            AnalyzerHeaderPanel.Visibility =
+                isAnalyzer ? Visibility.Visible : Visibility.Collapsed;
+            AnalyzerLibraryPanel.Visibility =
+                isAnalyzer ? Visibility.Visible : Visibility.Collapsed;
+            TosuStatusText.Visibility =
+                isAnalyzer ? Visibility.Visible : Visibility.Collapsed;
+            AnalyzerWorkspacePanel.Visibility =
+                isAnalyzer ? Visibility.Visible : Visibility.Collapsed;
+            MlLabWorkspacePanel.Visibility =
+                isAnalyzer ? Visibility.Collapsed : Visibility.Visible;
+
+            AnalyzerWorkspaceButton.IsEnabled = !isAnalyzer;
+            MlLabWorkspaceButton.IsEnabled = isAnalyzer;
+        }
 
         // Si une mise à jour précédente n'est pas terminée, on quitte immédiatement pour éviter deux traitements simultanés.
 
