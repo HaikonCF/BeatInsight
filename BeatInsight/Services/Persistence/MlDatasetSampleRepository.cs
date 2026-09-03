@@ -247,6 +247,96 @@ internal sealed class MlDatasetSampleRepository
     }
 
     /// <summary>
+    /// Retourne le premier échantillon non validé dont SampleId est
+    /// strictement supérieur à <paramref name="afterSampleId"/> (ou le
+    /// tout premier échantillon non validé si null), par ordre
+    /// croissant de SampleId. Utilisé par le mode Fast Labeling pour
+    /// avancer dans la file sans jamais revisiter un échantillon déjà
+    /// validé.
+    /// </summary>
+    internal MlDatasetSample? FindNextUnlabeled(long? afterSampleId)
+    {
+        long anchor = afterSampleId ?? 0;
+
+        using SqliteConnection connection = OpenConnection();
+        using SqliteCommand command = connection.CreateCommand();
+
+        command.CommandText = $"""
+            SELECT {SelectColumns}
+            FROM MlDatasetSample
+            WHERE HumanValidated = 0 AND SampleId > $anchor
+            ORDER BY SampleId ASC
+            LIMIT 1;
+            """;
+        command.Parameters.AddWithValue("$anchor", anchor);
+
+        using SqliteDataReader reader = command.ExecuteReader();
+
+        return reader.Read() ? ReadSample(reader) : null;
+    }
+
+    /// <summary>
+    /// Retourne le dernier échantillon non validé dont SampleId est
+    /// strictement inférieur à <paramref name="beforeSampleId"/> (ou le
+    /// tout dernier échantillon non validé si null), par ordre
+    /// décroissant de SampleId. Symétrique de
+    /// <see cref="FindNextUnlabeled"/>.
+    /// </summary>
+    internal MlDatasetSample? FindPreviousUnlabeled(long? beforeSampleId)
+    {
+        long anchor = beforeSampleId ?? long.MaxValue;
+
+        using SqliteConnection connection = OpenConnection();
+        using SqliteCommand command = connection.CreateCommand();
+
+        command.CommandText = $"""
+            SELECT {SelectColumns}
+            FROM MlDatasetSample
+            WHERE HumanValidated = 0 AND SampleId < $anchor
+            ORDER BY SampleId DESC
+            LIMIT 1;
+            """;
+        command.Parameters.AddWithValue("$anchor", anchor);
+
+        using SqliteDataReader reader = command.ExecuteReader();
+
+        return reader.Read() ? ReadSample(reader) : null;
+    }
+
+    /// <summary>
+    /// Nombre d'échantillons validés par un humain. Utilisé par le
+    /// panneau Fast Labeling pour afficher une progression sans
+    /// exposer de SQL brut à l'UI.
+    /// </summary>
+    internal int CountValidated()
+    {
+        return CountWhere("HumanValidated <> 0");
+    }
+
+    /// <summary>
+    /// Nombre d'échantillons restant à valider. Symétrique de
+    /// <see cref="CountValidated"/>.
+    /// </summary>
+    internal int CountUnlabeled()
+    {
+        return CountWhere("HumanValidated = 0");
+    }
+
+    private int CountWhere(string sqlCondition)
+    {
+        using SqliteConnection connection = OpenConnection();
+        using SqliteCommand command = connection.CreateCommand();
+
+        command.CommandText = $"""
+            SELECT COUNT(*)
+            FROM MlDatasetSample
+            WHERE {sqlCondition};
+            """;
+
+        return checked((int)(long)command.ExecuteScalar()!);
+    }
+
+    /// <summary>
     /// Retourne les compteurs nécessaires à la présentation du corpus ML.
     /// Cette agrégation reste dans le repository afin que les appelants, y
     /// compris l'UI, ne construisent jamais de SQL eux-mêmes.

@@ -21,6 +21,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Input;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using static BeatInsight.OsuApiService;
@@ -87,11 +89,23 @@ namespace BeatInsight
         // sélection est exclusivement déclenchée par les boutons humains :
         // elle n'est jamais initialisée depuis GameplayIdentity.
         private string? currentHumanLabelSourceFilePath;
+        private long? currentHumanLabelSampleId;
         private bool hasCurrentDatasetSample;
         private MlHumanLabel? currentPrimaryHumanLabel;
         private MlHumanLabel? currentSecondaryHumanLabel;
         private MlHumanLabel? selectedPrimaryHumanLabel;
         private MlHumanLabel? selectedSecondaryHumanLabel;
+
+        // Empêche une navigation Fast Labeling de se chevaucher avec une
+        // autre (double-clic, ou Space maintenu) sans introduire d'état
+        // persistant supplémentaire.
+        private bool isNavigatingFastLabeling;
+
+        // Tant que ce mode est actif, UpdateMap() ignore le polling tosu
+        // afin qu'il ne remplace jamais la map chargée manuellement pour
+        // la labellisation. Le timer continue de tourner : seule la
+        // beatmap affichée est gelée, pas la connexion tosu elle-même.
+        private bool isFastLabelingMode;
 
         private bool IsBackgroundLibraryWorkRunning =>
             isLibraryScanRunning || isDatasetBuildRunning;
@@ -142,6 +156,7 @@ namespace BeatInsight
 
             RefreshSongsFolderDisplay();
             RefreshDatasetStatistics();
+            RefreshFastLabelingProgress();
         }
 
         public string AppVersion => $"BeatInsight v{Assembly.GetExecutingAssembly().GetName().Version?.ToString(3)}";
@@ -738,6 +753,144 @@ namespace BeatInsight
         }
 
         // ============================================================
+        // FAST LABELING
+        // ============================================================
+
+        private void RefreshFastLabelingProgress()
+        {
+            try
+            {
+                mlDatasetRepository.EnsureSchema();
+
+                int validated = mlDatasetRepository.CountValidated();
+                int unlabeled = mlDatasetRepository.CountUnlabeled();
+                int total = validated + unlabeled;
+
+                FastLabelingProgressText.Text =
+                    $"Progress: {validated:N0} / {total:N0}";
+                FastLabelingRemainingText.Text =
+                    $"Remaining: {unlabeled:N0}";
+            }
+            catch (Exception ex)
+            {
+                FastLabelingProgressText.Text = "Progress: 0 / 0";
+                FastLabelingRemainingText.Text = "Remaining: 0";
+
+                DebugLogger.Log($"FAST LABELING PROGRESS ERROR | {ex.Message}");
+                DebugLogger.Detailed(ex.ToString());
+            }
+        }
+
+        private async void PreviousUnlabeled_Click(
+            object sender,
+            RoutedEventArgs e)
+        {
+            await NavigateToUnlabeledAsync(forward: false);
+        }
+
+        private async void NextUnlabeled_Click(
+            object sender,
+            RoutedEventArgs e)
+        {
+            await NavigateToUnlabeledAsync(forward: true);
+        }
+
+        /// <summary>
+        /// Avance ou recule dans la file des échantillons non validés,
+        /// sans jamais écrire ni recréer de sample. Le pipeline
+        /// d'analyse existant est réutilisé pour afficher la map
+        /// correspondante ; un fichier source manquant ou illisible
+        /// dégrade proprement plutôt que de faire échouer la fenêtre.
+        /// </summary>
+        private async Task NavigateToUnlabeledAsync(bool forward)
+        {
+            if (IsBackgroundLibraryWorkRunning || isNavigatingFastLabeling)
+                return;
+
+            isNavigatingFastLabeling = true;
+            SetFastLabelingMode(true);
+
+            try
+            {
+                mlDatasetRepository.EnsureSchema();
+
+                MlDatasetSample? sample = forward
+                    ? mlDatasetRepository.FindNextUnlabeled(
+                        currentHumanLabelSampleId)
+                    : mlDatasetRepository.FindPreviousUnlabeled(
+                        currentHumanLabelSampleId);
+
+                if (sample is null)
+                {
+                    RefreshFastLabelingProgress();
+                    return;
+                }
+
+                Beatmap beatmap;
+
+                try
+                {
+                    beatmap = await Task.Run(() =>
+                        analysisCache.GetOrAnalyze(sample.SourceFilePath));
+                }
+                catch (Exception ex)
+                {
+                    DebugLogger.Log(
+                        $"FAST LABELING LOAD ERROR | {ex.Message}");
+                    DebugLogger.Detailed(ex.ToString());
+
+                    HumanLabelSampleStatusText.Text =
+                        "Dataset sample: Unavailable (file not found)";
+                    return;
+                }
+
+                if (IsBackgroundLibraryWorkRunning)
+                    return;
+
+                currentMapPath = sample.SourceFilePath;
+                currentBeatmapUrl = sample.BeatmapId is int beatmapId
+                    ? $"https://osu.ppy.sh/b/{beatmapId}"
+                    : null;
+                BackgroundImage.Source = null;
+
+                DataContext = beatmap;
+
+                RefreshHumanLabelPanel(beatmap, sample.SourceFilePath);
+                RefreshFastLabelingProgress();
+            }
+            catch (Exception ex)
+            {
+                DebugLogger.Log($"FAST LABELING NAV ERROR | {ex.Message}");
+                DebugLogger.Detailed(ex.ToString());
+            }
+            finally
+            {
+                isNavigatingFastLabeling = false;
+            }
+        }
+
+        /// <summary>
+        /// Active ou désactive le gel de la beatmap affichée face au
+        /// polling tosu. La sortie est toujours explicite (bouton Exit
+        /// Fast Labeling) : aucune navigation ne désactive le mode
+        /// elle-même.
+        /// </summary>
+        private void SetFastLabelingMode(bool active)
+        {
+            isFastLabelingMode = active;
+
+            FastLabelingModeText.Text = active ? "Mode: On" : "Mode: Off";
+            ExitFastLabelingButton.IsEnabled = active;
+        }
+
+        private void ExitFastLabeling_Click(
+            object sender,
+            RoutedEventArgs e)
+        {
+            SetFastLabelingMode(false);
+        }
+
+        // ============================================================
         // HUMAN LABEL
         // ============================================================
 
@@ -758,6 +911,7 @@ namespace BeatInsight
                 $"Confidence: {identity.Confidence:F0}%";
 
             currentHumanLabelSourceFilePath = sourceFilePath;
+            currentHumanLabelSampleId = null;
             hasCurrentDatasetSample = false;
             currentPrimaryHumanLabel = null;
             currentSecondaryHumanLabel = null;
@@ -785,6 +939,7 @@ namespace BeatInsight
                 }
 
                 hasCurrentDatasetSample = true;
+                currentHumanLabelSampleId = sample.SampleId;
                 currentPrimaryHumanLabel = sample.PrimaryHumanLabel;
                 currentSecondaryHumanLabel = sample.SecondaryHumanLabel;
 
@@ -830,16 +985,7 @@ namespace BeatInsight
                 return;
             }
 
-            selectedPrimaryHumanLabel = humanLabel;
-
-            // Le label secondaire ne peut jamais être égal au primaire :
-            // un changement de primaire invalide un secondaire identique.
-            if (selectedSecondaryHumanLabel == humanLabel)
-            {
-                selectedSecondaryHumanLabel = null;
-            }
-
-            UpdateHumanLabelActionState();
+            SetSelectedPrimaryHumanLabel(humanLabel);
         }
 
         private void SelectSecondaryHumanLabel_Click(
@@ -854,13 +1000,41 @@ namespace BeatInsight
 
             if (string.IsNullOrEmpty(labelName))
             {
-                selectedSecondaryHumanLabel = null;
-                UpdateHumanLabelActionState();
+                SetSelectedSecondaryHumanLabel(null);
                 return;
             }
 
-            if (!Enum.TryParse(labelName, out MlHumanLabel humanLabel) ||
-                humanLabel == selectedPrimaryHumanLabel)
+            if (!Enum.TryParse(labelName, out MlHumanLabel humanLabel))
+            {
+                return;
+            }
+
+            SetSelectedSecondaryHumanLabel(humanLabel);
+        }
+
+        private void SetSelectedPrimaryHumanLabel(MlHumanLabel humanLabel)
+        {
+            selectedPrimaryHumanLabel = humanLabel;
+
+            // Le label secondaire ne peut jamais être égal au primaire :
+            // un changement de primaire invalide un secondaire identique.
+            if (selectedSecondaryHumanLabel == humanLabel)
+            {
+                selectedSecondaryHumanLabel = null;
+            }
+
+            UpdateHumanLabelActionState();
+        }
+
+        /// <summary>
+        /// null sélectionne explicitement "None" (secondaire absent). Une
+        /// combinaison égale au primaire actuellement sélectionné est
+        /// ignorée proprement plutôt que d'écrire un état invalide.
+        /// </summary>
+        private void SetSelectedSecondaryHumanLabel(MlHumanLabel? humanLabel)
+        {
+            if (humanLabel.HasValue &&
+                humanLabel.Value == selectedPrimaryHumanLabel)
             {
                 return;
             }
@@ -869,7 +1043,7 @@ namespace BeatInsight
             UpdateHumanLabelActionState();
         }
 
-        private void ValidateHumanLabel_Click(
+        private async void ValidateHumanLabel_Click(
             object sender,
             RoutedEventArgs e)
         {
@@ -903,6 +1077,11 @@ namespace BeatInsight
                     beatmap,
                     currentHumanLabelSourceFilePath);
                 RefreshDatasetStatistics();
+                RefreshFastLabelingProgress();
+
+                // Le mode Fast Labeling avance automatiquement vers le
+                // prochain sample non validé après une validation réussie.
+                await NavigateToUnlabeledAsync(forward: true);
             }
             catch (Exception ex)
             {
@@ -940,12 +1119,77 @@ namespace BeatInsight
                     beatmap,
                     currentHumanLabelSourceFilePath);
                 RefreshDatasetStatistics();
+                RefreshFastLabelingProgress();
             }
             catch (Exception ex)
             {
                 DebugLogger.Log($"HUMAN LABEL CLEAR ERROR | {ex.Message}");
                 DebugLogger.Detailed(ex.ToString());
             }
+        }
+
+        /// <summary>
+        /// Raccourcis Fast Labeling. Ignorés lorsque le focus est dans un
+        /// champ texte (aucun n'existe actuellement dans MainWindow, mais
+        /// la garde reste défensive) ou pendant un travail de bibliothèque
+        /// en arrière-plan.
+        /// </summary>
+        private async void MainWindow_PreviewKeyDown(
+            object sender,
+            KeyEventArgs e)
+        {
+            if (IsBackgroundLibraryWorkRunning || IsFocusInTextInput())
+                return;
+
+            bool shift = Keyboard.Modifiers.HasFlag(ModifierKeys.Shift);
+
+            if (!shift &&
+                HumanLabelHotkeys.TryMapPrimaryKey(e.Key, out MlHumanLabel primary))
+            {
+                if (!hasCurrentDatasetSample)
+                    return;
+
+                SetSelectedPrimaryHumanLabel(primary);
+                e.Handled = true;
+                return;
+            }
+
+            if (shift &&
+                HumanLabelHotkeys.TryMapSecondaryKey(
+                    e.Key,
+                    out bool isNone,
+                    out MlHumanLabel secondary))
+            {
+                if (!hasCurrentDatasetSample)
+                    return;
+
+                SetSelectedSecondaryHumanLabel(isNone ? null : secondary);
+                e.Handled = true;
+                return;
+            }
+
+            switch (e.Key)
+            {
+                case Key.Enter:
+                    ValidateHumanLabel_Click(this, new RoutedEventArgs());
+                    e.Handled = true;
+                    break;
+
+                case Key.Space:
+                    e.Handled = true;
+                    await NavigateToUnlabeledAsync(forward: true);
+                    break;
+
+                case Key.Back:
+                    ClearHumanLabel_Click(this, new RoutedEventArgs());
+                    e.Handled = true;
+                    break;
+            }
+        }
+
+        private static bool IsFocusInTextInput()
+        {
+            return Keyboard.FocusedElement is TextBoxBase or PasswordBox;
         }
 
         private void UpdateHumanLabelActionState()
@@ -1463,7 +1707,11 @@ namespace BeatInsight
         }
         private async Task UpdateMap()
         {
-            if (IsBackgroundLibraryWorkRunning)
+            // Le mode Fast Labeling gèle la beatmap affichée : le timer
+            // continue de tourner (aucun arrêt définitif du polling), mais
+            // aucun tick ne doit écraser la map chargée manuellement tant
+            // que l'utilisateur n'en est pas sorti explicitement.
+            if (IsBackgroundLibraryWorkRunning || isFastLabelingMode)
                 return;
 
             // ============================================================

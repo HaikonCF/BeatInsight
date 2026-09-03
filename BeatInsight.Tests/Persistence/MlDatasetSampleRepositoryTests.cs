@@ -784,6 +784,150 @@ public sealed class MlDatasetSampleRepositoryTests : IDisposable
 
 
     // ============================================================
+    // FAST LABELING : NAVIGATION ET COMPTEURS
+    // ============================================================
+
+    private const string PathD = @"C:\Songs\set-d\map-d.osu";
+
+    [Fact]
+    public void FindNextUnlabeled_SkipsValidatedSamples()
+    {
+        repository.EnsureSchema();
+
+        repository.Upsert(CreateSample(PathA));
+        repository.Upsert(CreateSample(PathB));
+        repository.Upsert(CreateSample(PathC));
+
+        // PathB est validé : la navigation ne doit jamais le revisiter.
+        repository.UpdateHumanLabels(PathB, MlHumanLabel.Jump, null);
+
+        MlDatasetSample first = Assert.IsType<MlDatasetSample>(
+            repository.FindNextUnlabeled(null));
+        Assert.Equal(PathA, first.SourceFilePath);
+
+        MlDatasetSample second = Assert.IsType<MlDatasetSample>(
+            repository.FindNextUnlabeled(first.SampleId));
+        Assert.Equal(PathC, second.SourceFilePath);
+
+        Assert.Null(repository.FindNextUnlabeled(second.SampleId));
+    }
+
+    [Fact]
+    public void FindPreviousUnlabeled_Works()
+    {
+        repository.EnsureSchema();
+
+        repository.Upsert(CreateSample(PathA));
+        repository.Upsert(CreateSample(PathB));
+        repository.Upsert(CreateSample(PathC));
+
+        repository.UpdateHumanLabels(PathB, MlHumanLabel.Jump, null);
+
+        MlDatasetSample last = Assert.IsType<MlDatasetSample>(
+            repository.FindPreviousUnlabeled(null));
+        Assert.Equal(PathC, last.SourceFilePath);
+
+        MlDatasetSample first = Assert.IsType<MlDatasetSample>(
+            repository.FindPreviousUnlabeled(last.SampleId));
+        Assert.Equal(PathA, first.SourceFilePath);
+
+        Assert.Null(repository.FindPreviousUnlabeled(first.SampleId));
+    }
+
+    [Fact]
+    public void FindNextAndPreviousUnlabeled_UseDeterministicSampleIdOrder()
+    {
+        repository.EnsureSchema();
+
+        // Insertion volontairement hors ordre alphabétique : l'ordre
+        // renvoyé doit suivre SampleId (donc l'ordre d'insertion), pas
+        // SourceFilePath.
+        repository.Upsert(CreateSample(PathC));
+        repository.Upsert(CreateSample(PathA));
+        repository.Upsert(CreateSample(PathB));
+
+        MlDatasetSample firstForward = Assert.IsType<MlDatasetSample>(
+            repository.FindNextUnlabeled(null));
+        Assert.Equal(PathC, firstForward.SourceFilePath);
+
+        MlDatasetSample firstBackward = Assert.IsType<MlDatasetSample>(
+            repository.FindPreviousUnlabeled(null));
+        Assert.Equal(PathB, firstBackward.SourceFilePath);
+    }
+
+    [Fact]
+    public void FindNextUnlabeled_MissingSamples_ReturnsNull()
+    {
+        repository.EnsureSchema();
+
+        Assert.Null(repository.FindNextUnlabeled(null));
+        Assert.Null(repository.FindPreviousUnlabeled(null));
+    }
+
+    [Fact]
+    public void CountValidated_And_CountUnlabeled_AreCoherent()
+    {
+        repository.EnsureSchema();
+
+        repository.Upsert(CreateSample(PathA));
+        repository.Upsert(CreateSample(PathB));
+        repository.Upsert(CreateSample(PathC));
+        repository.Upsert(CreateSample(PathD));
+
+        repository.UpdateHumanLabels(PathA, MlHumanLabel.Stream, null);
+        repository.UpdateHumanLabels(PathB, MlHumanLabel.Jump, MlHumanLabel.Tech);
+
+        Assert.Equal(2, repository.CountValidated());
+        Assert.Equal(2, repository.CountUnlabeled());
+    }
+
+    [Fact]
+    public void ValidateThenFindNext_AdvancesPastJustValidatedSample()
+    {
+        repository.EnsureSchema();
+
+        repository.Upsert(CreateSample(PathA));
+        repository.Upsert(CreateSample(PathB));
+
+        MlDatasetSample current = Assert.IsType<MlDatasetSample>(
+            repository.FindNextUnlabeled(null));
+        Assert.Equal(PathA, current.SourceFilePath);
+
+        repository.UpdateHumanLabels(
+            current.SourceFilePath,
+            MlHumanLabel.Stream,
+            null);
+
+        MlDatasetSample next = Assert.IsType<MlDatasetSample>(
+            repository.FindNextUnlabeled(current.SampleId));
+        Assert.Equal(PathB, next.SourceFilePath);
+    }
+
+    [Fact]
+    public void Skip_DoesNotAlterSample()
+    {
+        repository.EnsureSchema();
+
+        repository.Upsert(CreateSample(PathA));
+        repository.Upsert(CreateSample(PathB));
+
+        MlDatasetSample before = Assert.IsType<MlDatasetSample>(
+            repository.FindBySourceFilePath(PathA));
+
+        // Un "skip" ne fait que lire le prochain sample non validé : il
+        // n'existe aucune écriture associée à cette navigation.
+        repository.FindNextUnlabeled(null);
+
+        MlDatasetSample after = Assert.IsType<MlDatasetSample>(
+            repository.FindBySourceFilePath(PathA));
+
+        Assert.Equal(before.PrimaryHumanLabel, after.PrimaryHumanLabel);
+        Assert.Equal(before.SecondaryHumanLabel, after.SecondaryHumanLabel);
+        Assert.Equal(before.HumanValidated, after.HumanValidated);
+    }
+
+
+    // ============================================================
     // COEXISTENCE AVEC LE CACHE RUNTIME
     // ============================================================
 
