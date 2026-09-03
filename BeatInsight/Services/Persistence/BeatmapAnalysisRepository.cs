@@ -243,6 +243,35 @@ internal sealed class BeatmapAnalysisRepository
         return owned;
     }
 
+    /// <summary>
+    /// Retourne le dernier chemin source indexé pour une difficulté osu!
+    /// précise. La découverte communautaire utilise cette lecture ciblée pour
+    /// charger une map déjà possédée sans explorer le dossier Songs.
+    /// </summary>
+    internal string? FindSourceFilePathByBeatmapId(int beatmapId)
+    {
+        if (beatmapId <= 0)
+        {
+            return null;
+        }
+
+        using SqliteConnection connection = OpenConnection();
+        using SqliteCommand command = connection.CreateCommand();
+
+        command.CommandText = """
+            SELECT FilePath
+            FROM BeatmapAnalysis
+            WHERE BeatmapId = $beatmapId
+            ORDER BY AnalysedAtUtc DESC
+            LIMIT 1;
+            """;
+        command.Parameters.AddWithValue("$beatmapId", beatmapId);
+
+        object? value = command.ExecuteScalar();
+
+        return value is string filePath ? filePath : null;
+    }
+
 
     // ============================================================
     // ÉCRITURE

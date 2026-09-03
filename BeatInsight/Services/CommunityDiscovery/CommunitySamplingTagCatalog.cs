@@ -104,6 +104,34 @@ internal static class CommunitySamplingTagCatalog
         return evidence.TryGetValue(family, out double value) && value > 0.0;
     }
 
+    /// <summary>
+    /// Vérifie la provenance d'un candidat retourné par la requête
+    /// <c>tag="..."</c> osu!web. Cela établit une pertinence de recherche,
+    /// mais ne fabrique ni vote ni preuve communautaire détaillée.
+    /// </summary>
+    internal static bool SearchTagsMatchFamily(
+        IEnumerable<string> searchTagNames,
+        CommunitySamplingFamily family)
+    {
+        ArgumentNullException.ThrowIfNull(searchTagNames);
+
+        CommunitySamplingFamily[] matchedFamilies = searchTagNames
+            .Where(tagName => !string.IsNullOrWhiteSpace(tagName))
+            .SelectMany(ResolveFamilies)
+            .Distinct()
+            .ToArray();
+
+        return family == CommunitySamplingFamily.Hybrid
+            ? matchedFamilies.Length >= 2
+            : matchedFamilies.Contains(family);
+    }
+
+    internal static int CountSearchTagMatches(
+        IEnumerable<string> searchTagNames,
+        CommunitySamplingFamily family) => searchTagNames
+            .Where(tagName => !string.IsNullOrWhiteSpace(tagName))
+            .Count(tagName => ResolveFamilies(tagName).Contains(family));
+
     internal static IReadOnlyDictionary<CommunitySamplingFamily, double>
         CalculateFamilyEvidence(IEnumerable<CommunityBeatmapUserTag> tags)
     {

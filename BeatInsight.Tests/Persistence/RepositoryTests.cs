@@ -460,6 +460,17 @@ public sealed class RepositoryTests : IDisposable
         Assert.Equal([111, 222], owned.OrderBy(id => id));
     }
 
+    [Fact]
+    public void FindSourceFilePathByBeatmapId_ReturnsIndexedPathOnly()
+    {
+        repository.EnsureSchema();
+        repository.Upsert(CreateRecord(PathA, beatmapId: 111));
+
+        Assert.Equal(PathA, repository.FindSourceFilePathByBeatmapId(111));
+        Assert.Null(repository.FindSourceFilePathByBeatmapId(999));
+        Assert.Null(repository.FindSourceFilePathByBeatmapId(0));
+    }
+
 
     // ============================================================
     // TRAITS

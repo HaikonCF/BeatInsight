@@ -1,14 +1,20 @@
 using BeatInsight.Models.Discovery;
+using BeatInsight.Diagnostics;
 
 namespace BeatInsight.Services.CommunityDiscovery;
 
 /// <summary>
 /// Applique le filtrage, le dédoublonnage, le ranking et l'enrichissement
-/// local aux résultats distants. Cette classe ne fait aucun accès HTTP ni
-/// aucune écriture SQLite, ce qui la rend déterministe et testable.
+/// local aux résultats distants. L'enrichissement communautaire détaillé est
+/// facultatif et ne cible que les résultats déjà retenus pour l'affichage.
 /// </summary>
 internal sealed class CommunityBeatmapDiscoveryService
 {
+    // Les résultats restent valides sur la seule requête tag osu!web. Les
+    // détails avec votes sont donc limités aux premières cartes affichées,
+    // plutôt que de rendre une recherche /20 dépendante de 20 appels HTML.
+    private const int MaxEagerCommunityDetails = 8;
+
     private readonly ICommunityBeatmapDiscoverySource source;
     private readonly ICommunityBeatmapLocalStateSource localStateSource;
 
@@ -60,12 +66,14 @@ internal sealed class CommunityBeatmapDiscoveryService
         List<NormalizedRemoteCandidate> normalized =
             Deduplicate(remoteCandidates)
                 .Where(candidate => candidate.Remote.GameMode == 0)
-                .Where(candidate => IsAllowedStatus(candidate.Remote.Status, request))
-                .Where(candidate => IsWithinStarRange(
+                .Where(candidate => CommunityDiscoveryCandidateFilters
+                    .IsAllowedStatus(candidate.Remote.Status, request))
+                .Where(candidate => CommunityDiscoveryCandidateFilters
+                    .IsWithinStarRange(
                     candidate.Remote.StarRating,
                     request))
-                .Where(candidate => CommunitySamplingTagCatalog.MatchesFamily(
-                    candidate.UserTags,
+                .Where(candidate => HasRequestedFamilyEvidence(
+                    candidate,
                     request.SamplingFamily))
                 .ToList();
 
@@ -76,17 +84,35 @@ internal sealed class CommunityBeatmapDiscoveryService
 
         cancellationToken.ThrowIfCancellationRequested();
 
-        return normalized
+        NormalizedRemoteCandidate[] selected = normalized
+            .Where(candidate => !request.ExcludeAlreadyHumanValidated
+                || !localStates.GetValueOrDefault(
+                    candidate.Remote.BeatmapId).HumanValidated)
+            .OrderByDescending(candidate => GetCommunityEvidenceScore(
+                candidate,
+                request.SamplingFamily))
+            .ThenByDescending(candidate => CommunitySamplingTagCatalog
+                .CountSearchTagMatches(
+                    candidate.SearchTagNames,
+                    request.SamplingFamily))
+            .ThenBy(candidate => candidate.Remote.BeatmapId)
+            .Take(request.MaxResults)
+            .ToArray();
+
+        NormalizedRemoteCandidate[] enriched =
+            await EnrichSelectedCandidatesAsync(selected, cancellationToken);
+
+        CommunityBeatmapCandidate[] finalCandidates = enriched
             .Select(candidate => CreateCandidate(
                 candidate,
                 request.SamplingFamily,
                 localStates.GetValueOrDefault(candidate.Remote.BeatmapId)))
-            .Where(candidate => !request.ExcludeAlreadyHumanValidated
-                || !candidate.HumanValidated)
-            .OrderByDescending(candidate => candidate.EvidenceScore)
-            .ThenBy(candidate => candidate.BeatmapId)
-            .Take(request.MaxResults)
             .ToArray();
+
+        DebugLogger.Log(
+            $"COMMUNITY DISCOVERY DEPTH | Final returned = {finalCandidates.Length}");
+
+        return finalCandidates;
     }
 
     private static IEnumerable<NormalizedRemoteCandidate> Deduplicate(
@@ -121,32 +147,112 @@ internal sealed class CommunityBeatmapDiscoveryService
                     .OrderBy(tag => tag.Name, StringComparer.OrdinalIgnoreCase)
                     .ToArray();
 
-                return new NormalizedRemoteCandidate(remote, tags);
+                IReadOnlyList<string> searchTagNames = group
+                    .SelectMany(candidate => candidate.SearchTagNames)
+                    .Where(tagName => !string.IsNullOrWhiteSpace(tagName))
+                    .Select(tagName => tagName.Trim())
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(tagName => tagName, StringComparer.OrdinalIgnoreCase)
+                    .ToArray();
+
+                return new NormalizedRemoteCandidate(
+                    remote,
+                    tags,
+                    searchTagNames,
+                    group.Any(candidate => candidate.CommunityDetailsAvailable));
             });
     }
 
-    private static bool IsAllowedStatus(
-        string status,
-        CommunityDiscoveryRequest request)
+    private async Task<NormalizedRemoteCandidate[]>
+        EnrichSelectedCandidatesAsync(
+            IReadOnlyList<NormalizedRemoteCandidate> selected,
+            CancellationToken cancellationToken)
     {
-        return status.Trim().ToLowerInvariant() switch
+        if (source is not ICommunityBeatmapCandidateMetadataEnricher enricher)
         {
-            "ranked" => request.IncludeRanked,
-            "approved" => request.IncludeApproved,
-            "loved" => request.IncludeLoved,
-            _ => false,
-        };
+            return selected.ToArray();
+        }
+
+        var enriched = selected.ToArray();
+
+        int eagerDetailCount = Math.Min(
+            enriched.Length,
+            MaxEagerCommunityDetails);
+        DebugLogger.Log(
+            "COMMUNITY DISCOVERY ENRICHMENT PLAN | "
+            + $"Selected = {enriched.Length} | "
+            + $"Eager details = {eagerDetailCount}");
+
+        for (int index = 0; index < eagerDetailCount; index++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            try
+            {
+                CommunityCandidateMetadataEnrichmentResult result =
+                    await enricher.EnrichCandidateAsync(
+                        enriched[index].Remote,
+                        cancellationToken);
+                enriched[index] = MergeEnrichment(enriched[index], result.Candidate);
+
+                if (result.RateLimited)
+                {
+                    // Les candidats restants restent affichables grâce à leur
+                    // provenance de recherche ; inutile de prolonger la
+                    // pression sur osu! après un 429 d'enrichissement.
+                    break;
+                }
+            }
+            catch (OsuCommunityRateLimitException)
+            {
+                DebugLogger.Log(
+                    "COMMUNITY DISCOVERY ENRICHMENT | "
+                    + "Rate limited; remaining details left unavailable.");
+                break;
+            }
+        }
+
+        return enriched;
     }
 
-    private static bool IsWithinStarRange(
-        double starRating,
-        CommunityDiscoveryRequest request)
-    {
-        return (!request.MinStarRating.HasValue
-                    || starRating >= request.MinStarRating.Value)
-               && (!request.MaxStarRating.HasValue
-                    || starRating <= request.MaxStarRating.Value);
-    }
+    private static NormalizedRemoteCandidate MergeEnrichment(
+        NormalizedRemoteCandidate original,
+        CommunityBeatmapRemoteCandidate enriched) => new(
+            enriched,
+            MergeTags(original.UserTags, enriched.UserTags),
+            original.SearchTagNames,
+            original.CommunityDetailsAvailable
+                || enriched.CommunityDetailsAvailable);
+
+    private static IReadOnlyList<CommunityBeatmapUserTag> MergeTags(
+        IReadOnlyList<CommunityBeatmapUserTag> first,
+        IReadOnlyList<CommunityBeatmapUserTag> second) => first
+            .Concat(second)
+            .Where(tag => !string.IsNullOrWhiteSpace(tag.Name))
+            .GroupBy(tag => tag.Name.Trim(), StringComparer.OrdinalIgnoreCase)
+            .Select(group => new CommunityBeatmapUserTag
+            {
+                Name = group.Key,
+                Votes = group.Max(tag => Math.Max(0, tag.Votes)),
+            })
+            .OrderBy(tag => tag.Name, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+    private static bool HasRequestedFamilyEvidence(
+        NormalizedRemoteCandidate candidate,
+        CommunitySamplingFamily family) =>
+            CommunitySamplingTagCatalog.MatchesFamily(candidate.UserTags, family)
+            || CommunitySamplingTagCatalog.SearchTagsMatchFamily(
+                candidate.SearchTagNames,
+                family);
+
+    private static double GetCommunityEvidenceScore(
+        NormalizedRemoteCandidate candidate,
+        CommunitySamplingFamily family) => CommunitySamplingTagCatalog
+            .GetEvidenceScore(
+                CommunitySamplingTagCatalog.CalculateFamilyEvidence(
+                    candidate.UserTags),
+                family);
 
     private static CommunityBeatmapCandidate CreateCandidate(
         NormalizedRemoteCandidate normalized,
@@ -171,6 +277,7 @@ internal sealed class CommunityBeatmapDiscoveryService
             BPM = remote.BPM,
             Status = remote.Status,
             UserTags = normalized.UserTags,
+            CommunityDetailsAvailable = normalized.CommunityDetailsAvailable,
             SamplingFamily = family,
             EvidenceScore = CommunitySamplingTagCatalog.GetEvidenceScore(
                 evidence,
@@ -183,5 +290,7 @@ internal sealed class CommunityBeatmapDiscoveryService
 
     private sealed record NormalizedRemoteCandidate(
         CommunityBeatmapRemoteCandidate Remote,
-        IReadOnlyList<CommunityBeatmapUserTag> UserTags);
+        IReadOnlyList<CommunityBeatmapUserTag> UserTags,
+        IReadOnlyList<string> SearchTagNames,
+        bool CommunityDetailsAvailable);
 }

@@ -52,7 +52,9 @@ internal sealed class CommunityBeatmapUserTag
 
 /// <summary>
 /// Forme normalisée produite par une source distante avant le filtrage et
-/// l'enrichissement local. GameMode suit le mode osu! numérique : 0 = osu!.
+/// l'enrichissement local. <see cref="SearchTagNames"/> décrit uniquement
+/// les requêtes osu!web qui ont retourné le candidat : ce n'est jamais un
+/// vote communautaire inventé. GameMode suit le mode osu! numérique : 0 = osu!.
 /// </summary>
 internal sealed class CommunityBeatmapRemoteCandidate
 {
@@ -78,6 +80,20 @@ internal sealed class CommunityBeatmapRemoteCandidate
 
     internal IReadOnlyList<CommunityBeatmapUserTag> UserTags { get; init; } =
         [];
+
+    /// <summary>
+    /// Tags de recherche osu!web ayant fourni ce candidat. Ils servent à
+    /// préserver la pertinence de la recherche avant qu'un enrichissement
+    /// détaillé facultatif puisse récupérer les votes communautaires.
+    /// </summary>
+    internal IReadOnlyList<string> SearchTagNames { get; init; } = [];
+
+    /// <summary>
+    /// Indique si les détails communautaires ont réellement été chargés.
+    /// Une liste vide avec <c>true</c> signifie « aucun tag », tandis que
+    /// <c>false</c> signifie « détails non demandés ou indisponibles ».
+    /// </summary>
+    internal bool CommunityDetailsAvailable { get; init; }
 }
 
 /// <summary>
@@ -116,6 +132,8 @@ internal sealed class CommunityBeatmapCandidate
 
     internal IReadOnlyList<CommunityBeatmapUserTag> UserTags { get; init; } =
         [];
+
+    internal bool CommunityDetailsAvailable { get; init; }
 
     internal required CommunitySamplingFamily SamplingFamily { get; init; }
 

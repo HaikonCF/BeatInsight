@@ -221,13 +221,18 @@
                 <!-- TOP DASHBOARD                                          -->
                 <!-- ===================================================== -->
 
-                <Grid x:Name="MlLabWorkspacePanel"
-                       Visibility="Collapsed"
-                       HorizontalAlignment="Center"
-                       VerticalAlignment="Top"
-                       Width="860"
-                       Margin="0,40,0,0">
+                <ScrollViewer x:Name="MlLabWorkspacePanel"
+                              Visibility="Collapsed"
+                              HorizontalAlignment="Center"
+                              VerticalAlignment="Top"
+                              Width="880"
+                              Height="850"
+                              Margin="0,40,0,0"
+                              HorizontalScrollBarVisibility="Disabled"
+                              VerticalScrollBarVisibility="Auto">
+                <Grid>
                     <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
@@ -750,7 +755,288 @@
                     </StackPanel>
                 </Border>
 
+                <!-- ===================================================== -->
+                <!-- COMMUNITY DISCOVERY                                   -->
+                <!-- ===================================================== -->
+
+                <Border Grid.Row="3"
+                        Grid.ColumnSpan="3"
+                        Margin="0,8,0,0"
+                        Padding="10"
+                        Background="#16000000"
+                        BorderBrush="#33FFFFFF"
+                        BorderThickness="1"
+                        CornerRadius="6">
+                    <StackPanel>
+                        <TextBlock Text="COMMUNITY DISCOVERY"
+                                   FontSize="11"
+                                   FontWeight="Bold"
+                                   Foreground="#88FFFFFF"/>
+                        <TextBlock Text="Community tags guide candidate selection only. Human labels remain ground truth."
+                                   FontSize="10"
+                                   FontStyle="Italic"
+                                   Foreground="#88FFFFFF"
+                                   Margin="0,3,0,0"/>
+
+                        <WrapPanel Margin="0,8,0,0">
+                            <TextBlock Text="Target:"
+                                       FontSize="10"
+                                       FontWeight="SemiBold"
+                                       Foreground="#CCFFFFFF"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,5,0"/>
+                            <Button x:Name="DiscoveryJumpFamilyButton"
+                                    Tag="Jump"
+                                    Content="Jump"
+                                    Click="DiscoveryFamily_Click"
+                                    Padding="8,3"
+                                    Margin="0,0,3,0"/>
+                            <Button x:Name="DiscoveryStreamFamilyButton"
+                                    Tag="Stream"
+                                    Content="Stream"
+                                    Click="DiscoveryFamily_Click"
+                                    Padding="8,3"
+                                    Margin="0,0,3,0"/>
+                            <Button x:Name="DiscoveryTechFamilyButton"
+                                    Tag="Tech"
+                                    Content="Tech"
+                                    Click="DiscoveryFamily_Click"
+                                    Padding="8,3"
+                                    Margin="0,0,3,0"/>
+                            <Button x:Name="DiscoveryReadingFamilyButton"
+                                    Tag="Reading"
+                                    Content="Reading"
+                                    Click="DiscoveryFamily_Click"
+                                    Padding="8,3"
+                                    Margin="0,0,3,0"/>
+                            <Button x:Name="DiscoveryHybridFamilyButton"
+                                    Tag="Hybrid"
+                                    Content="Hybrid"
+                                    Click="DiscoveryFamily_Click"
+                                    Padding="8,3"/>
+
+                            <TextBlock Text="Results:"
+                                       FontSize="10"
+                                       FontWeight="SemiBold"
+                                       Foreground="#CCFFFFFF"
+                                       VerticalAlignment="Center"
+                                       Margin="14,0,5,0"/>
+                            <Button x:Name="Discovery10ResultsButton"
+                                    Tag="10"
+                                    Content="10"
+                                    Click="DiscoveryResultCount_Click"
+                                    Padding="8,3"
+                                    Margin="0,0,3,0"/>
+                            <Button x:Name="Discovery20ResultsButton"
+                                    Tag="20"
+                                    Content="20"
+                                    Click="DiscoveryResultCount_Click"
+                                    Padding="8,3"
+                                    Margin="0,0,3,0"/>
+                            <Button x:Name="Discovery30ResultsButton"
+                                    Tag="30"
+                                    Content="30"
+                                    Click="DiscoveryResultCount_Click"
+                                    Padding="8,3"
+                                    Margin="0,0,3,0"/>
+                            <Button x:Name="Discovery50ResultsButton"
+                                    Tag="50"
+                                    Content="50"
+                                    Click="DiscoveryResultCount_Click"
+                                    Padding="8,3"/>
+                        </WrapPanel>
+
+                        <Grid Margin="0,7,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="74"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="74"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Column="0"
+                                       Text="Min ★"
+                                       FontSize="10"
+                                       Foreground="#CCFFFFFF"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,5,0"/>
+                            <TextBox x:Name="DiscoveryMinStarTextBox"
+                                     Grid.Column="1"
+                                     Height="25"
+                                     Padding="5,2"
+                                     ToolTip="Optional minimum star rating"/>
+                            <TextBlock Grid.Column="2"
+                                       Text="Max ★"
+                                       FontSize="10"
+                                       Foreground="#CCFFFFFF"
+                                       VerticalAlignment="Center"
+                                       Margin="12,0,5,0"/>
+                            <TextBox x:Name="DiscoveryMaxStarTextBox"
+                                     Grid.Column="3"
+                                     Height="25"
+                                     Padding="5,2"
+                                     ToolTip="Optional maximum star rating"/>
+                            <Button x:Name="FindDiscoveryCandidatesButton"
+                                    Grid.Column="5"
+                                    Content="Find Candidates"
+                                    Click="FindDiscoveryCandidates_Click"
+                                    Height="27"
+                                    Padding="10,3"
+                                    Margin="12,0,0,0"/>
+                            <Button x:Name="CancelDiscoveryButton"
+                                    Grid.Column="6"
+                                    Content="Cancel"
+                                    Click="CancelDiscovery_Click"
+                                    IsEnabled="False"
+                                    Height="27"
+                                    Padding="10,3"
+                                    Margin="5,0,0,0"/>
+                        </Grid>
+
+                        <TextBlock x:Name="DiscoveryStatusText"
+                                   Text="Choose a target and search when ready."
+                                   FontSize="11"
+                                   FontWeight="SemiBold"
+                                   Foreground="White"
+                                   Margin="0,8,0,0"/>
+                        <TextBlock x:Name="DiscoverySummaryText"
+                                   Text="Owned: 0   In Dataset: 0   Human Validated: 0"
+                                   FontSize="10"
+                                   Foreground="#CCFFFFFF"
+                                   Margin="0,2,0,0"/>
+                        <TextBlock x:Name="DiscoveryEmptyText"
+                                   Text="No candidates found for this filter."
+                                   Visibility="Collapsed"
+                                   FontSize="10"
+                                   Foreground="#CCFFFFFF"
+                                   Margin="0,6,0,0"/>
+
+                        <ScrollViewer MaxHeight="340"
+                                      Margin="0,7,0,0"
+                                      VerticalScrollBarVisibility="Auto"
+                                      HorizontalScrollBarVisibility="Disabled">
+                            <ItemsControl x:Name="DiscoveryResultsList">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Margin="0,0,0,6"
+                                                Padding="8"
+                                                Background="#12000000"
+                                                BorderBrush="#33FFFFFF"
+                                                BorderThickness="1"
+                                                CornerRadius="4">
+                                            <Grid>
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="Auto"/>
+                                                    <RowDefinition Height="Auto"/>
+                                                    <RowDefinition Height="Auto"/>
+                                                    <RowDefinition Height="Auto"/>
+                                                </Grid.RowDefinitions>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+
+                                                <TextBlock Grid.Row="0"
+                                                           Grid.Column="0"
+                                                           Text="{Binding ArtistTitle}"
+                                                           FontSize="12"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="White"
+                                                           TextTrimming="CharacterEllipsis"/>
+                                                <TextBlock Grid.Row="0"
+                                                           Grid.Column="1"
+                                                           Text="{Binding StarRating}"
+                                                           FontSize="11"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="#DCEBFF"
+                                                           Margin="12,0,0,0"/>
+
+                                                <StackPanel Grid.Row="1"
+                                                            Grid.ColumnSpan="2"
+                                                            Orientation="Horizontal"
+                                                            Margin="0,3,0,0">
+                                                    <TextBlock Text="{Binding Difficulty}"
+                                                               FontSize="10"
+                                                               Foreground="#CCFFFFFF"/>
+                                                    <TextBlock Text="   " FontSize="10"/>
+                                                    <TextBlock Text="{Binding Mapper}"
+                                                               FontSize="10"
+                                                               Foreground="#CCFFFFFF"/>
+                                                    <TextBlock Text="   " FontSize="10"/>
+                                                    <TextBlock Text="{Binding SamplingFamily}"
+                                                               FontSize="10"
+                                                               Foreground="#A8D8FF"/>
+                                                    <TextBlock Text="   " FontSize="10"/>
+                                                    <TextBlock Text="{Binding EvidenceScore}"
+                                                               FontSize="10"
+                                                               Foreground="#A8D8FF"/>
+                                                </StackPanel>
+
+                                                <TextBlock Grid.Row="2"
+                                                           Grid.ColumnSpan="2"
+                                                           Text="{Binding CommunityTags}"
+                                                           FontSize="10"
+                                                           Foreground="#B9D8C4"
+                                                           TextWrapping="Wrap"
+                                                           Margin="0,4,0,0"/>
+
+                                                <Grid Grid.Row="3"
+                                                      Grid.ColumnSpan="2"
+                                                      Margin="0,6,0,0">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <StackPanel Grid.Column="0">
+                                                        <TextBlock Text="{Binding AlreadyOwned}"
+                                                                   FontSize="10"
+                                                                   Foreground="#CCFFFFFF"/>
+                                                        <TextBlock Text="{Binding AlreadyInMlDataset}"
+                                                                   FontSize="10"
+                                                                   Foreground="#CCFFFFFF"/>
+                                                        <TextBlock Text="{Binding HumanValidated}"
+                                                                   FontSize="10"
+                                                                   Foreground="#CCFFFFFF"/>
+                                                        <TextBlock FontSize="9"
+                                                                   Foreground="#777777"
+                                                                   Margin="0,2,0,0">
+                                                            <Run Text="Beatmap: "/><Run Text="{Binding BeatmapId}"/>
+                                                            <Run Text="   Set: "/><Run Text="{Binding BeatmapSetId}"/>
+                                                        </TextBlock>
+                                                    </StackPanel>
+                                                    <Button Grid.Column="1"
+                                                            Tag="{Binding BeatmapId}"
+                                                            Content="Open osu! Page"
+                                                            Click="OpenDiscoveryCandidate_Click"
+                                                            Height="27"
+                                                            Padding="8,3"
+                                                            VerticalAlignment="Top"
+                                                            Margin="8,0,0,0"/>
+                                                    <Button Grid.Column="2"
+                                                            Tag="{Binding BeatmapId}"
+                                                            Content="Load for Review"
+                                                            Click="LoadDiscoveryCandidateForReview_Click"
+                                                            Height="27"
+                                                            Padding="8,3"
+                                                            VerticalAlignment="Top"
+                                                            Margin="5,0,0,0"/>
+                                                </Grid>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </StackPanel>
+                </Border>
+
                 </Grid>
+
+                </ScrollViewer>
 
             </Grid>
 

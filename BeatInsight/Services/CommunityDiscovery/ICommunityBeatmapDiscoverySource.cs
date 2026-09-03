@@ -13,3 +13,19 @@ internal interface ICommunityBeatmapDiscoverySource
         CommunityDiscoveryRequest request,
         CancellationToken cancellationToken);
 }
+
+/// <summary>
+/// Extension facultative d'une source de découverte pour charger les détails
+/// communautaires uniquement après la sélection locale des candidats affichés.
+/// L'enrichissement n'est jamais une condition de succès de la recherche.
+/// </summary>
+internal interface ICommunityBeatmapCandidateMetadataEnricher
+{
+    Task<CommunityCandidateMetadataEnrichmentResult> EnrichCandidateAsync(
+        CommunityBeatmapRemoteCandidate candidate,
+        CancellationToken cancellationToken);
+}
+
+internal readonly record struct CommunityCandidateMetadataEnrichmentResult(
+    CommunityBeatmapRemoteCandidate Candidate,
+    bool RateLimited);

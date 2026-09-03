@@ -1,11 +1,13 @@
 ﻿using AutoMapper;
 using BeatInsight.Diagnostics;
 using BeatInsight.Models;
+using BeatInsight.Models.Discovery;
 using BeatInsight.Models.Library;
 using BeatInsight.Models.Ml;
 using BeatInsight.Models.Persistence;
 using BeatInsight.Parser;
 using BeatInsight.Services;
+using BeatInsight.Services.CommunityDiscovery;
 using BeatInsight.Services.Library;
 using BeatInsight.Services.Ml;
 using BeatInsight.Services.Persistence;
@@ -13,6 +15,7 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Net.Http;
 using System.Reflection;
 using System.Text;
@@ -46,7 +49,6 @@ namespace BeatInsight
         private bool isUpdating;
         private bool tosuConnected;
         private string? currentBeatmapUrl;
-        private readonly OsuApiService osuApiService = new();
 
         // Index persistant des analyses.
         //
@@ -58,6 +60,11 @@ namespace BeatInsight
             new(new BeatmapAnalysisRepository(
                 BeatmapAnalysisRepository.DefaultDatabasePath));
 
+        // Index runtime consulté uniquement pour charger en revue un candidat
+        // déjà installé. Il ne déclenche jamais de parcours du dossier Songs.
+        private readonly BeatmapAnalysisRepository localAnalysisRepository =
+            new(BeatmapAnalysisRepository.DefaultDatabasePath);
+
         // Dataset ML indépendant du cache runtime : cette instance ne sert
         // qu'aux statistiques et au builder de captures fraîches.
         private readonly MlDatasetSampleRepository mlDatasetRepository =
@@ -65,6 +72,19 @@ namespace BeatInsight
 
         // Résolution du dossier Songs (préférence manuelle > tosu).
         private readonly SongsPathResolver songsPathResolver = new();
+
+        // Découverte communautaire : service de lecture seul. Son backend
+        // reste séparé des labels humains et des files de labellisation.
+        private readonly CommunityBeatmapDiscoveryService
+            communityDiscoveryService;
+        private CancellationTokenSource? discoveryCancellation;
+        private bool isDiscoveryRunning;
+        private bool isLoadingDiscoveryReview;
+        private CommunitySamplingFamily selectedDiscoveryFamily =
+            CommunitySamplingFamily.Tech;
+        private int selectedDiscoveryResultCount = 20;
+        private readonly Dictionary<int, CommunityBeatmapCandidate>
+            discoveryCandidatesByBeatmapId = [];
 
         // Dernier chemin Songs rapporté par tosu, mémorisé afin que
         // les actions de la bibliothèque puissent résoudre un chemin
@@ -105,9 +125,9 @@ namespace BeatInsight
         // afin qu'il ne remplace jamais la map chargée manuellement pour
         // la labellisation. Le timer continue de tourner : seule la
         // beatmap affichée est gelée, pas la connexion tosu elle-même.
-        // Partagé par la Fast Unlabeled Queue et la Calibration Queue :
-        // les deux files restent des mécanismes de sélection distincts,
-        // mais elles utilisent le même gel du polling tosu.
+        // Partagé par Fast Unlabeled, Calibration et Discovery Review :
+        // leurs mécanismes de sélection restent distincts, mais ils utilisent
+        // le même gel du polling tosu pour préserver la map manuelle.
         private bool isFastLabelingMode;
 
         // Ancre de navigation de la Calibration Queue, indépendante de
@@ -119,10 +139,8 @@ namespace BeatInsight
         // None lorsque la map affichée n'a été chargée par aucune des
         // deux files (par exemple via tosu) : Validate ne navigue alors
         // nulle part, comme avant l'introduction des files.
-        private enum ActiveLabelingQueue { None, FastUnlabeled, Calibration }
-
-        private ActiveLabelingQueue activeLabelingQueue =
-            ActiveLabelingQueue.None;
+        private LabelingQueueKind activeLabelingQueue =
+            LabelingQueueKind.None;
 
         // État autonome du backfill BeatmapId. Il ne relance jamais
         // MlDatasetBuilder : seule la colonne BeatmapId des échantillons
@@ -175,7 +193,15 @@ namespace BeatInsight
 
             InitializeComponent();
 
+            communityDiscoveryService = new CommunityBeatmapDiscoveryService(
+                new OsuCommunityBeatmapDiscoverySource(osuApi),
+                new RepositoryCommunityBeatmapLocalStateSource(
+                    mlDatasetRepository,
+                    localAnalysisRepository));
+
             SetActiveWorkspace(ActiveWorkspace.Analyzer);
+            ApplyDiscoveryFilterVisuals();
+            SetDiscoverySearchState(isRunning: false);
 
 
 
@@ -824,6 +850,339 @@ namespace BeatInsight
         }
 
         // ============================================================
+        // COMMUNITY DISCOVERY
+        // ============================================================
+
+        private void DiscoveryFamily_Click(
+            object sender,
+            RoutedEventArgs e)
+        {
+            if (isDiscoveryRunning
+                || sender is not FrameworkElement { Tag: string familyName }
+                || !Enum.TryParse(
+                    familyName,
+                    out CommunitySamplingFamily family))
+            {
+                return;
+            }
+
+            selectedDiscoveryFamily = family;
+            ApplyDiscoveryFilterVisuals();
+        }
+
+        private void DiscoveryResultCount_Click(
+            object sender,
+            RoutedEventArgs e)
+        {
+            if (isDiscoveryRunning
+                || sender is not FrameworkElement { Tag: string countText }
+                || !int.TryParse(countText, out int count))
+            {
+                return;
+            }
+
+            selectedDiscoveryResultCount = count;
+            ApplyDiscoveryFilterVisuals();
+        }
+
+        private async void FindDiscoveryCandidates_Click(
+            object sender,
+            RoutedEventArgs e)
+        {
+            if (isDiscoveryRunning || IsBackgroundLibraryWorkRunning)
+            {
+                return;
+            }
+
+            if (!CommunityDiscoveryUiRequestFactory.TryCreate(
+                    selectedDiscoveryFamily,
+                    selectedDiscoveryResultCount,
+                    DiscoveryMinStarTextBox.Text,
+                    DiscoveryMaxStarTextBox.Text,
+                    out CommunityDiscoveryRequest? request,
+                    out string inputError))
+            {
+                DiscoveryStatusText.Text = inputError;
+                return;
+            }
+
+            // Les schemas préexistants sont seulement préparés avant les
+            // lectures d'enrichissement. Aucun sample, label ou cache ne
+            // peut être créé par une recherche.
+            try
+            {
+                mlDatasetRepository.EnsureSchema();
+                localAnalysisRepository.EnsureSchema();
+            }
+            catch (Exception ex)
+            {
+                DiscoveryStatusText.Text = "Discovery unavailable locally.";
+                DebugLogger.Log($"COMMUNITY DISCOVERY STORAGE ERROR | {ex.Message}");
+                DebugLogger.Detailed(ex.ToString());
+                return;
+            }
+
+            var cancellation = new CancellationTokenSource();
+            discoveryCancellation = cancellation;
+            SetDiscoverySearchState(isRunning: true);
+            DiscoveryStatusText.Text = "Searching...";
+
+            try
+            {
+                IReadOnlyList<CommunityBeatmapCandidate> candidates =
+                    await Task.Run(
+                        () => communityDiscoveryService.FindCandidatesAsync(
+                            request!,
+                            cancellation.Token),
+                        cancellation.Token);
+
+                if (cancellation.IsCancellationRequested)
+                {
+                    return;
+                }
+
+                discoveryCandidatesByBeatmapId.Clear();
+
+                foreach (CommunityBeatmapCandidate candidate in candidates)
+                {
+                    discoveryCandidatesByBeatmapId[candidate.BeatmapId] =
+                        candidate;
+                }
+
+                DiscoveryResultsList.ItemsSource = candidates
+                    .Select(CommunityDiscoveryCandidateViewFactory.Create)
+                    .ToArray();
+
+                int owned = candidates.Count(candidate => candidate.AlreadyOwned);
+                int inDataset = candidates.Count(
+                    candidate => candidate.AlreadyInMlDataset);
+                int validated = candidates.Count(
+                    candidate => candidate.HumanValidated);
+
+                DiscoveryStatusText.Text = $"Found: {candidates.Count:N0}";
+                DiscoverySummaryText.Text =
+                    $"Owned: {owned:N0}   In Dataset: {inDataset:N0}   " +
+                    $"Human Validated: {validated:N0}";
+                DiscoveryEmptyText.Visibility = candidates.Count == 0
+                    ? Visibility.Visible
+                    : Visibility.Collapsed;
+            }
+            catch (OperationCanceledException) when (
+                cancellation.IsCancellationRequested)
+            {
+                DiscoveryStatusText.Text = "Search cancelled.";
+            }
+            catch (OsuCommunityRateLimitException ex)
+            {
+                DiscoveryStatusText.Text =
+                    "osu! rate limit reached. Please wait a moment and retry.";
+                DebugLogger.Log(
+                    "COMMUNITY DISCOVERY RATE LIMIT EXHAUSTED | "
+                    + $"Request kind = {ex.RequestKind} | "
+                    + $"Retry-After present = {ex.RetryAfter.HasValue}");
+                DebugLogger.Log(ex.ToString());
+            }
+            catch (Exception ex)
+            {
+                DiscoveryStatusText.Text = "Search failed. Please try again.";
+                string status = ex is HttpRequestException
+                    {
+                        StatusCode: HttpStatusCode statusCode,
+                    }
+                    ? statusCode.ToString()
+                    : "Unavailable";
+                DebugLogger.Log(
+                    "COMMUNITY DISCOVERY ERROR | " +
+                    $"{ex.GetType().Name} | {ex.Message} | " +
+                    $"HTTP status = {status}");
+                DebugLogger.Log(ex.ToString());
+            }
+            finally
+            {
+                if (ReferenceEquals(discoveryCancellation, cancellation))
+                {
+                    discoveryCancellation = null;
+                    cancellation.Dispose();
+                    SetDiscoverySearchState(isRunning: false);
+                }
+            }
+        }
+
+        private void CancelDiscovery_Click(
+            object sender,
+            RoutedEventArgs e)
+        {
+            if (discoveryCancellation is null || !isDiscoveryRunning)
+            {
+                return;
+            }
+
+            DiscoveryStatusText.Text = "Cancelling...";
+            discoveryCancellation.Cancel();
+        }
+
+        private void OpenDiscoveryCandidate_Click(
+            object sender,
+            RoutedEventArgs e)
+        {
+            if (sender is not FrameworkElement { Tag: int beatmapId }
+                || !discoveryCandidatesByBeatmapId.ContainsKey(beatmapId))
+            {
+                return;
+            }
+
+            try
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = $"https://osu.ppy.sh/b/{beatmapId}",
+                    UseShellExecute = true,
+                });
+            }
+            catch (Exception ex)
+            {
+                DiscoveryStatusText.Text = "Unable to open osu! page.";
+                DebugLogger.Log(
+                    $"COMMUNITY DISCOVERY OPEN ERROR | {ex.Message}");
+                DebugLogger.Detailed(ex.ToString());
+            }
+        }
+
+        private async void LoadDiscoveryCandidateForReview_Click(
+            object sender,
+            RoutedEventArgs e)
+        {
+            if (isLoadingDiscoveryReview || IsBackgroundLibraryWorkRunning
+                || sender is not FrameworkElement { Tag: int beatmapId }
+                || !discoveryCandidatesByBeatmapId.TryGetValue(
+                    beatmapId,
+                    out CommunityBeatmapCandidate? candidate))
+            {
+                return;
+            }
+
+            isLoadingDiscoveryReview = true;
+
+            try
+            {
+                string? sourceFilePath =
+                    localAnalysisRepository.FindSourceFilePathByBeatmapId(
+                        candidate.BeatmapId);
+                CommunityDiscoveryReviewTarget target =
+                    CommunityDiscoveryReviewResolver.Resolve(
+                        candidate,
+                        sourceFilePath);
+
+                if (!target.CanLoad || target.SourceFilePath is null)
+                {
+                    DiscoveryStatusText.Text = target.Status;
+                    return;
+                }
+
+                DiscoveryStatusText.Text = "Loading local map for review...";
+
+                Beatmap beatmap = await Task.Run(() =>
+                    analysisCache.GetOrAnalyze(
+                        target.SourceFilePath,
+                        candidate.BeatmapId));
+
+                if (IsBackgroundLibraryWorkRunning)
+                {
+                    return;
+                }
+
+                currentMapPath = target.SourceFilePath;
+                currentBeatmapUrl =
+                    $"https://osu.ppy.sh/b/{candidate.BeatmapId}";
+                BackgroundImage.Source = null;
+                DataContext = beatmap;
+
+                // Même isolation anti-tosu que les files ML, mais cette
+                // source n'a aucune navigation automatique. RefreshHuman...
+                // réinitialise volontairement les sélections humaines.
+                activeLabelingQueue = LabelingQueueKind.DiscoveryReview;
+                SetDiscoveryReviewMode();
+                RefreshHumanLabelPanel(beatmap, target.SourceFilePath);
+                DiscoveryStatusText.Text = "Loaded for review.";
+            }
+            catch (Exception ex)
+            {
+                DiscoveryStatusText.Text = "Unable to load local map.";
+                DebugLogger.Log(
+                    "COMMUNITY DISCOVERY REVIEW ERROR | " +
+                    $"{ex.GetType().Name} | {ex.Message}");
+                DebugLogger.Detailed(ex.ToString());
+            }
+            finally
+            {
+                isLoadingDiscoveryReview = false;
+            }
+        }
+
+        private void SetDiscoverySearchState(bool isRunning)
+        {
+            isDiscoveryRunning = isRunning;
+
+            FindDiscoveryCandidatesButton.IsEnabled = !isRunning &&
+                !IsBackgroundLibraryWorkRunning;
+            CancelDiscoveryButton.IsEnabled = isRunning;
+            DiscoveryJumpFamilyButton.IsEnabled = !isRunning;
+            DiscoveryStreamFamilyButton.IsEnabled = !isRunning;
+            DiscoveryTechFamilyButton.IsEnabled = !isRunning;
+            DiscoveryReadingFamilyButton.IsEnabled = !isRunning;
+            DiscoveryHybridFamilyButton.IsEnabled = !isRunning;
+            Discovery10ResultsButton.IsEnabled = !isRunning;
+            Discovery20ResultsButton.IsEnabled = !isRunning;
+            Discovery30ResultsButton.IsEnabled = !isRunning;
+            Discovery50ResultsButton.IsEnabled = !isRunning;
+            DiscoveryMinStarTextBox.IsEnabled = !isRunning;
+            DiscoveryMaxStarTextBox.IsEnabled = !isRunning;
+        }
+
+        private void ApplyDiscoveryFilterVisuals()
+        {
+            SetDiscoveryChoiceSelected(
+                DiscoveryJumpFamilyButton,
+                selectedDiscoveryFamily == CommunitySamplingFamily.Jump);
+            SetDiscoveryChoiceSelected(
+                DiscoveryStreamFamilyButton,
+                selectedDiscoveryFamily == CommunitySamplingFamily.Stream);
+            SetDiscoveryChoiceSelected(
+                DiscoveryTechFamilyButton,
+                selectedDiscoveryFamily == CommunitySamplingFamily.Tech);
+            SetDiscoveryChoiceSelected(
+                DiscoveryReadingFamilyButton,
+                selectedDiscoveryFamily == CommunitySamplingFamily.Reading);
+            SetDiscoveryChoiceSelected(
+                DiscoveryHybridFamilyButton,
+                selectedDiscoveryFamily == CommunitySamplingFamily.Hybrid);
+            SetDiscoveryChoiceSelected(
+                Discovery10ResultsButton,
+                selectedDiscoveryResultCount == 10);
+            SetDiscoveryChoiceSelected(
+                Discovery20ResultsButton,
+                selectedDiscoveryResultCount == 20);
+            SetDiscoveryChoiceSelected(
+                Discovery30ResultsButton,
+                selectedDiscoveryResultCount == 30);
+            SetDiscoveryChoiceSelected(
+                Discovery50ResultsButton,
+                selectedDiscoveryResultCount == 50);
+        }
+
+        private static void SetDiscoveryChoiceSelected(
+            Button button,
+            bool isSelected)
+        {
+            button.FontWeight = isSelected
+                ? FontWeights.Bold
+                : FontWeights.Normal;
+            button.Background = isSelected
+                ? System.Windows.Media.Brushes.SteelBlue
+                : SystemColors.ControlBrush;
+        }
+
+        // ============================================================
         // FAST LABELING
         // ============================================================
 
@@ -880,7 +1239,7 @@ namespace BeatInsight
 
             isNavigatingFastLabeling = true;
             SetFastLabelingMode(true);
-            activeLabelingQueue = ActiveLabelingQueue.FastUnlabeled;
+            activeLabelingQueue = LabelingQueueKind.FastUnlabeled;
 
             try
             {
@@ -952,7 +1311,21 @@ namespace BeatInsight
             isFastLabelingMode = active;
 
             FastLabelingModeText.Text = active ? "Mode: On" : "Mode: Off";
+            ExitFastLabelingButton.Content = "Exit Fast Labeling";
             ExitFastLabelingButton.IsEnabled = active;
+        }
+
+        /// <summary>
+        /// Même gel anti-tosu que les files Fast/Calibration, avec un libellé
+        /// explicite pour éviter de faire croire qu'une revue Discovery est
+        /// entrée dans la Fast Unlabeled Queue.
+        /// </summary>
+        private void SetDiscoveryReviewMode()
+        {
+            isFastLabelingMode = true;
+            FastLabelingModeText.Text = "Mode: Review";
+            ExitFastLabelingButton.Content = "Exit Review";
+            ExitFastLabelingButton.IsEnabled = true;
         }
 
         private void ExitFastLabeling_Click(
@@ -960,7 +1333,7 @@ namespace BeatInsight
             RoutedEventArgs e)
         {
             SetFastLabelingMode(false);
-            activeLabelingQueue = ActiveLabelingQueue.None;
+            activeLabelingQueue = LabelingQueueKind.None;
         }
 
         // ============================================================
@@ -1047,7 +1420,7 @@ namespace BeatInsight
 
             isNavigatingCalibration = true;
             SetFastLabelingMode(true);
-            activeLabelingQueue = ActiveLabelingQueue.Calibration;
+            activeLabelingQueue = LabelingQueueKind.Calibration;
 
             try
             {
@@ -1377,15 +1750,19 @@ namespace BeatInsight
                 // Space/auto-advance) détermine où Validate avance
                 // automatiquement. Hors de toute file (map tosu normale),
                 // Validate ne navigue nulle part.
-                switch (activeLabelingQueue)
+                if (LabelingQueueNavigationPolicy.ShouldAutoAdvanceAfterValidation(
+                    activeLabelingQueue))
                 {
-                    case ActiveLabelingQueue.Calibration:
-                        await NavigateCalibrationAsync(forward: true);
-                        break;
+                    switch (activeLabelingQueue)
+                    {
+                        case LabelingQueueKind.Calibration:
+                            await NavigateCalibrationAsync(forward: true);
+                            break;
 
-                    case ActiveLabelingQueue.FastUnlabeled:
-                        await NavigateToUnlabeledAsync(forward: true);
-                        break;
+                        case LabelingQueueKind.FastUnlabeled:
+                            await NavigateToUnlabeledAsync(forward: true);
+                            break;
+                    }
                 }
             }
             catch (Exception ex)
@@ -1484,16 +1861,19 @@ namespace BeatInsight
                 case Key.Space:
                     e.Handled = true;
 
-                    // Skip suit la file active ; hors de toute file, on
-                    // conserve l'ancien comportement par défaut (Fast
-                    // Unlabeled) plutôt que de ne rien faire.
-                    if (activeLabelingQueue == ActiveLabelingQueue.Calibration)
+                    // DiscoveryReview ne saute vers aucune file. Pour les
+                    // deux files historiques (et hors file), le comportement
+                    // existant reste préservé par la policy dédiée.
+                    switch (LabelingQueueNavigationPolicy.GetSkipTarget(
+                        activeLabelingQueue))
                     {
-                        await NavigateCalibrationAsync(forward: true);
-                    }
-                    else
-                    {
-                        await NavigateToUnlabeledAsync(forward: true);
+                        case LabelingQueueKind.Calibration:
+                            await NavigateCalibrationAsync(forward: true);
+                            break;
+
+                        case LabelingQueueKind.FastUnlabeled:
+                            await NavigateToUnlabeledAsync(forward: true);
+                            break;
                     }
 
                     break;
