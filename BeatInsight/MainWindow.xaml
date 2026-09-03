@@ -84,10 +84,13 @@
             <!-- OSU! LIBRARY                                           -->
             <!-- ===================================================== -->
 
-            <StackPanel HorizontalAlignment="Left"
-                        VerticalAlignment="Top"
-                        Margin="10,115,0,0"
-                        Panel.ZIndex="20">
+            <Grid HorizontalAlignment="Stretch"
+                  VerticalAlignment="Top"
+                  Margin="10,115,10,0"
+                  Panel.ZIndex="20">
+
+                <StackPanel HorizontalAlignment="Left"
+                            VerticalAlignment="Top">
 
                 <TextBlock Text="OSU! LIBRARY"
                            FontSize="11"
@@ -182,17 +185,38 @@
                     </StackPanel>
                 </Border>
 
+                </StackPanel>
+
+                <!-- ===================================================== -->
+                <!-- TOP DASHBOARD                                          -->
+                <!-- ===================================================== -->
+
+                <Grid HorizontalAlignment="Right"
+                      VerticalAlignment="Top"
+                      Width="620">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
                 <!-- ===================================================== -->
                 <!-- ML DATASET                                             -->
                 <!-- ===================================================== -->
 
-                <Border Margin="0,14,0,0"
-                        Padding="8"
-                        MaxWidth="300"
+                <Border Grid.Row="0"
+                        Grid.Column="0"
+                        Margin="0,0,6,0"
+                        Padding="10"
                         Background="#16000000"
                         BorderBrush="#33FFFFFF"
                         BorderThickness="1"
-                        CornerRadius="4">
+                        CornerRadius="6">
                     <StackPanel>
                         <TextBlock Text="ML DATASET"
                                    FontSize="11"
@@ -201,12 +225,14 @@
 
                         <TextBlock x:Name="DatasetSampleCountText"
                                    Text="Samples: 0"
-                                   FontSize="10"
-                                   Foreground="#CCFFFFFF"
+                                   FontSize="12"
+                                   FontWeight="SemiBold"
+                                   Foreground="White"
                                    Margin="0,5,0,0"/>
                         <TextBlock x:Name="DatasetValidatedCountText"
                                    Text="Validated: 0"
-                                   FontSize="10"
+                                   FontSize="11"
+                                   FontWeight="SemiBold"
                                    Foreground="#CCFFFFFF"/>
                         <TextBlock x:Name="DatasetUnlabeledCountText"
                                    Text="Unlabeled: 0"
@@ -216,9 +242,10 @@
                         <Button x:Name="BuildDatasetButton"
                                 Content="Build Dataset"
                                 Click="BuildDataset_Click"
+                                Height="27"
                                 Padding="10,4"
                                 Margin="0,7,0,0"
-                                HorizontalAlignment="Left"/>
+                                HorizontalAlignment="Stretch"/>
 
                         <Border x:Name="DatasetBuildProgressPanel"
                                 Visibility="Collapsed"
@@ -273,18 +300,20 @@
                                 <Button x:Name="CancelDatasetBuildButton"
                                         Content="Cancel Dataset Build"
                                         Click="CancelDatasetBuild_Click"
+                                        Height="27"
                                         Padding="8,3"
                                         Margin="0,7,0,0"
-                                        HorizontalAlignment="Left"/>
+                                        HorizontalAlignment="Stretch"/>
                             </StackPanel>
                         </Border>
 
                         <Button x:Name="BackfillBeatmapIdsButton"
                                 Content="Backfill Beatmap IDs"
                                 Click="BackfillBeatmapIds_Click"
+                                Height="27"
                                 Padding="10,4"
                                 Margin="0,7,0,0"
-                                HorizontalAlignment="Left"/>
+                                HorizontalAlignment="Stretch"/>
 
                         <Border x:Name="BeatmapIdBackfillPanel"
                                 Visibility="Collapsed"
@@ -331,104 +360,125 @@
                                 <Button x:Name="CancelBeatmapIdBackfillButton"
                                         Content="Cancel Backfill"
                                         Click="CancelBeatmapIdBackfill_Click"
+                                        Height="27"
                                         Padding="8,3"
                                         Margin="0,7,0,0"
-                                        HorizontalAlignment="Left"/>
+                                        HorizontalAlignment="Stretch"/>
                             </StackPanel>
                         </Border>
                     </StackPanel>
                 </Border>
 
                 <!-- ===================================================== -->
-                <!-- HUMAN LABEL                                            -->
+                <!-- FAST LABELING                                         -->
                 <!-- ===================================================== -->
 
-                <Border Margin="0,14,0,0"
-                        Padding="8"
-                        MaxWidth="300"
+                <Border Grid.Row="0"
+                        Grid.Column="1"
+                        Margin="3,0"
+                        Padding="10"
                         Background="#16000000"
                         BorderBrush="#33FFFFFF"
                         BorderThickness="1"
-                        CornerRadius="4">
+                        CornerRadius="6">
                     <StackPanel>
-                        <TextBlock Text="HUMAN LABEL"
+                        <TextBlock Text="FAST LABELING"
                                    FontSize="11"
                                    FontWeight="Bold"
                                    Foreground="#88FFFFFF"/>
-
-                        <TextBlock Text="FAST LABELING"
-                                   FontSize="9"
-                                   FontWeight="SemiBold"
-                                   Foreground="#88FFFFFF"
-                                   Margin="0,7,0,1"/>
                         <TextBlock x:Name="FastLabelingProgressText"
                                    Text="Progress: 0 / 0"
-                                   FontSize="10"
-                                   Foreground="#CCFFFFFF"/>
+                                   FontSize="12"
+                                   FontWeight="SemiBold"
+                                   Foreground="White"
+                                   Margin="0,7,0,0"/>
                         <TextBlock x:Name="FastLabelingRemainingText"
                                    Text="Remaining: 0"
-                                   FontSize="10"
-                                   Foreground="#99FFFFFF"/>
+                                   FontSize="11"
+                                   FontWeight="SemiBold"
+                                   Foreground="#CCFFFFFF"/>
                         <TextBlock x:Name="FastLabelingModeText"
                                    Text="Mode: Off"
                                    FontSize="10"
                                    Foreground="#99FFFFFF"
-                                   Margin="0,2,0,0"/>
-                        <StackPanel Orientation="Horizontal"
-                                    Margin="0,4,0,0">
-                            <Button x:Name="PreviousUnlabeledButton"
-                                    Content="Previous Unlabeled"
-                                    Click="PreviousUnlabeled_Click"
-                                    Padding="7,3"/>
-                            <Button x:Name="NextUnlabeledButton"
-                                    Content="Next Unlabeled"
-                                    Click="NextUnlabeled_Click"
-                                    Padding="7,3"
-                                    Margin="6,0,0,0"/>
-                        </StackPanel>
+                                   Margin="0,3,0,0"/>
+                        <Button x:Name="PreviousUnlabeledButton"
+                                Content="Previous Unlabeled"
+                                Click="PreviousUnlabeled_Click"
+                                Height="27"
+                                Padding="7,3"
+                                Margin="0,8,0,0"
+                                HorizontalAlignment="Stretch"/>
+                        <Button x:Name="NextUnlabeledButton"
+                                Content="Next Unlabeled"
+                                Click="NextUnlabeled_Click"
+                                Height="27"
+                                Padding="7,3"
+                                Margin="0,4,0,0"
+                                HorizontalAlignment="Stretch"/>
                         <Button x:Name="ExitFastLabelingButton"
                                 Content="Exit Fast Labeling"
                                 Click="ExitFastLabeling_Click"
                                 IsEnabled="False"
+                                Height="27"
                                 Padding="7,3"
                                 Margin="0,4,0,0"
                                 HorizontalAlignment="Stretch"/>
+                    </StackPanel>
+                </Border>
 
-                        <TextBlock Text="CALIBRATION QUEUE"
-                                   FontSize="9"
-                                   FontWeight="SemiBold"
-                                   Foreground="#88FFFFFF"
-                                   Margin="0,7,0,1"/>
+                <!-- ===================================================== -->
+                <!-- CALIBRATION                                          -->
+                <!-- ===================================================== -->
+
+                <Border Grid.Row="0"
+                        Grid.Column="2"
+                        Margin="6,0,0,0"
+                        Padding="10"
+                        Background="#16000000"
+                        BorderBrush="#33FFFFFF"
+                        BorderThickness="1"
+                        CornerRadius="6">
+                    <StackPanel>
+                        <TextBlock Text="CALIBRATION"
+                                   FontSize="11"
+                                   FontWeight="Bold"
+                                   Foreground="#88FFFFFF"/>
                         <TextBlock x:Name="CalibrationFoundText"
                                    Text="Found: 0 / 0"
-                                   FontSize="10"
-                                   Foreground="#CCFFFFFF"/>
+                                   FontSize="12"
+                                   FontWeight="SemiBold"
+                                   Foreground="White"
+                                   Margin="0,7,0,0"/>
                         <TextBlock x:Name="CalibrationValidatedText"
                                    Text="Validated: 0"
-                                   FontSize="10"
+                                   FontSize="11"
+                                   FontWeight="SemiBold"
                                    Foreground="#CCFFFFFF"/>
                         <TextBlock x:Name="CalibrationRemainingText"
                                    Text="Remaining: 0"
                                    FontSize="10"
                                    Foreground="#99FFFFFF"/>
-                        <StackPanel Orientation="Horizontal"
-                                    Margin="0,4,0,0">
-                            <Button x:Name="PreviousCalibrationButton"
-                                    Content="Previous Calibration"
-                                    Click="PreviousCalibration_Click"
-                                    Padding="7,3"/>
-                            <Button x:Name="NextCalibrationButton"
-                                    Content="Next Calibration"
-                                    Click="NextCalibration_Click"
-                                    Padding="7,3"
-                                    Margin="6,0,0,0"/>
-                        </StackPanel>
+                        <Button x:Name="PreviousCalibrationButton"
+                                Content="Previous Calibration"
+                                Click="PreviousCalibration_Click"
+                                Height="27"
+                                Padding="7,3"
+                                Margin="0,8,0,0"
+                                HorizontalAlignment="Stretch"/>
+                        <Button x:Name="NextCalibrationButton"
+                                Content="Next Calibration"
+                                Click="NextCalibration_Click"
+                                Height="27"
+                                Padding="7,3"
+                                Margin="0,4,0,0"
+                                HorizontalAlignment="Stretch"/>
                         <TextBlock x:Name="CalibrationHintText"
                                    Text="Pack hint: —"
                                    FontSize="10"
                                    Foreground="#99FFFFFF"
-                                   Margin="0,4,0,0"/>
-                        <TextBlock Text="(Sampling hint only — never a Human Label)"
+                                   Margin="0,7,0,0"/>
+                        <TextBlock Text="Sampling hint only — never a Human Label"
                                    FontSize="9"
                                    FontStyle="Italic"
                                    Foreground="#77FFFFFF"/>
@@ -436,25 +486,77 @@
                                    Text="Community: unavailable"
                                    FontSize="10"
                                    Foreground="#99FFFFFF"
-                                   Margin="0,2,0,0"/>
+                                   Margin="0,3,0,0"/>
+                    </StackPanel>
+                </Border>
 
-                        <TextBlock Text="BEATINSIGHT IDENTITY"
-                                   FontSize="9"
-                                   FontWeight="SemiBold"
+                <!-- ===================================================== -->
+                <!-- BEATINSIGHT IDENTITY                                 -->
+                <!-- ===================================================== -->
+
+                <Border Grid.Row="1"
+                        Grid.ColumnSpan="3"
+                        Margin="0,8,0,0"
+                        Padding="10,8"
+                        Background="#16000000"
+                        BorderBrush="#33FFFFFF"
+                        BorderThickness="1"
+                        CornerRadius="6">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="160"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Grid.Column="0"
+                                   Text="BEATINSIGHT IDENTITY"
+                                   FontSize="11"
+                                   FontWeight="Bold"
                                    Foreground="#88FFFFFF"
-                                   Margin="0,7,0,1"/>
+                                   VerticalAlignment="Center"/>
                         <TextBlock x:Name="HumanLabelIdentityPrimaryText"
+                                   Grid.Column="1"
                                    Text="Primary: —"
-                                   FontSize="10"
-                                   Foreground="#CCFFFFFF"/>
+                                   FontSize="12"
+                                   FontWeight="SemiBold"
+                                   Foreground="White"
+                                   VerticalAlignment="Center"/>
                         <TextBlock x:Name="HumanLabelIdentitySecondaryText"
+                                   Grid.Column="2"
                                    Text="Secondary: —"
-                                   FontSize="10"
-                                   Foreground="#CCFFFFFF"/>
+                                   FontSize="12"
+                                   FontWeight="SemiBold"
+                                   Foreground="#CCFFFFFF"
+                                   VerticalAlignment="Center"/>
                         <TextBlock x:Name="HumanLabelIdentityConfidenceText"
+                                   Grid.Column="3"
                                    Text="Confidence: —"
-                                   FontSize="10"
-                                   Foreground="#99FFFFFF"/>
+                                   FontSize="12"
+                                   FontWeight="SemiBold"
+                                   Foreground="#CCFFFFFF"
+                                   VerticalAlignment="Center"/>
+                    </Grid>
+                </Border>
+
+                <!-- ===================================================== -->
+                <!-- HUMAN LABEL                                            -->
+                <!-- ===================================================== -->
+
+                <Border Grid.Row="2"
+                        Grid.ColumnSpan="3"
+                        Margin="0,8,0,0"
+                        Padding="10"
+                        Background="#16000000"
+                        BorderBrush="#33FFFFFF"
+                        BorderThickness="1"
+                        CornerRadius="6">
+                    <StackPanel>
+                        <TextBlock Text="HUMAN LABEL"
+                                   FontSize="11"
+                                   FontWeight="Bold"
+                                   Foreground="#88FFFFFF"/>
 
                         <Border Margin="0,7,0,0"
                                 Padding="6"
@@ -611,7 +713,9 @@
                     </StackPanel>
                 </Border>
 
-            </StackPanel>
+                </Grid>
+
+            </Grid>
 
 
             <!-- ===================================================== -->
