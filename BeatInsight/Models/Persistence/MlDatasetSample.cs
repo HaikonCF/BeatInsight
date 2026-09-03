@@ -69,13 +69,40 @@ internal sealed class MlDatasetSample
     /// </summary>
     internal string? SectionFeaturesJson { get; init; }
 
-    /// <summary>Annotation humaine optionnelle.</summary>
-    internal MlHumanLabel? HumanLabel { get; init; }
+    /// <summary>
+    /// Annotation humaine primaire optionnelle.
+    ///
+    /// Nullable tant que l'échantillon n'a pas été validé par un
+    /// humain (voir <see cref="HumanValidated"/>).
+    /// </summary>
+    internal MlHumanLabel? PrimaryHumanLabel { get; init; }
+
+    /// <summary>
+    /// Annotation humaine secondaire optionnelle.
+    ///
+    /// Ne peut être renseignée que si <see cref="PrimaryHumanLabel"/>
+    /// l'est également, et doit toujours en différer. Ces règles sont
+    /// appliquées par MlDatasetSampleRepository.UpdateHumanLabels, pas
+    /// par ce DTO passif.
+    /// </summary>
+    internal MlHumanLabel? SecondaryHumanLabel { get; init; }
+
+    /// <summary>
+    /// Compatibilité de lecture avec le code existant qui consomme
+    /// encore un label humain unique (notamment le panneau HUMAN
+    /// LABEL de MainWindow, volontairement non modifié par cette
+    /// migration). Alias vers <see cref="PrimaryHumanLabel"/> ;
+    /// aucune donnée n'est stockée séparément.
+    /// </summary>
+    internal MlHumanLabel? HumanLabel => PrimaryHumanLabel;
 
     /// <summary>
     /// Indique qu'un humain a validé l'annotation associée à cet
     /// échantillon. Cette valeur reste indépendante de toute sortie
     /// du classifieur futur.
+    ///
+    /// Si true, alors <see cref="PrimaryHumanLabel"/> n'est jamais
+    /// null (règle appliquée par le repository, pas par ce DTO).
     /// </summary>
     internal bool HumanValidated { get; init; }
 

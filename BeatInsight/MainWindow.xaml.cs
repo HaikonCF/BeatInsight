@@ -20,6 +20,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using static BeatInsight.OsuApiService;
@@ -81,6 +82,16 @@ namespace BeatInsight
         private CancellationTokenSource? datasetBuildCancellation;
         private bool isDatasetBuildRunning;
         private bool acceptsDatasetBuildProgress;
+
+        // État de labellisation de la map actuellement affichée. La
+        // sélection est exclusivement déclenchée par les boutons humains :
+        // elle n'est jamais initialisée depuis GameplayIdentity.
+        private string? currentHumanLabelSourceFilePath;
+        private bool hasCurrentDatasetSample;
+        private MlHumanLabel? currentPrimaryHumanLabel;
+        private MlHumanLabel? currentSecondaryHumanLabel;
+        private MlHumanLabel? selectedPrimaryHumanLabel;
+        private MlHumanLabel? selectedSecondaryHumanLabel;
 
         private bool IsBackgroundLibraryWorkRunning =>
             isLibraryScanRunning || isDatasetBuildRunning;
@@ -592,6 +603,8 @@ namespace BeatInsight
 
             if (isScanning)
                 CancelLibraryScanButton.IsEnabled = true;
+
+            UpdateHumanLabelActionState();
         }
 
         private void ShowLibraryScanPreparingState()
@@ -724,6 +737,306 @@ namespace BeatInsight
             }
         }
 
+        // ============================================================
+        // HUMAN LABEL
+        // ============================================================
+
+        private void RefreshHumanLabelPanel(
+            Beatmap beatmap,
+            string sourceFilePath)
+        {
+            ArgumentNullException.ThrowIfNull(beatmap);
+            ArgumentException.ThrowIfNullOrWhiteSpace(sourceFilePath);
+
+            GameplayIdentity identity = beatmap.GameplayProfile.Identity;
+
+            HumanLabelIdentityPrimaryText.Text =
+                $"Primary: {DisplayOrDash(identity.Primary)}";
+            HumanLabelIdentitySecondaryText.Text =
+                $"Secondary: {DisplayOrDash(identity.Secondary)}";
+            HumanLabelIdentityConfidenceText.Text =
+                $"Confidence: {identity.Confidence:F0}%";
+
+            currentHumanLabelSourceFilePath = sourceFilePath;
+            hasCurrentDatasetSample = false;
+            currentPrimaryHumanLabel = null;
+            currentSecondaryHumanLabel = null;
+
+            // Une map nouvellement chargée ne reçoit jamais une sélection
+            // automatique, y compris quand elle possède déjà une annotation
+            // humaine ou une Identity BeatInsight forte.
+            selectedPrimaryHumanLabel = null;
+            selectedSecondaryHumanLabel = null;
+
+            try
+            {
+                mlDatasetRepository.EnsureSchema();
+
+                MlDatasetSample? sample =
+                    mlDatasetRepository.FindBySourceFilePath(sourceFilePath);
+
+                if (sample is null)
+                {
+                    HumanLabelSampleStatusText.Text = "Dataset sample: Missing";
+                    HumanLabelCurrentPrimaryText.Text = "Primary: Unlabeled";
+                    HumanLabelCurrentSecondaryText.Text = "Secondary: —";
+                    UpdateHumanLabelActionState();
+                    return;
+                }
+
+                hasCurrentDatasetSample = true;
+                currentPrimaryHumanLabel = sample.PrimaryHumanLabel;
+                currentSecondaryHumanLabel = sample.SecondaryHumanLabel;
+
+                HumanLabelSampleStatusText.Text = "Dataset sample: Ready";
+                HumanLabelCurrentPrimaryText.Text = sample.PrimaryHumanLabel is null
+                    ? "Primary: Unlabeled"
+                    : $"Primary: {FormatHumanLabel(sample.PrimaryHumanLabel.Value)}"
+                        + (sample.HumanValidated ? " ✓" : "");
+                HumanLabelCurrentSecondaryText.Text = sample.SecondaryHumanLabel is null
+                    ? "Secondary: —"
+                    : $"Secondary: {FormatHumanLabel(sample.SecondaryHumanLabel.Value)}";
+            }
+            catch (Exception ex)
+            {
+                HumanLabelSampleStatusText.Text = "Dataset sample: Unavailable";
+                HumanLabelCurrentPrimaryText.Text = "Primary: Unlabeled";
+                HumanLabelCurrentSecondaryText.Text = "Secondary: —";
+
+                DebugLogger.Log($"HUMAN LABEL LOAD ERROR | {ex.Message}");
+                DebugLogger.Detailed(ex.ToString());
+            }
+
+            UpdateHumanLabelActionState();
+        }
+
+        private void RefreshHumanLabelPanelForCurrentBeatmap()
+        {
+            if (DataContext is Beatmap beatmap &&
+                !string.IsNullOrWhiteSpace(currentMapPath))
+            {
+                RefreshHumanLabelPanel(beatmap, currentMapPath);
+            }
+        }
+
+        private void SelectPrimaryHumanLabel_Click(
+            object sender,
+            RoutedEventArgs e)
+        {
+            if (!hasCurrentDatasetSample || IsBackgroundLibraryWorkRunning ||
+                sender is not FrameworkElement { Tag: string labelName } ||
+                !Enum.TryParse(labelName, out MlHumanLabel humanLabel))
+            {
+                return;
+            }
+
+            selectedPrimaryHumanLabel = humanLabel;
+
+            // Le label secondaire ne peut jamais être égal au primaire :
+            // un changement de primaire invalide un secondaire identique.
+            if (selectedSecondaryHumanLabel == humanLabel)
+            {
+                selectedSecondaryHumanLabel = null;
+            }
+
+            UpdateHumanLabelActionState();
+        }
+
+        private void SelectSecondaryHumanLabel_Click(
+            object sender,
+            RoutedEventArgs e)
+        {
+            if (!hasCurrentDatasetSample || IsBackgroundLibraryWorkRunning ||
+                sender is not FrameworkElement { Tag: string labelName })
+            {
+                return;
+            }
+
+            if (string.IsNullOrEmpty(labelName))
+            {
+                selectedSecondaryHumanLabel = null;
+                UpdateHumanLabelActionState();
+                return;
+            }
+
+            if (!Enum.TryParse(labelName, out MlHumanLabel humanLabel) ||
+                humanLabel == selectedPrimaryHumanLabel)
+            {
+                return;
+            }
+
+            selectedSecondaryHumanLabel = humanLabel;
+            UpdateHumanLabelActionState();
+        }
+
+        private void ValidateHumanLabel_Click(
+            object sender,
+            RoutedEventArgs e)
+        {
+            if (!hasCurrentDatasetSample ||
+                selectedPrimaryHumanLabel is not MlHumanLabel primaryHumanLabel ||
+                string.IsNullOrWhiteSpace(currentHumanLabelSourceFilePath) ||
+                DataContext is not Beatmap beatmap ||
+                IsBackgroundLibraryWorkRunning)
+            {
+                return;
+            }
+
+            try
+            {
+                // Cette opération SQL ne touche qu'aux deux champs humains
+                // du sample existant et ne peut pas créer de faux sample.
+                bool updated = mlDatasetRepository.UpdateHumanLabels(
+                    currentHumanLabelSourceFilePath,
+                    primaryHumanLabel,
+                    selectedSecondaryHumanLabel);
+
+                if (!updated)
+                {
+                    RefreshHumanLabelPanel(
+                        beatmap,
+                        currentHumanLabelSourceFilePath);
+                    return;
+                }
+
+                RefreshHumanLabelPanel(
+                    beatmap,
+                    currentHumanLabelSourceFilePath);
+                RefreshDatasetStatistics();
+            }
+            catch (Exception ex)
+            {
+                DebugLogger.Log($"HUMAN LABEL SAVE ERROR | {ex.Message}");
+                DebugLogger.Detailed(ex.ToString());
+            }
+        }
+
+        private void ClearHumanLabel_Click(
+            object sender,
+            RoutedEventArgs e)
+        {
+            if (!hasCurrentDatasetSample ||
+                string.IsNullOrWhiteSpace(currentHumanLabelSourceFilePath) ||
+                DataContext is not Beatmap beatmap ||
+                IsBackgroundLibraryWorkRunning)
+            {
+                return;
+            }
+
+            try
+            {
+                bool cleared = mlDatasetRepository.ClearHumanLabel(
+                    currentHumanLabelSourceFilePath);
+
+                if (!cleared)
+                {
+                    RefreshHumanLabelPanel(
+                        beatmap,
+                        currentHumanLabelSourceFilePath);
+                    return;
+                }
+
+                RefreshHumanLabelPanel(
+                    beatmap,
+                    currentHumanLabelSourceFilePath);
+                RefreshDatasetStatistics();
+            }
+            catch (Exception ex)
+            {
+                DebugLogger.Log($"HUMAN LABEL CLEAR ERROR | {ex.Message}");
+                DebugLogger.Detailed(ex.ToString());
+            }
+        }
+
+        private void UpdateHumanLabelActionState()
+        {
+            bool canLabel = hasCurrentDatasetSample &&
+                !IsBackgroundLibraryWorkRunning;
+
+            HumanLabelPrimaryStreamButton.IsEnabled = canLabel;
+            HumanLabelPrimaryJumpButton.IsEnabled = canLabel;
+            HumanLabelPrimaryTechButton.IsEnabled = canLabel;
+            HumanLabelPrimaryClassicMixedButton.IsEnabled = canLabel;
+
+            HumanLabelSecondaryNoneButton.IsEnabled = canLabel;
+            HumanLabelSecondaryStreamButton.IsEnabled = canLabel &&
+                selectedPrimaryHumanLabel != MlHumanLabel.Stream;
+            HumanLabelSecondaryJumpButton.IsEnabled = canLabel &&
+                selectedPrimaryHumanLabel != MlHumanLabel.Jump;
+            HumanLabelSecondaryTechButton.IsEnabled = canLabel &&
+                selectedPrimaryHumanLabel != MlHumanLabel.Tech;
+            HumanLabelSecondaryClassicMixedButton.IsEnabled = canLabel &&
+                selectedPrimaryHumanLabel != MlHumanLabel.ClassicMixed;
+
+            ValidateHumanLabelButton.IsEnabled = canLabel &&
+                selectedPrimaryHumanLabel.HasValue;
+            ClearHumanLabelButton.IsEnabled = canLabel &&
+                (currentPrimaryHumanLabel.HasValue ||
+                    currentSecondaryHumanLabel.HasValue);
+
+            ApplyHumanLabelSelectionVisuals();
+        }
+
+        private void ApplyHumanLabelSelectionVisuals()
+        {
+            SetHumanLabelButtonSelected(
+                HumanLabelPrimaryStreamButton,
+                selectedPrimaryHumanLabel == MlHumanLabel.Stream);
+            SetHumanLabelButtonSelected(
+                HumanLabelPrimaryJumpButton,
+                selectedPrimaryHumanLabel == MlHumanLabel.Jump);
+            SetHumanLabelButtonSelected(
+                HumanLabelPrimaryTechButton,
+                selectedPrimaryHumanLabel == MlHumanLabel.Tech);
+            SetHumanLabelButtonSelected(
+                HumanLabelPrimaryClassicMixedButton,
+                selectedPrimaryHumanLabel == MlHumanLabel.ClassicMixed);
+
+            SetHumanLabelButtonSelected(
+                HumanLabelSecondaryNoneButton,
+                selectedSecondaryHumanLabel is null);
+            SetHumanLabelButtonSelected(
+                HumanLabelSecondaryStreamButton,
+                selectedSecondaryHumanLabel == MlHumanLabel.Stream);
+            SetHumanLabelButtonSelected(
+                HumanLabelSecondaryJumpButton,
+                selectedSecondaryHumanLabel == MlHumanLabel.Jump);
+            SetHumanLabelButtonSelected(
+                HumanLabelSecondaryTechButton,
+                selectedSecondaryHumanLabel == MlHumanLabel.Tech);
+            SetHumanLabelButtonSelected(
+                HumanLabelSecondaryClassicMixedButton,
+                selectedSecondaryHumanLabel == MlHumanLabel.ClassicMixed);
+        }
+
+        private static void SetHumanLabelButtonSelected(
+            Button button,
+            bool isSelected)
+        {
+            button.FontWeight = isSelected
+                ? FontWeights.Bold
+                : FontWeights.Normal;
+            button.Background = isSelected
+                ? System.Windows.Media.Brushes.SteelBlue
+                : SystemColors.ControlBrush;
+        }
+
+        private static string DisplayOrDash(string value) =>
+            string.IsNullOrWhiteSpace(value) ? "—" : value;
+
+        private static string FormatHumanLabel(MlHumanLabel humanLabel) =>
+            humanLabel switch
+            {
+                MlHumanLabel.Stream => "Stream",
+                MlHumanLabel.Jump => "Jump",
+                MlHumanLabel.Tech => "Tech",
+                MlHumanLabel.ClassicMixed => "Classic/Mixed",
+                _ => throw new ArgumentOutOfRangeException(
+                    nameof(humanLabel),
+                    humanLabel,
+                    "Unsupported ML human label."),
+            };
+
         private async void BuildDataset_Click(
             object sender,
             RoutedEventArgs e)
@@ -836,6 +1149,7 @@ namespace BeatInsight
 
                 RefreshDatasetStatistics();
                 SetDatasetBuildControls(isBuilding: false);
+                RefreshHumanLabelPanelForCurrentBeatmap();
             }
         }
 
@@ -869,6 +1183,8 @@ namespace BeatInsight
 
             if (isBuilding)
                 CancelDatasetBuildButton.IsEnabled = true;
+
+            UpdateHumanLabelActionState();
         }
 
         private void ShowDatasetBuildPreparingState()
@@ -1307,6 +1623,10 @@ namespace BeatInsight
             // ou de backfill faite pendant l'analyse locale de la map active.
             if (IsBackgroundLibraryWorkRunning)
                 return;
+
+            // Le panneau de labellisation lit uniquement l'analyse locale et
+            // le sample ML existant : il reste indépendant des tags/API.
+            RefreshHumanLabelPanel(beatmap, chemin);
 
             // ============================================================
             // COMMUNITY TAGS

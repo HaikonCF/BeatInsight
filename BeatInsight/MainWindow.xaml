@@ -280,6 +280,196 @@
                     </StackPanel>
                 </Border>
 
+                <!-- ===================================================== -->
+                <!-- HUMAN LABEL                                            -->
+                <!-- ===================================================== -->
+
+                <Border Margin="0,14,0,0"
+                        Padding="8"
+                        MaxWidth="300"
+                        Background="#16000000"
+                        BorderBrush="#33FFFFFF"
+                        BorderThickness="1"
+                        CornerRadius="4">
+                    <StackPanel>
+                        <TextBlock Text="HUMAN LABEL"
+                                   FontSize="11"
+                                   FontWeight="Bold"
+                                   Foreground="#88FFFFFF"/>
+
+                        <TextBlock Text="BEATINSIGHT IDENTITY"
+                                   FontSize="9"
+                                   FontWeight="SemiBold"
+                                   Foreground="#88FFFFFF"
+                                   Margin="0,7,0,1"/>
+                        <TextBlock x:Name="HumanLabelIdentityPrimaryText"
+                                   Text="Primary: —"
+                                   FontSize="10"
+                                   Foreground="#CCFFFFFF"/>
+                        <TextBlock x:Name="HumanLabelIdentitySecondaryText"
+                                   Text="Secondary: —"
+                                   FontSize="10"
+                                   Foreground="#CCFFFFFF"/>
+                        <TextBlock x:Name="HumanLabelIdentityConfidenceText"
+                                   Text="Confidence: —"
+                                   FontSize="10"
+                                   Foreground="#99FFFFFF"/>
+
+                        <Border Margin="0,7,0,0"
+                                Padding="6"
+                                Background="#12000000"
+                                BorderBrush="#22FFFFFF"
+                                BorderThickness="1"
+                                CornerRadius="3">
+                            <StackPanel>
+                                <TextBlock x:Name="HumanLabelSampleStatusText"
+                                           Text="Dataset sample: Missing"
+                                           FontSize="10"
+                                           Foreground="#CCFFFFFF"/>
+                                <TextBlock x:Name="HumanLabelCurrentPrimaryText"
+                                           Text="Primary: Unlabeled"
+                                           FontSize="10"
+                                           Foreground="White"
+                                           Margin="0,2,0,0"/>
+                                <TextBlock x:Name="HumanLabelCurrentSecondaryText"
+                                           Text="Secondary: —"
+                                           FontSize="10"
+                                           Foreground="White"
+                                           Margin="0,2,0,0"/>
+                            </StackPanel>
+                        </Border>
+
+                        <TextBlock Text="HUMAN PRIMARY"
+                                   FontSize="9"
+                                   FontWeight="SemiBold"
+                                   Foreground="#88FFFFFF"
+                                   Margin="0,7,0,1"/>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <Button x:Name="HumanLabelPrimaryStreamButton"
+                                    Grid.Row="0"
+                                    Grid.Column="0"
+                                    Tag="Stream"
+                                    Content="Stream"
+                                    Click="SelectPrimaryHumanLabel_Click"
+                                    IsEnabled="False"
+                                    Padding="7,3"
+                                    Margin="0,0,3,4"/>
+                            <Button x:Name="HumanLabelPrimaryJumpButton"
+                                    Grid.Row="0"
+                                    Grid.Column="1"
+                                    Tag="Jump"
+                                    Content="Jump"
+                                    Click="SelectPrimaryHumanLabel_Click"
+                                    IsEnabled="False"
+                                    Padding="7,3"
+                                    Margin="3,0,0,4"/>
+                            <Button x:Name="HumanLabelPrimaryTechButton"
+                                    Grid.Row="1"
+                                    Grid.Column="0"
+                                    Tag="Tech"
+                                    Content="Tech"
+                                    Click="SelectPrimaryHumanLabel_Click"
+                                    IsEnabled="False"
+                                    Padding="7,3"
+                                    Margin="0,0,3,0"/>
+                            <Button x:Name="HumanLabelPrimaryClassicMixedButton"
+                                    Grid.Row="1"
+                                    Grid.Column="1"
+                                    Tag="ClassicMixed"
+                                    Content="Classic/Mixed"
+                                    Click="SelectPrimaryHumanLabel_Click"
+                                    IsEnabled="False"
+                                    Padding="7,3"
+                                    Margin="3,0,0,0"/>
+                        </Grid>
+
+                        <TextBlock Text="HUMAN SECONDARY"
+                                   FontSize="9"
+                                   FontWeight="SemiBold"
+                                   Foreground="#88FFFFFF"
+                                   Margin="0,7,0,1"/>
+                        <Button x:Name="HumanLabelSecondaryNoneButton"
+                                Tag=""
+                                Content="None"
+                                Click="SelectSecondaryHumanLabel_Click"
+                                IsEnabled="False"
+                                Padding="7,3"
+                                HorizontalAlignment="Stretch"
+                                Margin="0,0,0,4"/>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <Button x:Name="HumanLabelSecondaryStreamButton"
+                                    Grid.Row="0"
+                                    Grid.Column="0"
+                                    Tag="Stream"
+                                    Content="Stream"
+                                    Click="SelectSecondaryHumanLabel_Click"
+                                    IsEnabled="False"
+                                    Padding="7,3"
+                                    Margin="0,0,3,4"/>
+                            <Button x:Name="HumanLabelSecondaryJumpButton"
+                                    Grid.Row="0"
+                                    Grid.Column="1"
+                                    Tag="Jump"
+                                    Content="Jump"
+                                    Click="SelectSecondaryHumanLabel_Click"
+                                    IsEnabled="False"
+                                    Padding="7,3"
+                                    Margin="3,0,0,4"/>
+                            <Button x:Name="HumanLabelSecondaryTechButton"
+                                    Grid.Row="1"
+                                    Grid.Column="0"
+                                    Tag="Tech"
+                                    Content="Tech"
+                                    Click="SelectSecondaryHumanLabel_Click"
+                                    IsEnabled="False"
+                                    Padding="7,3"
+                                    Margin="0,0,3,0"/>
+                            <Button x:Name="HumanLabelSecondaryClassicMixedButton"
+                                    Grid.Row="1"
+                                    Grid.Column="1"
+                                    Tag="ClassicMixed"
+                                    Content="Classic/Mixed"
+                                    Click="SelectSecondaryHumanLabel_Click"
+                                    IsEnabled="False"
+                                    Padding="7,3"
+                                    Margin="3,0,0,0"/>
+                        </Grid>
+
+                        <StackPanel Orientation="Horizontal"
+                                    Margin="0,7,0,0">
+                            <Button x:Name="ValidateHumanLabelButton"
+                                    Content="Validate"
+                                    Click="ValidateHumanLabel_Click"
+                                    IsEnabled="False"
+                                    Padding="9,3"/>
+                            <Button x:Name="ClearHumanLabelButton"
+                                    Content="Clear Label"
+                                    Click="ClearHumanLabel_Click"
+                                    IsEnabled="False"
+                                    Padding="9,3"
+                                    Margin="6,0,0,0"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
             </StackPanel>
 
 

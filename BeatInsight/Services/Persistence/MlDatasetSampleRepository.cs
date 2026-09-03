@@ -36,6 +36,9 @@ internal sealed class MlDatasetSampleRepository
     // SCHÉMA
     // ============================================================
 
+    // Schéma d'une base neuve. Les bases créées avant V2.3.5b-1
+    // possèdent encore une colonne HumanLabel unique : voir
+    // MigrateLegacyHumanLabelColumnIfNeeded, appelée juste après.
     private const string CreateSchemaSql = """
         CREATE TABLE IF NOT EXISTS MlDatasetSample (
             SampleId INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -53,23 +56,23 @@ internal sealed class MlDatasetSampleRepository
             RawFeaturesJson TEXT NOT NULL,
             SectionFeaturesJson TEXT NULL,
 
-            HumanLabel TEXT NULL,
+            PrimaryHumanLabel TEXT NULL,
+            SecondaryHumanLabel TEXT NULL,
             HumanValidated INTEGER NOT NULL,
 
             CommunityEvidenceJson TEXT NULL,
             CommunityCapturedAtUtc INTEGER NULL
         );
-
-        CREATE INDEX IF NOT EXISTS IX_MlDatasetSample_BeatmapId
-            ON MlDatasetSample(BeatmapId);
-
-        CREATE INDEX IF NOT EXISTS IX_MlDatasetSample_HumanLabel
-            ON MlDatasetSample(HumanLabel, HumanValidated);
         """;
 
     /// <summary>
-    /// Crée la table dédiée et ses index sans modifier la table de
-    /// cache BeatmapAnalysis éventuellement présente dans la même base.
+    /// Crée la table dédiée et ses index, migre une éventuelle
+    /// colonne HumanLabel héritée, et ne modifie jamais la table de
+    /// cache BeatmapAnalysis éventuellement présente dans la même
+    /// base.
+    ///
+    /// Idempotent : rouvrir une base déjà migrée, ou une base neuve
+    /// déjà à jour, ne modifie rien et ne lève pas.
     /// </summary>
     internal void EnsureSchema()
     {
@@ -81,9 +84,102 @@ internal sealed class MlDatasetSampleRepository
         }
 
         using SqliteConnection connection = OpenConnection();
+
+        using (SqliteCommand command = connection.CreateCommand())
+        {
+            command.CommandText = CreateSchemaSql;
+            command.ExecuteNonQuery();
+        }
+
+        MigrateLegacyHumanLabelColumnIfNeeded(connection);
+        EnsureIndexes(connection);
+    }
+
+    /// <summary>
+    /// Migre une base créée avant V2.3.5b-1 : renomme l'ancienne
+    /// colonne HumanLabel en PrimaryHumanLabel et ajoute
+    /// SecondaryHumanLabel à NULL. Aucun sample n'est perdu ; les
+    /// autres colonnes (features, provenance, Community Evidence) ne
+    /// sont pas touchées.
+    ///
+    /// Chaque étape vérifie l'état réel des colonnes avant d'agir,
+    /// afin qu'une migration interrompue en cours de route (par
+    /// exemple entre le renommage et l'ajout de colonne) puisse être
+    /// reprise sans erreur au prochain appel.
+    /// </summary>
+    private static void MigrateLegacyHumanLabelColumnIfNeeded(
+        SqliteConnection connection)
+    {
+        List<string> columns = ReadColumnNames(connection);
+
+        bool hasLegacyColumn = columns.Contains("HumanLabel");
+        bool hasPrimaryColumn = columns.Contains("PrimaryHumanLabel");
+
+        if (hasLegacyColumn && !hasPrimaryColumn)
+        {
+            using SqliteCommand rename = connection.CreateCommand();
+
+            rename.CommandText = """
+                ALTER TABLE MlDatasetSample
+                RENAME COLUMN HumanLabel TO PrimaryHumanLabel;
+                """;
+            rename.ExecuteNonQuery();
+
+            columns = ReadColumnNames(connection);
+        }
+
+        if (!columns.Contains("SecondaryHumanLabel"))
+        {
+            using SqliteCommand addSecondary = connection.CreateCommand();
+
+            addSecondary.CommandText = """
+                ALTER TABLE MlDatasetSample
+                ADD COLUMN SecondaryHumanLabel TEXT NULL;
+                """;
+            addSecondary.ExecuteNonQuery();
+        }
+    }
+
+    private static List<string> ReadColumnNames(SqliteConnection connection)
+    {
+        using SqliteCommand command = connection.CreateCommand();
+        command.CommandText = "PRAGMA table_info(MlDatasetSample);";
+
+        using SqliteDataReader reader = command.ExecuteReader();
+        List<string> columns = [];
+
+        // PRAGMA table_info renvoie le nom de colonne en position 1.
+        while (reader.Read())
+        {
+            columns.Add(reader.GetString(1));
+        }
+
+        return columns;
+    }
+
+    /// <summary>
+    /// (Re)crée les index attendus. L'ancien index nommé
+    /// IX_MlDatasetSample_HumanLabel référençait la colonne avant
+    /// renommage ; il est supprimé explicitement plutôt que de
+    /// compter sur un suivi automatique de SQLite.
+    /// </summary>
+    private static void EnsureIndexes(SqliteConnection connection)
+    {
         using SqliteCommand command = connection.CreateCommand();
 
-        command.CommandText = CreateSchemaSql;
+        command.CommandText = """
+            DROP INDEX IF EXISTS IX_MlDatasetSample_HumanLabel;
+
+            CREATE INDEX IF NOT EXISTS IX_MlDatasetSample_BeatmapId
+                ON MlDatasetSample(BeatmapId);
+
+            CREATE INDEX IF NOT EXISTS
+                IX_MlDatasetSample_PrimaryHumanLabel
+                ON MlDatasetSample(
+                    PrimaryHumanLabel,
+                    SecondaryHumanLabel,
+                    HumanValidated);
+            """;
         command.ExecuteNonQuery();
     }
 
@@ -97,7 +193,7 @@ internal sealed class MlDatasetSampleRepository
         FileSize, FileLastWriteUtc,
         FeatureSchemaVersion, AnalyzerVersion, CapturedAtUtc,
         RawFeaturesJson, SectionFeaturesJson,
-        HumanLabel, HumanValidated,
+        PrimaryHumanLabel, SecondaryHumanLabel, HumanValidated,
         CommunityEvidenceJson, CommunityCapturedAtUtc
         """;
 
@@ -166,7 +262,8 @@ internal sealed class MlDatasetSampleRepository
                 COALESCE(SUM(
                     CASE WHEN HumanValidated <> 0 THEN 1 ELSE 0 END), 0),
                 COALESCE(SUM(
-                    CASE WHEN HumanLabel IS NULL THEN 1 ELSE 0 END), 0)
+                    CASE WHEN PrimaryHumanLabel IS NULL
+                         THEN 1 ELSE 0 END), 0)
             FROM MlDatasetSample;
             """;
 
@@ -194,14 +291,14 @@ internal sealed class MlDatasetSampleRepository
             FileSize, FileLastWriteUtc,
             FeatureSchemaVersion, AnalyzerVersion, CapturedAtUtc,
             RawFeaturesJson, SectionFeaturesJson,
-            HumanLabel, HumanValidated,
+            PrimaryHumanLabel, SecondaryHumanLabel, HumanValidated,
             CommunityEvidenceJson, CommunityCapturedAtUtc
         ) VALUES (
             $sourceFilePath, $beatmapId, $md5,
             $fileSize, $fileLastWriteUtc,
             $featureSchemaVersion, $analyzerVersion, $capturedAtUtc,
             $rawFeaturesJson, $sectionFeaturesJson,
-            $humanLabel, $humanValidated,
+            $primaryHumanLabel, $secondaryHumanLabel, $humanValidated,
             $communityEvidenceJson, $communityCapturedAtUtc
         )
         ON CONFLICT(SourceFilePath) DO UPDATE SET
@@ -214,7 +311,8 @@ internal sealed class MlDatasetSampleRepository
             CapturedAtUtc = excluded.CapturedAtUtc,
             RawFeaturesJson = excluded.RawFeaturesJson,
             SectionFeaturesJson = excluded.SectionFeaturesJson,
-            HumanLabel = excluded.HumanLabel,
+            PrimaryHumanLabel = excluded.PrimaryHumanLabel,
+            SecondaryHumanLabel = excluded.SecondaryHumanLabel,
             HumanValidated = excluded.HumanValidated,
             CommunityEvidenceJson = excluded.CommunityEvidenceJson,
             CommunityCapturedAtUtc = excluded.CommunityCapturedAtUtc;
@@ -265,8 +363,12 @@ internal sealed class MlDatasetSampleRepository
             "$sectionFeaturesJson",
             sample.SectionFeaturesJson ?? (object)DBNull.Value);
         command.Parameters.AddWithValue(
-            "$humanLabel",
-            ToDatabaseHumanLabel(sample.HumanLabel)
+            "$primaryHumanLabel",
+            ToDatabaseHumanLabel(sample.PrimaryHumanLabel)
+                ?? (object)DBNull.Value);
+        command.Parameters.AddWithValue(
+            "$secondaryHumanLabel",
+            ToDatabaseHumanLabel(sample.SecondaryHumanLabel)
                 ?? (object)DBNull.Value);
         command.Parameters.AddWithValue(
             "$humanValidated",
@@ -281,6 +383,109 @@ internal sealed class MlDatasetSampleRepository
                 : DBNull.Value);
 
         command.ExecuteNonQuery();
+    }
+
+    /// <summary>
+    /// Met à jour l'annotation humaine primaire et secondaire d'un
+    /// échantillon existant. Les features, la provenance et la preuve
+    /// communautaire restent strictement inchangées.
+    ///
+    /// Règles validées avant toute écriture :
+    /// - <paramref name="primary"/> est obligatoire (une validation
+    ///   humaine implique toujours un label primaire) ;
+    /// - <paramref name="secondary"/>, s'il est fourni, doit différer
+    ///   de <paramref name="primary"/>.
+    ///
+    /// L'échantillon est marqué HumanValidated = true.
+    /// </summary>
+    /// <exception cref="ArgumentException">
+    /// Si <paramref name="primary"/> est null, ou si
+    /// <paramref name="secondary"/> est égal à
+    /// <paramref name="primary"/>.
+    /// </exception>
+    internal bool UpdateHumanLabels(
+        string sourceFilePath,
+        MlHumanLabel? primary,
+        MlHumanLabel? secondary)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sourceFilePath);
+
+        if (primary is null)
+        {
+            throw new ArgumentException(
+                "Un label primaire est requis pour valider un "
+                    + "échantillon : HumanValidated = true implique "
+                    + "PrimaryHumanLabel != null.",
+                nameof(primary));
+        }
+
+        if (secondary is not null && secondary == primary)
+        {
+            throw new ArgumentException(
+                "Le label secondaire doit différer du label "
+                    + "primaire.",
+                nameof(secondary));
+        }
+
+        using SqliteConnection connection = OpenConnection();
+        using SqliteCommand command = connection.CreateCommand();
+
+        command.CommandText = """
+            UPDATE MlDatasetSample
+            SET PrimaryHumanLabel = $primaryHumanLabel,
+                SecondaryHumanLabel = $secondaryHumanLabel,
+                HumanValidated = 1
+            WHERE SourceFilePath = $sourceFilePath;
+            """;
+        command.Parameters.AddWithValue(
+            "$primaryHumanLabel",
+            ToDatabaseHumanLabel(primary));
+        command.Parameters.AddWithValue(
+            "$secondaryHumanLabel",
+            ToDatabaseHumanLabel(secondary) ?? (object)DBNull.Value);
+        command.Parameters.AddWithValue("$sourceFilePath", sourceFilePath);
+
+        return command.ExecuteNonQuery() > 0;
+    }
+
+    /// <summary>
+    /// Compatibilité avec l'appel mono-label existant (panneau HUMAN
+    /// LABEL de MainWindow, non modifié par cette migration).
+    /// Équivalent à <see cref="UpdateHumanLabels"/> sans label
+    /// secondaire.
+    /// </summary>
+    internal bool UpdateHumanLabel(
+        string sourceFilePath,
+        MlHumanLabel humanLabel)
+    {
+        return UpdateHumanLabels(
+            sourceFilePath,
+            primary: humanLabel,
+            secondary: null);
+    }
+
+    /// <summary>
+    /// Supprime les deux annotations humaines d'un échantillon
+    /// existant et réinitialise sa validation, sans supprimer ni
+    /// recréer le sample.
+    /// </summary>
+    internal bool ClearHumanLabel(string sourceFilePath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sourceFilePath);
+
+        using SqliteConnection connection = OpenConnection();
+        using SqliteCommand command = connection.CreateCommand();
+
+        command.CommandText = """
+            UPDATE MlDatasetSample
+            SET PrimaryHumanLabel = NULL,
+                SecondaryHumanLabel = NULL,
+                HumanValidated = 0
+            WHERE SourceFilePath = $sourceFilePath;
+            """;
+        command.Parameters.AddWithValue("$sourceFilePath", sourceFilePath);
+
+        return command.ExecuteNonQuery() > 0;
     }
 
     internal bool Delete(string sourceFilePath)
@@ -364,17 +569,20 @@ internal sealed class MlDatasetSampleRepository
             SectionFeaturesJson = reader.IsDBNull(10)
                 ? null
                 : reader.GetString(10),
-            HumanLabel = reader.IsDBNull(11)
+            PrimaryHumanLabel = reader.IsDBNull(11)
                 ? null
                 : FromDatabaseHumanLabel(reader.GetString(11)),
-            HumanValidated = reader.GetInt64(12) != 0,
-            CommunityEvidenceJson = reader.IsDBNull(13)
+            SecondaryHumanLabel = reader.IsDBNull(12)
                 ? null
-                : reader.GetString(13),
-            CommunityCapturedAtUtc = reader.IsDBNull(14)
+                : FromDatabaseHumanLabel(reader.GetString(12)),
+            HumanValidated = reader.GetInt64(13) != 0,
+            CommunityEvidenceJson = reader.IsDBNull(14)
+                ? null
+                : reader.GetString(14),
+            CommunityCapturedAtUtc = reader.IsDBNull(15)
                 ? null
                 : new DateTime(
-                    reader.GetInt64(14),
+                    reader.GetInt64(15),
                     DateTimeKind.Utc),
         };
     }

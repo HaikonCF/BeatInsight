@@ -145,7 +145,8 @@ public sealed class MlDatasetBuilderTests : IDisposable
         MlDatasetSample source,
         int? featureSchemaVersion = null,
         int? analyzerVersion = null,
-        MlHumanLabel? humanLabel = null,
+        MlHumanLabel? primaryHumanLabel = null,
+        MlHumanLabel? secondaryHumanLabel = null,
         bool? humanValidated = null,
         string? communityEvidenceJson = null,
         DateTime? communityCapturedAtUtc = null)
@@ -163,13 +164,112 @@ public sealed class MlDatasetBuilderTests : IDisposable
             CapturedAtUtc = source.CapturedAtUtc,
             RawFeaturesJson = source.RawFeaturesJson,
             SectionFeaturesJson = source.SectionFeaturesJson,
-            HumanLabel = humanLabel ?? source.HumanLabel,
+            PrimaryHumanLabel =
+                primaryHumanLabel ?? source.PrimaryHumanLabel,
+            SecondaryHumanLabel =
+                secondaryHumanLabel ?? source.SecondaryHumanLabel,
             HumanValidated = humanValidated ?? source.HumanValidated,
             CommunityEvidenceJson =
                 communityEvidenceJson ?? source.CommunityEvidenceJson,
             CommunityCapturedAtUtc =
                 communityCapturedAtUtc ?? source.CommunityCapturedAtUtc,
         };
+    }
+
+    /// <summary>
+    /// Insère, via le schéma pré-V2.3.5b-1 (colonne HumanLabel unique),
+    /// un sample déjà à jour au sens des features et de l'analyseur :
+    /// FeatureSchemaVersion et AnalyzerVersion correspondent aux
+    /// constantes courantes, et FileSize/FileLastWriteUtc reflètent
+    /// exactement l'état actuel du fichier sur disque.
+    ///
+    /// Reproduit fidèlement un dataset réel capturé avant la migration
+    /// dual-label, pour vérifier que EnsureSchema() ne fait que
+    /// renommer/ajouter des colonnes sans jamais faire regresser ces
+    /// versions ni ces métadonnées de fraîcheur.
+    /// </summary>
+    private void CreateLegacySchemaSampleAtCurrentVersions(
+        string sourceFilePath,
+        FileInfo fileInfo)
+    {
+        string? directory = Path.GetDirectoryName(databasePath);
+
+        if (!string.IsNullOrEmpty(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
+
+        var connectionBuilder = new SqliteConnectionStringBuilder
+        {
+            DataSource = databasePath,
+            Mode = SqliteOpenMode.ReadWriteCreate,
+        };
+
+        using SqliteConnection connection =
+            new(connectionBuilder.ToString());
+        connection.Open();
+
+        using SqliteCommand command = connection.CreateCommand();
+
+        command.CommandText = """
+            CREATE TABLE MlDatasetSample (
+                SampleId INTEGER PRIMARY KEY AUTOINCREMENT,
+                SourceFilePath TEXT NOT NULL UNIQUE,
+                BeatmapId INTEGER NULL,
+                Md5 TEXT NULL,
+
+                FileSize INTEGER NOT NULL,
+                FileLastWriteUtc INTEGER NOT NULL,
+
+                FeatureSchemaVersion INTEGER NOT NULL,
+                AnalyzerVersion INTEGER NOT NULL,
+                CapturedAtUtc INTEGER NOT NULL,
+
+                RawFeaturesJson TEXT NOT NULL,
+                SectionFeaturesJson TEXT NULL,
+
+                HumanLabel TEXT NULL,
+                HumanValidated INTEGER NOT NULL,
+
+                CommunityEvidenceJson TEXT NULL,
+                CommunityCapturedAtUtc INTEGER NULL
+            );
+
+            INSERT INTO MlDatasetSample (
+                SourceFilePath, FileSize, FileLastWriteUtc,
+                FeatureSchemaVersion, AnalyzerVersion, CapturedAtUtc,
+                RawFeaturesJson, SectionFeaturesJson,
+                HumanLabel, HumanValidated
+            ) VALUES (
+                $sourceFilePath, $fileSize, $fileLastWriteUtc,
+                $featureSchemaVersion, $analyzerVersion, $capturedAtUtc,
+                $rawFeaturesJson, $sectionFeaturesJson,
+                'Tech', 1
+            );
+            """;
+
+        command.Parameters.AddWithValue("$sourceFilePath", sourceFilePath);
+        command.Parameters.AddWithValue("$fileSize", fileInfo.Length);
+        command.Parameters.AddWithValue(
+            "$fileLastWriteUtc",
+            fileInfo.LastWriteTimeUtc.Ticks);
+        command.Parameters.AddWithValue(
+            "$featureSchemaVersion",
+            MlFeatureSchemaVersion.Current);
+        command.Parameters.AddWithValue(
+            "$analyzerVersion",
+            AnalyzerVersion.Current);
+        command.Parameters.AddWithValue(
+            "$capturedAtUtc",
+            DateTime.UtcNow.Ticks);
+        command.Parameters.AddWithValue(
+            "$rawFeaturesJson",
+            "{\"streamCoverage\":0.4}");
+        command.Parameters.AddWithValue(
+            "$sectionFeaturesJson",
+            "[{\"family\":\"Stream\"}]");
+
+        command.ExecuteNonQuery();
     }
 
     private static void Touch(string filePath)
@@ -339,7 +439,8 @@ public sealed class MlDatasetBuilderTests : IDisposable
             DateTimeKind.Utc);
         repository.Upsert(CopySample(
             stored,
-            humanLabel: MlHumanLabel.Tech,
+            primaryHumanLabel: MlHumanLabel.Tech,
+            secondaryHumanLabel: MlHumanLabel.Jump,
             humanValidated: true,
             communityEvidenceJson: "{\"agreement\":0.75}",
             communityCapturedAtUtc: communityCapturedAtUtc));
@@ -351,13 +452,54 @@ public sealed class MlDatasetBuilderTests : IDisposable
             repository.FindBySourceFilePath(path));
 
         Assert.Equal(1, result.CapturedFiles);
-        Assert.Equal(MlHumanLabel.Tech, refreshed.HumanLabel);
+        Assert.Equal(MlHumanLabel.Tech, refreshed.PrimaryHumanLabel);
+        Assert.Equal(MlHumanLabel.Jump, refreshed.SecondaryHumanLabel);
         Assert.True(refreshed.HumanValidated);
         Assert.Equal("{\"agreement\":0.75}",
             refreshed.CommunityEvidenceJson);
         Assert.Equal(communityCapturedAtUtc,
             refreshed.CommunityCapturedAtUtc);
     }
+
+    /// <summary>
+    /// La migration dual-label (HumanLabel -> Primary/SecondaryHumanLabel)
+    /// ne touche ni RawFeaturesJson, ni SectionFeaturesJson, ni leur
+    /// sémantique : MlFeatureSchemaVersion ne doit donc pas être
+    /// incrémentée pour elle. Un sample déjà à jour au sens des
+    /// features avant la migration doit le rester après, sans
+    /// déclencher de réanalyse à cause du seul changement de forme des
+    /// annotations humaines.
+    /// </summary>
+    [Fact]
+    public void PostMigration_SampleAtCurrentVersions_StaysUpToDate()
+    {
+        string path = WriteMap("post-migration.osu");
+        FileInfo fileInfo = new(path);
+
+        CreateLegacySchemaSampleAtCurrentVersions(path, fileInfo);
+
+        MlDatasetBuildResult result = builder.Build(songsRoot);
+
+        Assert.Equal(1, result.TotalFiles);
+        Assert.Equal(1, result.ProcessedFiles);
+        Assert.Equal(0, result.CapturedFiles);
+        Assert.Equal(1, result.DatasetUpToDateFiles);
+        Assert.Equal(0, result.FailedFiles);
+
+        MlDatasetSample migrated = Assert.IsType<MlDatasetSample>(
+            repository.FindBySourceFilePath(path));
+
+        Assert.Equal(
+            MlFeatureSchemaVersion.Current,
+            migrated.FeatureSchemaVersion);
+        Assert.Equal(AnalyzerVersion.Current, migrated.AnalyzerVersion);
+
+        // La migration de schéma a bien eu lieu (colonne renommée),
+        // et l'annotation pré-existante a été préservée au passage.
+        Assert.Equal(MlHumanLabel.Tech, migrated.PrimaryHumanLabel);
+        Assert.Null(migrated.SecondaryHumanLabel);
+    }
+
 
     [Fact]
     public void UnsupportedMode_IsSkippedWithoutCreatingDatasetSample()

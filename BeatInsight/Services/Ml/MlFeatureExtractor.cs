@@ -210,7 +210,8 @@ internal static class MlFeatureExtractor
                 JsonOptions),
             // Les labels humains et Community Evidence sont ajoutés par des
             // étapes explicites ultérieures ; l'extracteur ne les infère pas.
-            HumanLabel = null,
+            PrimaryHumanLabel = null,
+            SecondaryHumanLabel = null,
             HumanValidated = false,
             CommunityEvidenceJson = null,
             CommunityCapturedAtUtc = null,

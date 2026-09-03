@@ -177,8 +177,9 @@ internal sealed class MlDatasetBuilder
 
     /// <summary>
     /// Actualise seulement la représentation des features. Les annotations
-    /// humaines et la preuve communautaire sont des métadonnées indépendantes
-    /// qui doivent survivre à toute réanalyse locale.
+    /// humaines (primaire ET secondaire) et la preuve communautaire sont des
+    /// métadonnées indépendantes qui doivent survivre à toute réanalyse
+    /// locale.
     /// </summary>
     private static MlDatasetSample PreserveAnnotationMetadata(
         MlDatasetSample freshSample,
@@ -201,7 +202,8 @@ internal sealed class MlDatasetBuilder
             CapturedAtUtc = freshSample.CapturedAtUtc,
             RawFeaturesJson = freshSample.RawFeaturesJson,
             SectionFeaturesJson = freshSample.SectionFeaturesJson,
-            HumanLabel = existingSample.HumanLabel,
+            PrimaryHumanLabel = existingSample.PrimaryHumanLabel,
+            SecondaryHumanLabel = existingSample.SecondaryHumanLabel,
             HumanValidated = existingSample.HumanValidated,
             CommunityEvidenceJson = existingSample.CommunityEvidenceJson,
             CommunityCapturedAtUtc =
