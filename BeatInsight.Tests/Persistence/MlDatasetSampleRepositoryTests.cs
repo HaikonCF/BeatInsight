@@ -63,12 +63,13 @@ public sealed class MlDatasetSampleRepositoryTests : IDisposable
         string sourceFilePath,
         MlHumanLabel? primaryHumanLabel = null,
         bool humanValidated = false,
-        MlHumanLabel? secondaryHumanLabel = null)
+        MlHumanLabel? secondaryHumanLabel = null,
+        int? beatmapId = 42)
     {
         return new MlDatasetSample
         {
             SourceFilePath = sourceFilePath,
-            BeatmapId = 42,
+            BeatmapId = beatmapId,
             Md5 = "9a6df3ce",
             FileSize = 123_456,
             FileLastWriteUtc = FileLastWriteUtc,
@@ -924,6 +925,102 @@ public sealed class MlDatasetSampleRepositoryTests : IDisposable
         Assert.Equal(before.PrimaryHumanLabel, after.PrimaryHumanLabel);
         Assert.Equal(before.SecondaryHumanLabel, after.SecondaryHumanLabel);
         Assert.Equal(before.HumanValidated, after.HumanValidated);
+    }
+
+
+    // ============================================================
+    // CALIBRATION QUEUE : FindCalibrationSamples
+    // ============================================================
+
+    [Fact]
+    public void FindCalibrationSamples_FindsOnlyMatchingBeatmapIds()
+    {
+        repository.EnsureSchema();
+
+        repository.Upsert(CreateSample(PathA, beatmapId: 111));
+        repository.Upsert(CreateSample(PathB, beatmapId: 222));
+        repository.Upsert(CreateSample(PathC, beatmapId: 333));
+
+        IReadOnlyList<MlDatasetSample> matches =
+            repository.FindCalibrationSamples([111, 333]);
+
+        Assert.Equal(2, matches.Count);
+        Assert.Contains(matches, s => s.SourceFilePath == PathA);
+        Assert.Contains(matches, s => s.SourceFilePath == PathC);
+        Assert.DoesNotContain(matches, s => s.SourceFilePath == PathB);
+    }
+
+    [Fact]
+    public void FindCalibrationSamples_IgnoresIdsAbsentFromDataset()
+    {
+        repository.EnsureSchema();
+
+        repository.Upsert(CreateSample(PathA, beatmapId: 111));
+
+        IReadOnlyList<MlDatasetSample> matches =
+            repository.FindCalibrationSamples([111, 999_999]);
+
+        MlDatasetSample only = Assert.Single(matches);
+        Assert.Equal(PathA, only.SourceFilePath);
+    }
+
+    [Fact]
+    public void FindCalibrationSamples_NullBeatmapId_NeverMatches()
+    {
+        repository.EnsureSchema();
+
+        repository.Upsert(CreateSample(PathA, beatmapId: null));
+
+        IReadOnlyList<MlDatasetSample> matches =
+            repository.FindCalibrationSamples([111]);
+
+        Assert.Empty(matches);
+    }
+
+    [Fact]
+    public void FindCalibrationSamples_EmptyIdList_ReturnsEmpty()
+    {
+        repository.EnsureSchema();
+
+        repository.Upsert(CreateSample(PathA, beatmapId: 111));
+
+        Assert.Empty(repository.FindCalibrationSamples([]));
+    }
+
+    [Fact]
+    public void FindCalibrationSamples_NeverCreatesOrModifiesSamples()
+    {
+        repository.EnsureSchema();
+
+        repository.Upsert(CreateSample(PathA, beatmapId: 111));
+
+        repository.FindCalibrationSamples([111, 222, 333]);
+
+        Assert.Single(repository.List());
+
+        MlDatasetSample unchanged = Assert.IsType<MlDatasetSample>(
+            repository.FindBySourceFilePath(PathA));
+        Assert.False(unchanged.HumanValidated);
+        Assert.Null(unchanged.PrimaryHumanLabel);
+    }
+
+    [Fact]
+    public void FindCalibrationSamples_OrderedBySampleIdAscending()
+    {
+        repository.EnsureSchema();
+
+        // Insertion hors ordre des IDs pour vérifier que l'ordre renvoyé
+        // suit SampleId (donc l'insertion), pas les valeurs de BeatmapId.
+        repository.Upsert(CreateSample(PathC, beatmapId: 300));
+        repository.Upsert(CreateSample(PathA, beatmapId: 100));
+        repository.Upsert(CreateSample(PathB, beatmapId: 200));
+
+        IReadOnlyList<MlDatasetSample> matches =
+            repository.FindCalibrationSamples([100, 200, 300]);
+
+        Assert.Equal(
+            [PathC, PathA, PathB],
+            matches.Select(s => s.SourceFilePath));
     }
 
 

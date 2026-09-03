@@ -112,7 +112,16 @@ internal sealed class MlDatasetBuilder
                                     FileLastWriteUtc:
                                         fileInfo.LastWriteTimeUtc,
                                     CapturedAtUtc: DateTime.UtcNow,
-                                    BeatmapId: existing?.BeatmapId,
+                                    // Un BeatmapId déjà connu est toujours
+                                    // préservé. Sinon, une lecture légère de
+                                    // [Metadata] (aucune dépendance tosu/API)
+                                    // tente de le renseigner sans changer
+                                    // FeatureSchemaVersion : c'est une
+                                    // métadonnée de persistance, pas une
+                                    // feature ML.
+                                    BeatmapId: existing?.BeatmapId
+                                        ?? BeatmapMetadataReader
+                                            .ReadBeatmapId(filePath),
                                     Md5: existing?.Md5));
 
                         repository.Upsert(

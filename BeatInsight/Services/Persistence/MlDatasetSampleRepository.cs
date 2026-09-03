@@ -219,6 +219,115 @@ internal sealed class MlDatasetSampleRepository
     }
 
     /// <summary>
+    /// Retourne les échantillons dont BeatmapId figure dans
+    /// <paramref name="beatmapIds"/> (par exemple un pack de
+    /// calibration), par ordre stable de SampleId. Un ID absent du
+    /// dataset est simplement ignoré ; aucun sample n'est créé.
+    ///
+    /// L'ordre par pack (ex. Aim puis Stream puis...) est une
+    /// préoccupation d'affichage, pas de stockage : voir
+    /// <see cref="CalibrationQueue.OrderByPackSequence"/> côté appelant.
+    /// </summary>
+    internal IReadOnlyList<MlDatasetSample> FindCalibrationSamples(
+        IReadOnlyCollection<int> beatmapIds)
+    {
+        ArgumentNullException.ThrowIfNull(beatmapIds);
+
+        List<int> distinctIds = beatmapIds.Distinct().ToList();
+
+        if (distinctIds.Count == 0)
+        {
+            return [];
+        }
+
+        using SqliteConnection connection = OpenConnection();
+        using SqliteCommand command = connection.CreateCommand();
+
+        string placeholders = string.Join(
+            ", ",
+            distinctIds.Select((_, index) => $"$id{index}"));
+
+        command.CommandText = $"""
+            SELECT {SelectColumns}
+            FROM MlDatasetSample
+            WHERE BeatmapId IN ({placeholders})
+            ORDER BY SampleId ASC;
+            """;
+
+        for (int index = 0; index < distinctIds.Count; index++)
+        {
+            command.Parameters.AddWithValue($"$id{index}", distinctIds[index]);
+        }
+
+        using SqliteDataReader reader = command.ExecuteReader();
+
+        List<MlDatasetSample> samples = [];
+
+        while (reader.Read())
+        {
+            samples.Add(ReadSample(reader));
+        }
+
+        return samples;
+    }
+
+    /// <summary>
+    /// Retourne les échantillons dont BeatmapId est encore NULL, par
+    /// ordre stable de SampleId. Destiné au backfill de métadonnées
+    /// (voir <c>BeatmapIdBackfillService</c>) : cette lecture ne
+    /// modifie rien.
+    /// </summary>
+    internal IReadOnlyList<MlDatasetSample> FindSamplesMissingBeatmapId()
+    {
+        using SqliteConnection connection = OpenConnection();
+        using SqliteCommand command = connection.CreateCommand();
+
+        command.CommandText = $"""
+            SELECT {SelectColumns}
+            FROM MlDatasetSample
+            WHERE BeatmapId IS NULL
+            ORDER BY SampleId ASC;
+            """;
+
+        using SqliteDataReader reader = command.ExecuteReader();
+
+        List<MlDatasetSample> samples = [];
+
+        while (reader.Read())
+        {
+            samples.Add(ReadSample(reader));
+        }
+
+        return samples;
+    }
+
+    /// <summary>
+    /// Met à jour uniquement la colonne BeatmapId d'un échantillon
+    /// existant, par exemple depuis un backfill de métadonnées. Toutes
+    /// les autres colonnes (features, labels humains, Community
+    /// Evidence, versions de schéma/analyseur) restent strictement
+    /// inchangées : contrairement à <see cref="Upsert"/>, cette
+    /// méthode ne réécrit jamais la ligne entière.
+    /// </summary>
+    internal bool UpdateBeatmapId(string sourceFilePath, int beatmapId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sourceFilePath);
+
+        using SqliteConnection connection = OpenConnection();
+        using SqliteCommand command = connection.CreateCommand();
+
+        command.CommandText = """
+            UPDATE MlDatasetSample
+            SET BeatmapId = $beatmapId
+            WHERE SourceFilePath = $sourceFilePath;
+            """;
+        command.Parameters.AddWithValue("$beatmapId", beatmapId);
+        command.Parameters.AddWithValue("$sourceFilePath", sourceFilePath);
+
+        return command.ExecuteNonQuery() > 0;
+    }
+
+    /// <summary>
     /// Retourne les échantillons par ordre stable de clé technique.
     /// La pagination et les filtres seront ajoutés avec les besoins
     /// d'annotation/export, pas avant.

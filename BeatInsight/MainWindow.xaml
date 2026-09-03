@@ -278,6 +278,64 @@
                                         HorizontalAlignment="Left"/>
                             </StackPanel>
                         </Border>
+
+                        <Button x:Name="BackfillBeatmapIdsButton"
+                                Content="Backfill Beatmap IDs"
+                                Click="BackfillBeatmapIds_Click"
+                                Padding="10,4"
+                                Margin="0,7,0,0"
+                                HorizontalAlignment="Left"/>
+
+                        <Border x:Name="BeatmapIdBackfillPanel"
+                                Visibility="Collapsed"
+                                Margin="0,8,0,0"
+                                Padding="8"
+                                Background="#1EFFFFFF"
+                                BorderBrush="#44FFFFFF"
+                                BorderThickness="1"
+                                CornerRadius="4">
+                            <StackPanel>
+                                <TextBlock x:Name="BeatmapIdBackfillStatusText"
+                                           Text="Backfilling Beatmap IDs..."
+                                           FontSize="11"
+                                           FontWeight="SemiBold"
+                                           Foreground="White"/>
+                                <ProgressBar x:Name="BeatmapIdBackfillProgressBar"
+                                             Minimum="0"
+                                             Maximum="100"
+                                             Height="6"
+                                             Margin="0,6,0,0"/>
+                                <TextBlock x:Name="BeatmapIdBackfillUpdatedText"
+                                           Text="Updated: 0"
+                                           FontSize="10"
+                                           Foreground="#CCFFFFFF"
+                                           Margin="0,5,0,0"/>
+                                <TextBlock x:Name="BeatmapIdBackfillAlreadyPopulatedText"
+                                           Text="Already populated: 0"
+                                           FontSize="10"
+                                           Foreground="#CCFFFFFF"/>
+                                <TextBlock x:Name="BeatmapIdBackfillMissingInvalidText"
+                                           Text="Missing/invalid: 0"
+                                           FontSize="10"
+                                           Foreground="#CCFFFFFF"/>
+                                <TextBlock x:Name="BeatmapIdBackfillFailedText"
+                                           Text="Failed: 0"
+                                           FontSize="10"
+                                           Foreground="#CCFFFFFF"/>
+                                <TextBlock x:Name="BeatmapIdBackfillCurrentFileText"
+                                           Text="Current: —"
+                                           FontSize="10"
+                                           Foreground="#99FFFFFF"
+                                           Margin="0,4,0,0"
+                                           TextTrimming="CharacterEllipsis"/>
+                                <Button x:Name="CancelBeatmapIdBackfillButton"
+                                        Content="Cancel Backfill"
+                                        Click="CancelBeatmapIdBackfill_Click"
+                                        Padding="8,3"
+                                        Margin="0,7,0,0"
+                                        HorizontalAlignment="Left"/>
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
                 </Border>
 
@@ -335,6 +393,50 @@
                                 Padding="7,3"
                                 Margin="0,4,0,0"
                                 HorizontalAlignment="Stretch"/>
+
+                        <TextBlock Text="CALIBRATION QUEUE"
+                                   FontSize="9"
+                                   FontWeight="SemiBold"
+                                   Foreground="#88FFFFFF"
+                                   Margin="0,7,0,1"/>
+                        <TextBlock x:Name="CalibrationFoundText"
+                                   Text="Found: 0 / 0"
+                                   FontSize="10"
+                                   Foreground="#CCFFFFFF"/>
+                        <TextBlock x:Name="CalibrationValidatedText"
+                                   Text="Validated: 0"
+                                   FontSize="10"
+                                   Foreground="#CCFFFFFF"/>
+                        <TextBlock x:Name="CalibrationRemainingText"
+                                   Text="Remaining: 0"
+                                   FontSize="10"
+                                   Foreground="#99FFFFFF"/>
+                        <StackPanel Orientation="Horizontal"
+                                    Margin="0,4,0,0">
+                            <Button x:Name="PreviousCalibrationButton"
+                                    Content="Previous Calibration"
+                                    Click="PreviousCalibration_Click"
+                                    Padding="7,3"/>
+                            <Button x:Name="NextCalibrationButton"
+                                    Content="Next Calibration"
+                                    Click="NextCalibration_Click"
+                                    Padding="7,3"
+                                    Margin="6,0,0,0"/>
+                        </StackPanel>
+                        <TextBlock x:Name="CalibrationHintText"
+                                   Text="Pack hint: —"
+                                   FontSize="10"
+                                   Foreground="#99FFFFFF"
+                                   Margin="0,4,0,0"/>
+                        <TextBlock Text="(Sampling hint only — never a Human Label)"
+                                   FontSize="9"
+                                   FontStyle="Italic"
+                                   Foreground="#77FFFFFF"/>
+                        <TextBlock x:Name="CalibrationCommunityText"
+                                   Text="Community: unavailable"
+                                   FontSize="10"
+                                   Foreground="#99FFFFFF"
+                                   Margin="0,2,0,0"/>
 
                         <TextBlock Text="BEATINSIGHT IDENTITY"
                                    FontSize="9"

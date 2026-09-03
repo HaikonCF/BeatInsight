@@ -105,10 +105,36 @@ namespace BeatInsight
         // afin qu'il ne remplace jamais la map chargée manuellement pour
         // la labellisation. Le timer continue de tourner : seule la
         // beatmap affichée est gelée, pas la connexion tosu elle-même.
+        // Partagé par la Fast Unlabeled Queue et la Calibration Queue :
+        // les deux files restent des mécanismes de sélection distincts,
+        // mais elles utilisent le même gel du polling tosu.
         private bool isFastLabelingMode;
 
+        // Ancre de navigation de la Calibration Queue, indépendante de
+        // currentHumanLabelSampleId (ancre de la Fast Unlabeled Queue).
+        private long? currentCalibrationSampleId;
+        private bool isNavigatingCalibration;
+
+        // Détermine vers quelle file Validate avance automatiquement.
+        // None lorsque la map affichée n'a été chargée par aucune des
+        // deux files (par exemple via tosu) : Validate ne navigue alors
+        // nulle part, comme avant l'introduction des files.
+        private enum ActiveLabelingQueue { None, FastUnlabeled, Calibration }
+
+        private ActiveLabelingQueue activeLabelingQueue =
+            ActiveLabelingQueue.None;
+
+        // État autonome du backfill BeatmapId. Il ne relance jamais
+        // MlDatasetBuilder : seule la colonne BeatmapId des échantillons
+        // existants est mise à jour (voir BeatmapIdBackfillService).
+        private CancellationTokenSource? beatmapIdBackfillCancellation;
+        private bool isBeatmapIdBackfillRunning;
+        private bool acceptsBeatmapIdBackfillProgress;
+
         private bool IsBackgroundLibraryWorkRunning =>
-            isLibraryScanRunning || isDatasetBuildRunning;
+            isLibraryScanRunning
+                || isDatasetBuildRunning
+                || isBeatmapIdBackfillRunning;
 
         private async Task TestOsuApi(int beatmapId)
         {
@@ -157,6 +183,7 @@ namespace BeatInsight
             RefreshSongsFolderDisplay();
             RefreshDatasetStatistics();
             RefreshFastLabelingProgress();
+            RefreshCalibrationQueueProgress();
         }
 
         public string AppVersion => $"BeatInsight v{Assembly.GetExecutingAssembly().GetName().Version?.ToString(3)}";
@@ -606,12 +633,17 @@ namespace BeatInsight
 
         private void SetLibraryScanControls(bool isScanning)
         {
+            bool otherWorkRunning =
+                isDatasetBuildRunning || isBeatmapIdBackfillRunning;
+
             ChangeSongsFolderButton.IsEnabled =
-                !isScanning && !isDatasetBuildRunning;
+                !isScanning && !otherWorkRunning;
             ScanLibraryButton.IsEnabled =
-                !isScanning && !isDatasetBuildRunning;
+                !isScanning && !otherWorkRunning;
             BuildDatasetButton.IsEnabled =
-                !isScanning && !isDatasetBuildRunning;
+                !isScanning && !otherWorkRunning;
+            BackfillBeatmapIdsButton.IsEnabled =
+                !isScanning && !otherWorkRunning;
             CancelLibraryScanButton.Visibility = isScanning
                 ? Visibility.Visible
                 : Visibility.Collapsed;
@@ -809,6 +841,7 @@ namespace BeatInsight
 
             isNavigatingFastLabeling = true;
             SetFastLabelingMode(true);
+            activeLabelingQueue = ActiveLabelingQueue.FastUnlabeled;
 
             try
             {
@@ -888,6 +921,219 @@ namespace BeatInsight
             RoutedEventArgs e)
         {
             SetFastLabelingMode(false);
+            activeLabelingQueue = ActiveLabelingQueue.None;
+        }
+
+        // ============================================================
+        // CALIBRATION QUEUE
+        // ============================================================
+
+        private static IReadOnlyList<int> CalibrationPackBeatmapIds { get; } =
+            CalibrationPack.Pack1
+                .Select(entry => entry.BeatmapId)
+                .ToList();
+
+        /// <summary>
+        /// Recharge le pack de calibration depuis le repository et le
+        /// réordonne selon <see cref="CalibrationPack.Pack1"/>. N'écrit
+        /// jamais rien : uniquement une lecture pour naviguer ou afficher
+        /// des compteurs.
+        /// </summary>
+        private IReadOnlyList<MlDatasetSample> LoadOrderedCalibrationSamples()
+        {
+            mlDatasetRepository.EnsureSchema();
+
+            IReadOnlyList<MlDatasetSample> matches =
+                mlDatasetRepository.FindCalibrationSamples(
+                    CalibrationPackBeatmapIds);
+
+            return CalibrationQueue.OrderByPackSequence(
+                CalibrationPack.Pack1,
+                matches);
+        }
+
+        private void RefreshCalibrationQueueProgress()
+        {
+            try
+            {
+                IReadOnlyList<MlDatasetSample> ordered =
+                    LoadOrderedCalibrationSamples();
+
+                int found = ordered.Count;
+                int validated = ordered.Count(sample => sample.HumanValidated);
+                int remaining = found - validated;
+
+                CalibrationFoundText.Text =
+                    $"Found: {found:N0} / {CalibrationPack.Pack1.Count:N0}";
+                CalibrationValidatedText.Text = $"Validated: {validated:N0}";
+                CalibrationRemainingText.Text = $"Remaining: {remaining:N0}";
+            }
+            catch (Exception ex)
+            {
+                CalibrationFoundText.Text =
+                    $"Found: 0 / {CalibrationPack.Pack1.Count:N0}";
+                CalibrationValidatedText.Text = "Validated: 0";
+                CalibrationRemainingText.Text = "Remaining: 0";
+
+                DebugLogger.Log($"CALIBRATION QUEUE STATS ERROR | {ex.Message}");
+                DebugLogger.Detailed(ex.ToString());
+            }
+        }
+
+        private async void PreviousCalibration_Click(
+            object sender,
+            RoutedEventArgs e)
+        {
+            await NavigateCalibrationAsync(forward: false);
+        }
+
+        private async void NextCalibration_Click(
+            object sender,
+            RoutedEventArgs e)
+        {
+            await NavigateCalibrationAsync(forward: true);
+        }
+
+        /// <summary>
+        /// Avance ou recule dans la Calibration Queue, en ignorant
+        /// toujours les échantillons déjà validés. Réutilise le même gel
+        /// anti-tosu que la Fast Unlabeled Queue, mais avec sa propre
+        /// ancre de position (<see cref="currentCalibrationSampleId"/>) :
+        /// les deux files restent des modes de navigation distincts.
+        /// </summary>
+        private async Task NavigateCalibrationAsync(bool forward)
+        {
+            if (IsBackgroundLibraryWorkRunning || isNavigatingCalibration)
+                return;
+
+            isNavigatingCalibration = true;
+            SetFastLabelingMode(true);
+            activeLabelingQueue = ActiveLabelingQueue.Calibration;
+
+            try
+            {
+                IReadOnlyList<MlDatasetSample> ordered =
+                    LoadOrderedCalibrationSamples();
+
+                MlDatasetSample? sample = forward
+                    ? CalibrationQueue.FindNextUnvalidated(
+                        ordered,
+                        currentCalibrationSampleId)
+                    : CalibrationQueue.FindPreviousUnvalidated(
+                        ordered,
+                        currentCalibrationSampleId);
+
+                if (sample is null)
+                {
+                    RefreshCalibrationQueueProgress();
+                    return;
+                }
+
+                Beatmap beatmap;
+
+                try
+                {
+                    beatmap = await Task.Run(() =>
+                        analysisCache.GetOrAnalyze(sample.SourceFilePath));
+                }
+                catch (Exception ex)
+                {
+                    DebugLogger.Log(
+                        $"CALIBRATION QUEUE LOAD ERROR | {ex.Message}");
+                    DebugLogger.Detailed(ex.ToString());
+
+                    HumanLabelSampleStatusText.Text =
+                        "Dataset sample: Unavailable (file not found)";
+                    return;
+                }
+
+                if (IsBackgroundLibraryWorkRunning)
+                    return;
+
+                currentMapPath = sample.SourceFilePath;
+                currentBeatmapUrl = sample.BeatmapId is int beatmapId
+                    ? $"https://osu.ppy.sh/b/{beatmapId}"
+                    : null;
+                BackgroundImage.Source = null;
+
+                DataContext = beatmap;
+
+                currentCalibrationSampleId = sample.SampleId;
+
+                RefreshHumanLabelPanel(beatmap, sample.SourceFilePath);
+                RefreshCalibrationSamplingDisplay(sample);
+                RefreshCalibrationQueueProgress();
+            }
+            catch (Exception ex)
+            {
+                DebugLogger.Log($"CALIBRATION QUEUE NAV ERROR | {ex.Message}");
+                DebugLogger.Detailed(ex.ToString());
+            }
+            finally
+            {
+                isNavigatingCalibration = false;
+            }
+        }
+
+        /// <summary>
+        /// Affiche le bucket du pack (purement informatif : voir
+        /// <see cref="CalibrationPackBucket"/>) et un résumé best-effort
+        /// de Community Evidence, sans jamais toucher aux champs humains.
+        /// </summary>
+        private void RefreshCalibrationSamplingDisplay(MlDatasetSample sample)
+        {
+            CalibrationPackEntry? entry = sample.BeatmapId is int beatmapId
+                ? CalibrationPack.Pack1
+                    .Where(candidate => candidate.BeatmapId == beatmapId)
+                    .Cast<CalibrationPackEntry?>()
+                    .FirstOrDefault()
+                : null;
+
+            CalibrationHintText.Text = entry is null
+                ? "Pack hint: —"
+                : $"Pack hint: {entry.Value.Bucket} (sampling hint only)";
+
+            CalibrationCommunityText.Text =
+                FormatCommunityEvidenceSummary(sample.CommunityEvidenceJson);
+        }
+
+        private static string FormatCommunityEvidenceSummary(
+            string? communityEvidenceJson)
+        {
+            if (string.IsNullOrWhiteSpace(communityEvidenceJson))
+            {
+                return "Community: unavailable";
+            }
+
+            try
+            {
+                using JsonDocument document =
+                    JsonDocument.Parse(communityEvidenceJson);
+
+                if (document.RootElement.ValueKind != JsonValueKind.Object)
+                {
+                    return "Community: unavailable";
+                }
+
+                List<string> parts = [];
+
+                foreach (JsonProperty property in
+                    document.RootElement.EnumerateObject())
+                {
+                    if (parts.Count >= 3)
+                        break;
+
+                    parts.Add($"{property.Name}={property.Value}");
+                }
+
+                return parts.Count == 0
+                    ? "Community: unavailable"
+                    : $"Community: {string.Join(", ", parts)}";
+            }
+            catch (JsonException)
+            {
+                return "Community: unavailable";
+            }
         }
 
         // ============================================================
@@ -921,6 +1167,14 @@ namespace BeatInsight
             // humaine ou une Identity BeatInsight forte.
             selectedPrimaryHumanLabel = null;
             selectedSecondaryHumanLabel = null;
+
+            // Le hint de pack et le résumé Community sont propres à la
+            // Calibration Queue : ils sont réinitialisés à chaque
+            // chargement de map et republiés par
+            // RefreshCalibrationSamplingDisplay uniquement lorsque la
+            // navigation vient de cette file.
+            CalibrationHintText.Text = "Pack hint: —";
+            CalibrationCommunityText.Text = "Community: unavailable";
 
             try
             {
@@ -1078,10 +1332,22 @@ namespace BeatInsight
                     currentHumanLabelSourceFilePath);
                 RefreshDatasetStatistics();
                 RefreshFastLabelingProgress();
+                RefreshCalibrationQueueProgress();
 
-                // Le mode Fast Labeling avance automatiquement vers le
-                // prochain sample non validé après une validation réussie.
-                await NavigateToUnlabeledAsync(forward: true);
+                // La file active (si on y est entré via Next/Previous/
+                // Space/auto-advance) détermine où Validate avance
+                // automatiquement. Hors de toute file (map tosu normale),
+                // Validate ne navigue nulle part.
+                switch (activeLabelingQueue)
+                {
+                    case ActiveLabelingQueue.Calibration:
+                        await NavigateCalibrationAsync(forward: true);
+                        break;
+
+                    case ActiveLabelingQueue.FastUnlabeled:
+                        await NavigateToUnlabeledAsync(forward: true);
+                        break;
+                }
             }
             catch (Exception ex)
             {
@@ -1120,6 +1386,7 @@ namespace BeatInsight
                     currentHumanLabelSourceFilePath);
                 RefreshDatasetStatistics();
                 RefreshFastLabelingProgress();
+                RefreshCalibrationQueueProgress();
             }
             catch (Exception ex)
             {
@@ -1177,7 +1444,19 @@ namespace BeatInsight
 
                 case Key.Space:
                     e.Handled = true;
-                    await NavigateToUnlabeledAsync(forward: true);
+
+                    // Skip suit la file active ; hors de toute file, on
+                    // conserve l'ancien comportement par défaut (Fast
+                    // Unlabeled) plutôt que de ne rien faire.
+                    if (activeLabelingQueue == ActiveLabelingQueue.Calibration)
+                    {
+                        await NavigateCalibrationAsync(forward: true);
+                    }
+                    else
+                    {
+                        await NavigateToUnlabeledAsync(forward: true);
+                    }
+
                     break;
 
                 case Key.Back:
@@ -1415,18 +1694,46 @@ namespace BeatInsight
 
         private void SetDatasetBuildControls(bool isBuilding)
         {
+            bool otherWorkRunning =
+                isLibraryScanRunning || isBeatmapIdBackfillRunning;
+
             ChangeSongsFolderButton.IsEnabled =
-                !isBuilding && !isLibraryScanRunning;
+                !isBuilding && !otherWorkRunning;
             ScanLibraryButton.IsEnabled =
-                !isBuilding && !isLibraryScanRunning;
+                !isBuilding && !otherWorkRunning;
             BuildDatasetButton.IsEnabled =
-                !isBuilding && !isLibraryScanRunning;
+                !isBuilding && !otherWorkRunning;
+            BackfillBeatmapIdsButton.IsEnabled =
+                !isBuilding && !otherWorkRunning;
             CancelDatasetBuildButton.Visibility = isBuilding
                 ? Visibility.Visible
                 : Visibility.Collapsed;
 
             if (isBuilding)
                 CancelDatasetBuildButton.IsEnabled = true;
+
+            UpdateHumanLabelActionState();
+        }
+
+        private void SetBeatmapIdBackfillControls(bool isRunning)
+        {
+            bool otherWorkRunning =
+                isLibraryScanRunning || isDatasetBuildRunning;
+
+            ChangeSongsFolderButton.IsEnabled =
+                !isRunning && !otherWorkRunning;
+            ScanLibraryButton.IsEnabled =
+                !isRunning && !otherWorkRunning;
+            BuildDatasetButton.IsEnabled =
+                !isRunning && !otherWorkRunning;
+            BackfillBeatmapIdsButton.IsEnabled =
+                !isRunning && !otherWorkRunning;
+            CancelBeatmapIdBackfillButton.Visibility = isRunning
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+
+            if (isRunning)
+                CancelBeatmapIdBackfillButton.IsEnabled = true;
 
             UpdateHumanLabelActionState();
         }
@@ -1524,6 +1831,193 @@ namespace BeatInsight
             DatasetBuildCurrentFileText.Text =
                 $"Error: {exception.Message}";
             DatasetBuildCurrentFileText.ToolTip = exception.ToString();
+        }
+
+        // ============================================================
+        // BEATMAP ID BACKFILL
+        // ============================================================
+
+        private async void BackfillBeatmapIds_Click(
+            object sender,
+            RoutedEventArgs e)
+        {
+            await StartBeatmapIdBackfillAsync();
+        }
+
+        private async Task StartBeatmapIdBackfillAsync()
+        {
+            if (IsBackgroundLibraryWorkRunning)
+                return;
+
+            CancellationTokenSource cancellation = new();
+            beatmapIdBackfillCancellation = cancellation;
+            isBeatmapIdBackfillRunning = true;
+            acceptsBeatmapIdBackfillProgress = true;
+
+            SetBeatmapIdBackfillControls(isRunning: true);
+            ShowBeatmapIdBackfillPreparingState();
+
+            try
+            {
+                // Une mise à jour Tosu déjà lancée termine avant le backfill,
+                // exactement comme pour StartDatasetBuildAsync : aucun appel
+                // Community/API concurrent pendant l'écriture SQLite.
+                while (isUpdating)
+                    await Task.Delay(50);
+
+                cancellation.Token.ThrowIfCancellationRequested();
+
+                IProgress<BeatmapIdBackfillProgress> progress =
+                    new Progress<BeatmapIdBackfillProgress>(
+                        UpdateBeatmapIdBackfillProgress);
+
+                BeatmapIdBackfillService backfillService =
+                    new(mlDatasetRepository);
+
+                BeatmapIdBackfillResult result = await Task.Run(() =>
+                    backfillService.Run(progress, cancellation.Token));
+
+                acceptsBeatmapIdBackfillProgress = false;
+                ShowBeatmapIdBackfillSummary(result);
+            }
+            catch (OperationCanceledException)
+                when (cancellation.IsCancellationRequested)
+            {
+                acceptsBeatmapIdBackfillProgress = false;
+                ShowBeatmapIdBackfillCancelledWithoutResult();
+            }
+            catch (Exception ex)
+            {
+                acceptsBeatmapIdBackfillProgress = false;
+
+                DebugLogger.Log($"BEATMAP ID BACKFILL ERROR | {ex.Message}");
+                DebugLogger.Detailed(ex.ToString());
+
+                ShowBeatmapIdBackfillFailure(ex);
+            }
+            finally
+            {
+                isBeatmapIdBackfillRunning = false;
+                acceptsBeatmapIdBackfillProgress = false;
+
+                if (ReferenceEquals(beatmapIdBackfillCancellation, cancellation))
+                {
+                    beatmapIdBackfillCancellation = null;
+                    cancellation.Dispose();
+                }
+
+                // Le backfill ne relance jamais MlDatasetBuilder : seules les
+                // statistiques dépendant de BeatmapId doivent être rafraîchies.
+                RefreshDatasetStatistics();
+                RefreshCalibrationQueueProgress();
+                SetBeatmapIdBackfillControls(isRunning: false);
+                RefreshHumanLabelPanelForCurrentBeatmap();
+            }
+        }
+
+        private void CancelBeatmapIdBackfill_Click(
+            object sender,
+            RoutedEventArgs e)
+        {
+            if (beatmapIdBackfillCancellation is not {
+                IsCancellationRequested: false
+            } cancellation)
+            {
+                return;
+            }
+
+            cancellation.Cancel();
+            CancelBeatmapIdBackfillButton.IsEnabled = false;
+            BeatmapIdBackfillStatusText.Text = "Cancelling backfill...";
+        }
+
+        private void ShowBeatmapIdBackfillPreparingState()
+        {
+            BeatmapIdBackfillPanel.Visibility = Visibility.Visible;
+            BeatmapIdBackfillStatusText.Text = "Backfilling Beatmap IDs...";
+            BeatmapIdBackfillProgressBar.Value = 0;
+            BeatmapIdBackfillUpdatedText.Text = "Updated: 0";
+            BeatmapIdBackfillAlreadyPopulatedText.Text =
+                "Already populated: 0";
+            BeatmapIdBackfillMissingInvalidText.Text = "Missing/invalid: 0";
+            BeatmapIdBackfillFailedText.Text = "Failed: 0";
+            BeatmapIdBackfillCurrentFileText.Text = "Current: —";
+            BeatmapIdBackfillCurrentFileText.ToolTip = null;
+        }
+
+        private void UpdateBeatmapIdBackfillProgress(
+            BeatmapIdBackfillProgress progress)
+        {
+            if (!acceptsBeatmapIdBackfillProgress)
+                return;
+
+            BeatmapIdBackfillPanel.Visibility = Visibility.Visible;
+            BeatmapIdBackfillStatusText.Text = "Backfilling Beatmap IDs...";
+            BeatmapIdBackfillProgressBar.Value = Math.Clamp(
+                progress.Percent,
+                0.0,
+                100.0);
+            BeatmapIdBackfillUpdatedText.Text =
+                $"Updated: {progress.UpdatedCount:N0}";
+            BeatmapIdBackfillMissingInvalidText.Text =
+                $"Missing/invalid: {progress.MissingOrInvalidCount:N0}";
+            BeatmapIdBackfillFailedText.Text =
+                $"Failed: {progress.FailedCount:N0}";
+
+            string currentFile = string.IsNullOrWhiteSpace(progress.CurrentFile)
+                ? "—"
+                : Path.GetFileName(progress.CurrentFile);
+
+            BeatmapIdBackfillCurrentFileText.Text = $"Current: {currentFile}";
+            BeatmapIdBackfillCurrentFileText.ToolTip = progress.CurrentFile;
+        }
+
+        private void ShowBeatmapIdBackfillSummary(BeatmapIdBackfillResult result)
+        {
+            int processed =
+                result.UpdatedCount
+                    + result.MissingOrInvalidCount
+                    + result.FailedCount;
+
+            double percent = result.CandidateCount == 0
+                ? 100.0
+                : processed * 100.0 / result.CandidateCount;
+
+            BeatmapIdBackfillPanel.Visibility = Visibility.Visible;
+            BeatmapIdBackfillStatusText.Text = result.WasCancelled
+                ? "Beatmap ID backfill cancelled"
+                : "Beatmap ID backfill complete";
+            BeatmapIdBackfillProgressBar.Value = Math.Clamp(percent, 0.0, 100.0);
+            BeatmapIdBackfillUpdatedText.Text =
+                $"Updated: {result.UpdatedCount:N0}";
+            BeatmapIdBackfillAlreadyPopulatedText.Text =
+                $"Already populated: {result.AlreadyPopulatedCount:N0}";
+            BeatmapIdBackfillMissingInvalidText.Text =
+                $"Missing/invalid: {result.MissingOrInvalidCount:N0}";
+            BeatmapIdBackfillFailedText.Text =
+                $"Failed: {result.FailedCount:N0}";
+            BeatmapIdBackfillCurrentFileText.Text = result.WasCancelled
+                ? $"Cancelled after {result.Elapsed:mm\\:ss}."
+                : $"Completed in {result.Elapsed:mm\\:ss}.";
+            BeatmapIdBackfillCurrentFileText.ToolTip = null;
+        }
+
+        private void ShowBeatmapIdBackfillCancelledWithoutResult()
+        {
+            BeatmapIdBackfillPanel.Visibility = Visibility.Visible;
+            BeatmapIdBackfillStatusText.Text = "Beatmap ID backfill cancelled";
+            BeatmapIdBackfillCurrentFileText.Text =
+                "Cancelled before a final summary was available.";
+            BeatmapIdBackfillCurrentFileText.ToolTip = null;
+        }
+
+        private void ShowBeatmapIdBackfillFailure(Exception exception)
+        {
+            BeatmapIdBackfillPanel.Visibility = Visibility.Visible;
+            BeatmapIdBackfillStatusText.Text = "Beatmap ID backfill failed";
+            BeatmapIdBackfillCurrentFileText.Text =
+                $"Error: {exception.Message}";
+            BeatmapIdBackfillCurrentFileText.ToolTip = exception.ToString();
         }
 
         private async Task<List<CommunityTag>> GetCommunityTags(int beatmapId)
