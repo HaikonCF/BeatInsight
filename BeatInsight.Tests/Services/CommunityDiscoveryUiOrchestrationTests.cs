@@ -2,6 +2,7 @@ using BeatInsight.Models.Discovery;
 using BeatInsight.Services.CommunityDiscovery;
 using BeatInsight.Services.Ml;
 using System.IO;
+using System.Windows;
 
 namespace BeatInsight.Tests.Services;
 
@@ -151,6 +152,62 @@ public sealed class CommunityDiscoveryUiOrchestrationTests
         Assert.Equal("Community evidence: unavailable", view.EvidenceScore);
         Assert.DoesNotContain("0.00", view.EvidenceScore);
         Assert.Equal("Tags: unavailable", view.CommunityTags);
+    }
+
+    [Fact]
+    public void CandidateView_OwnedCandidate_ShowsLoadForReviewNotDownload()
+    {
+        CommunityBeatmapCandidate candidate = Candidate(alreadyOwned: true);
+
+        CommunityDiscoveryCandidateViewModel view =
+            CommunityDiscoveryCandidateViewFactory.Create(candidate);
+
+        Assert.True(view.IsOwned);
+        Assert.Equal(Visibility.Visible, view.LoadForReviewButtonVisibility);
+        Assert.Equal(Visibility.Collapsed, view.DownloadButtonVisibility);
+    }
+
+    [Fact]
+    public void CandidateView_NotOwnedCandidate_ShowsDownloadNotLoadForReview()
+    {
+        CommunityBeatmapCandidate candidate = Candidate(alreadyOwned: false);
+
+        CommunityDiscoveryCandidateViewModel view =
+            CommunityDiscoveryCandidateViewFactory.Create(candidate);
+
+        Assert.False(view.IsOwned);
+        Assert.Equal(Visibility.Collapsed, view.LoadForReviewButtonVisibility);
+        Assert.Equal(Visibility.Visible, view.DownloadButtonVisibility);
+    }
+
+    [Fact]
+    public void CandidateView_DownloadOperationRunning_DisablesDownloadButton()
+    {
+        CommunityBeatmapCandidate candidate = Candidate(alreadyOwned: false);
+        CommunityDiscoveryCandidateViewModel view =
+            CommunityDiscoveryCandidateViewFactory.Create(candidate);
+
+        Assert.True(view.IsDownloadButtonEnabled);
+
+        view.IsDownloadOperationRunning = true;
+
+        Assert.False(view.IsDownloadButtonEnabled);
+        Assert.Equal(Visibility.Visible, view.CancelButtonVisibility);
+    }
+
+    [Fact]
+    public void CandidateView_ConfirmedImport_FlipsToLoadForReview()
+    {
+        CommunityBeatmapCandidate candidate = Candidate(alreadyOwned: false);
+        CommunityDiscoveryCandidateViewModel view =
+            CommunityDiscoveryCandidateViewFactory.Create(candidate);
+
+        view.IsOwned = true;
+        view.AlreadyOwned = "Already owned: Yes";
+
+        Assert.Equal(Visibility.Visible, view.LoadForReviewButtonVisibility);
+        Assert.Equal(Visibility.Collapsed, view.DownloadButtonVisibility);
+        Assert.Equal("Already owned: Yes", view.AlreadyOwned);
     }
 
     [Fact]

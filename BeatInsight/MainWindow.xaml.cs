@@ -8,6 +8,7 @@ using BeatInsight.Models.Persistence;
 using BeatInsight.Parser;
 using BeatInsight.Services;
 using BeatInsight.Services.CommunityDiscovery;
+using BeatInsight.Services.Download;
 using BeatInsight.Services.Library;
 using BeatInsight.Services.Ml;
 using BeatInsight.Services.Persistence;
@@ -85,6 +86,17 @@ namespace BeatInsight
         private int selectedDiscoveryResultCount = 20;
         private readonly Dictionary<int, CommunityBeatmapCandidate>
             discoveryCandidatesByBeatmapId = [];
+
+        // Téléchargement/import Community Discovery (V2.4.3). Le provider
+        // n'écrit jamais d'octets aujourd'hui : voir
+        // BrowserOpenBeatmapDownloadProvider pour l'audit d'authentification.
+        // Aucune de ces deux instances ne modifie GameplayAnalyzer, le
+        // scanner de bibliothèque ni le dataset ML.
+        private readonly BeatmapDownloadService beatmapDownloadService =
+            new(new BrowserOpenBeatmapDownloadProvider());
+        private readonly BeatmapImportService beatmapImportService;
+        private readonly Dictionary<int, CancellationTokenSource>
+            discoveryDownloadCancellationsByBeatmapId = [];
 
         // Dernier chemin Songs rapporté par tosu, mémorisé afin que
         // les actions de la bibliothèque puissent résoudre un chemin
@@ -198,6 +210,15 @@ namespace BeatInsight
                 new RepositoryCommunityBeatmapLocalStateSource(
                     mlDatasetRepository,
                     localAnalysisRepository));
+
+            // Sonde le dossier Songs directement (V2.4.3a) : un import osu!
+            // réussi ne renseigne pas BeatmapAnalysisRepository, donc
+            // confirmer via ce repository produisait un faux "Waiting for
+            // osu! import..." permanent.
+            beatmapImportService = new BeatmapImportService(
+                new ProcessBeatmapImportShell(),
+                new SongsFolderBeatmapInstallationProbe(
+                    () => songsPathResolver.Resolve(lastTosuSongsPath)));
 
             SetActiveWorkspace(ActiveWorkspace.Analyzer);
             ApplyDiscoveryFilterVisuals();
@@ -942,6 +963,7 @@ namespace BeatInsight
                 }
 
                 discoveryCandidatesByBeatmapId.Clear();
+                CancelAllDiscoveryDownloads();
 
                 foreach (CommunityBeatmapCandidate candidate in candidates)
                 {
@@ -1118,6 +1140,273 @@ namespace BeatInsight
                 isLoadingDiscoveryReview = false;
             }
         }
+
+        /// <summary>
+        /// Nombre d'intervalles de sondage borné après le lancement de
+        /// l'import : un délai raisonnable pour laisser osu! importer,
+        /// sans jamais rescanner le dossier Songs entier (voir
+        /// SongsFolderBeatmapInstallationProbe, énumération ciblée/bornée).
+        /// </summary>
+        private const int ImportConfirmationMaxAttempts = 15;
+        private static readonly TimeSpan ImportConfirmationInterval =
+            TimeSpan.FromSeconds(4);
+
+        private async void DownloadAndImportDiscoveryCandidate_Click(
+            object sender,
+            RoutedEventArgs e)
+        {
+            if (sender is not FrameworkElement { Tag: int beatmapId }
+                || !discoveryCandidatesByBeatmapId.TryGetValue(
+                    beatmapId,
+                    out CommunityBeatmapCandidate? candidate)
+                || discoveryDownloadCancellationsByBeatmapId.ContainsKey(
+                    beatmapId))
+            {
+                return;
+            }
+
+            CommunityDiscoveryCandidateViewModel? view =
+                FindDiscoveryCandidateView(beatmapId);
+
+            if (view is null || view.IsOwned)
+            {
+                return;
+            }
+
+            CancellationTokenSource cancellation = new();
+            discoveryDownloadCancellationsByBeatmapId[beatmapId] = cancellation;
+
+            view.IsDownloadOperationRunning = true;
+            view.DownloadStatusText = "Opening download page...";
+
+            try
+            {
+                BeatmapDownloadResult downloadResult =
+                    await beatmapDownloadService.DownloadAsync(
+                        candidate.BeatmapSetId,
+                        cancellation.Token);
+
+                switch (downloadResult.Outcome)
+                {
+                    case BeatmapDownloadOutcome.BrowserFallbackOpened:
+                        // Le navigateur gère lui-même le téléchargement et
+                        // sa propre session : BeatInsight n'a reçu aucun
+                        // octet et ne peut donc pas déclencher lui-même
+                        // l'ouverture du .osz. osu! l'importera via son
+                        // association de fichier une fois le téléchargement
+                        // terminé par l'utilisateur.
+                        view.DownloadStatusText = "Waiting for osu! import...";
+                        await WaitForDiscoveryImportConfirmationAsync(
+                            view,
+                            candidate.BeatmapId,
+                            candidate.BeatmapSetId,
+                            cancellation.Token);
+                        break;
+
+                    case BeatmapDownloadOutcome.Success:
+                        view.DownloadStatusText = "Importing...";
+                        BeatmapImportResult launchResult =
+                            beatmapImportService.LaunchImport(
+                                downloadResult.LocalOszFilePath!);
+
+                        if (launchResult.Outcome
+                            != BeatmapImportOutcome.LaunchedWaitingForConfirmation)
+                        {
+                            view.DownloadStatusText =
+                                $"Failed: {launchResult.FailureReason ?? "could not open .osz"}";
+                            break;
+                        }
+
+                        view.DownloadStatusText = "Waiting for osu! import...";
+                        await WaitForDiscoveryImportConfirmationAsync(
+                            view,
+                            candidate.BeatmapId,
+                            candidate.BeatmapSetId,
+                            cancellation.Token);
+                        break;
+
+                    case BeatmapDownloadOutcome.Cancelled:
+                        view.DownloadStatusText = "Cancelled";
+                        break;
+
+                    default:
+                        view.DownloadStatusText =
+                            $"Failed: {DescribeDownloadFailure(downloadResult)}";
+                        break;
+                }
+            }
+            catch (Exception ex)
+            {
+                view.DownloadStatusText = "Failed: unexpected error";
+                DebugLogger.Log(
+                    "COMMUNITY DISCOVERY DOWNLOAD ERROR | "
+                        + $"BeatmapSetId={candidate.BeatmapSetId} | "
+                        + $"{ex.GetType().Name}");
+                DebugLogger.Detailed(ex.ToString());
+            }
+            finally
+            {
+                view.IsDownloadOperationRunning = false;
+
+                if (discoveryDownloadCancellationsByBeatmapId.TryGetValue(
+                        beatmapId,
+                        out CancellationTokenSource? tracked)
+                    && ReferenceEquals(tracked, cancellation))
+                {
+                    discoveryDownloadCancellationsByBeatmapId.Remove(beatmapId);
+                }
+
+                cancellation.Dispose();
+            }
+        }
+
+        private async Task WaitForDiscoveryImportConfirmationAsync(
+            CommunityDiscoveryCandidateViewModel view,
+            int beatmapId,
+            int beatmapSetId,
+            CancellationToken cancellationToken)
+        {
+            BeatmapImportResult confirmation =
+                await beatmapImportService.WaitForImportConfirmationAsync(
+                    beatmapId,
+                    beatmapSetId,
+                    ImportConfirmationMaxAttempts,
+                    ct => Task.Delay(ImportConfirmationInterval, ct),
+                    cancellationToken);
+
+            switch (confirmation.Outcome)
+            {
+                case BeatmapImportOutcome.Confirmed:
+                    // "Installé localement" (fichier présent dans Songs) ne
+                    // signifie pas "déjà analysé/indexé par BeatInsight" :
+                    // IsOwned/AlreadyOwned restent liés à
+                    // BeatmapAnalysisRepository (voir
+                    // RepositoryCommunityBeatmapLocalStateSource) et ne sont
+                    // jamais modifiés ici. Ne jamais créer de faux sample ni
+                    // valider un label humain automatiquement : le dataset
+                    // ML n'est mis à jour que par Build Dataset / Fast
+                    // Labeling, jamais ici.
+                    view.IsInstalledLocally = true;
+                    view.DownloadStatusText =
+                        "Imported. Run Scan Library, then Refresh Library "
+                            + "State to enable Load for Review.";
+                    break;
+
+                case BeatmapImportOutcome.Cancelled:
+                    view.DownloadStatusText = "Cancelled";
+                    break;
+
+                default:
+                    view.DownloadStatusText =
+                        "Import not confirmed. Use Refresh Library State, "
+                            + "or run Scan Library once osu! finishes importing.";
+                    break;
+            }
+        }
+
+        private static string DescribeDownloadFailure(
+            BeatmapDownloadResult result) => result.Outcome switch
+            {
+                BeatmapDownloadOutcome.RateLimited =>
+                    "osu! rate limit reached. Please retry shortly.",
+                BeatmapDownloadOutcome.AuthenticationRequired =>
+                    "Authentication required.",
+                BeatmapDownloadOutcome.ProviderUnavailable =>
+                    result.FailureReason ?? "download provider unavailable.",
+                BeatmapDownloadOutcome.InvalidDownloadedFile =>
+                    result.FailureReason ?? "downloaded file was invalid.",
+                _ => result.FailureReason ?? "download failed.",
+            };
+
+        private void CancelDiscoveryDownload_Click(
+            object sender,
+            RoutedEventArgs e)
+        {
+            if (sender is not FrameworkElement { Tag: int beatmapId }
+                || !discoveryDownloadCancellationsByBeatmapId.TryGetValue(
+                    beatmapId,
+                    out CancellationTokenSource? cancellation))
+            {
+                return;
+            }
+
+            cancellation.Cancel();
+        }
+
+        private void CancelAllDiscoveryDownloads()
+        {
+            foreach (CancellationTokenSource cancellation in
+                discoveryDownloadCancellationsByBeatmapId.Values)
+            {
+                cancellation.Cancel();
+            }
+
+            discoveryDownloadCancellationsByBeatmapId.Clear();
+        }
+
+        /// <summary>
+        /// Relit l'état local (AlreadyOwned/AlreadyInMlDataset) des
+        /// candidats déjà affichés, sans relancer de recherche ni de scan
+        /// de bibliothèque. C'est la seule voie de confirmation offerte
+        /// lorsque le sondage borné après import n'a rien trouvé.
+        /// </summary>
+        private void RefreshDiscoveryLocalState_Click(
+            object sender,
+            RoutedEventArgs e)
+        {
+            if (discoveryCandidatesByBeatmapId.Count == 0
+                || DiscoveryResultsList.ItemsSource
+                    is not CommunityDiscoveryCandidateViewModel[] views)
+            {
+                return;
+            }
+
+            try
+            {
+                localAnalysisRepository.EnsureSchema();
+                mlDatasetRepository.EnsureSchema();
+
+                var localStateSource = new RepositoryCommunityBeatmapLocalStateSource(
+                    mlDatasetRepository,
+                    localAnalysisRepository);
+
+                IReadOnlyDictionary<int, CommunityBeatmapLocalState> states =
+                    localStateSource.GetStates(
+                        discoveryCandidatesByBeatmapId.Keys.ToArray());
+
+                foreach (CommunityDiscoveryCandidateViewModel view in views)
+                {
+                    if (!states.TryGetValue(
+                            view.BeatmapId,
+                            out CommunityBeatmapLocalState state))
+                    {
+                        continue;
+                    }
+
+                    view.IsOwned = state.AlreadyOwned;
+                    view.AlreadyOwned =
+                        $"Already owned: {(state.AlreadyOwned ? "Yes" : "No")}";
+                    view.AlreadyInMlDataset =
+                        $"In ML Dataset: {(state.AlreadyInMlDataset ? "Yes" : "No")}";
+                }
+
+                DiscoveryStatusText.Text = "Local state refreshed.";
+            }
+            catch (Exception ex)
+            {
+                DiscoveryStatusText.Text = "Unable to refresh local state.";
+                DebugLogger.Log(
+                    $"COMMUNITY DISCOVERY REFRESH ERROR | {ex.Message}");
+                DebugLogger.Detailed(ex.ToString());
+            }
+        }
+
+        private CommunityDiscoveryCandidateViewModel? FindDiscoveryCandidateView(
+            int beatmapId) =>
+            DiscoveryResultsList.ItemsSource
+                is CommunityDiscoveryCandidateViewModel[] views
+                ? views.FirstOrDefault(view => view.BeatmapId == beatmapId)
+                : null;
 
         private void SetDiscoverySearchState(bool isRunning)
         {

@@ -902,11 +902,19 @@
                                    FontWeight="SemiBold"
                                    Foreground="White"
                                    Margin="0,8,0,0"/>
-                        <TextBlock x:Name="DiscoverySummaryText"
-                                   Text="Owned: 0   In Dataset: 0   Human Validated: 0"
-                                   FontSize="10"
-                                   Foreground="#CCFFFFFF"
-                                   Margin="0,2,0,0"/>
+                        <StackPanel Orientation="Horizontal"
+                                    Margin="0,2,0,0">
+                            <TextBlock x:Name="DiscoverySummaryText"
+                                       Text="Owned: 0   In Dataset: 0   Human Validated: 0"
+                                       FontSize="10"
+                                       Foreground="#CCFFFFFF"
+                                       VerticalAlignment="Center"/>
+                            <Button x:Name="RefreshDiscoveryLocalStateButton"
+                                    Content="Refresh Library State"
+                                    Click="RefreshDiscoveryLocalState_Click"
+                                    Padding="6,2"
+                                    Margin="10,0,0,0"/>
+                        </StackPanel>
                         <TextBlock x:Name="DiscoveryEmptyText"
                                    Text="No candidates found for this filter."
                                    Visibility="Collapsed"
@@ -929,6 +937,7 @@
                                                 CornerRadius="4">
                                             <Grid>
                                                 <Grid.RowDefinitions>
+                                                    <RowDefinition Height="Auto"/>
                                                     <RowDefinition Height="Auto"/>
                                                     <RowDefinition Height="Auto"/>
                                                     <RowDefinition Height="Auto"/>
@@ -990,6 +999,7 @@
                                                         <ColumnDefinition Width="*"/>
                                                         <ColumnDefinition Width="Auto"/>
                                                         <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="Auto"/>
                                                     </Grid.ColumnDefinitions>
                                                     <StackPanel Grid.Column="0">
                                                         <TextBlock Text="{Binding AlreadyOwned}"
@@ -1020,11 +1030,40 @@
                                                             Tag="{Binding BeatmapId}"
                                                             Content="Load for Review"
                                                             Click="LoadDiscoveryCandidateForReview_Click"
+                                                            Visibility="{Binding LoadForReviewButtonVisibility}"
+                                                            Height="27"
+                                                            Padding="8,3"
+                                                            VerticalAlignment="Top"
+                                                            Margin="5,0,0,0"/>
+                                                    <Button Grid.Column="2"
+                                                            Tag="{Binding BeatmapId}"
+                                                            Content="Download &amp; Import"
+                                                            Click="DownloadAndImportDiscoveryCandidate_Click"
+                                                            Visibility="{Binding DownloadButtonVisibility}"
+                                                            IsEnabled="{Binding IsDownloadButtonEnabled}"
+                                                            Height="27"
+                                                            Padding="8,3"
+                                                            VerticalAlignment="Top"
+                                                            Margin="5,0,0,0"/>
+                                                    <Button Grid.Column="3"
+                                                            Tag="{Binding BeatmapId}"
+                                                            Content="Cancel"
+                                                            Click="CancelDiscoveryDownload_Click"
+                                                            Visibility="{Binding CancelButtonVisibility}"
                                                             Height="27"
                                                             Padding="8,3"
                                                             VerticalAlignment="Top"
                                                             Margin="5,0,0,0"/>
                                                 </Grid>
+
+                                                <TextBlock Grid.Row="4"
+                                                           Grid.ColumnSpan="2"
+                                                           Text="{Binding DownloadStatusText}"
+                                                           FontSize="10"
+                                                           FontStyle="Italic"
+                                                           Foreground="#E0C97A"
+                                                           TextWrapping="Wrap"
+                                                           Margin="0,4,0,0"/>
                                             </Grid>
                                         </Border>
                                     </DataTemplate>
