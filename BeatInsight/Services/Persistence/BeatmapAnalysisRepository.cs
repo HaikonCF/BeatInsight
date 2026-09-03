@@ -193,6 +193,56 @@ internal sealed class BeatmapAnalysisRepository
         }
     }
 
+    /// <summary>
+    /// Retourne les BeatmapId déjà présents dans l'index runtime local. Cette
+    /// lecture sert à enrichir des candidats distants sans parcourir le dossier
+    /// Songs, et ne déduit jamais qu'une map non indexée n'est pas possédée.
+    /// </summary>
+    internal HashSet<int> FindOwnedBeatmapIds(
+        IReadOnlyCollection<int> beatmapIds)
+    {
+        ArgumentNullException.ThrowIfNull(beatmapIds);
+
+        int[] ids = beatmapIds
+            .Where(id => id > 0)
+            .Distinct()
+            .ToArray();
+
+        if (ids.Length == 0)
+        {
+            return [];
+        }
+
+        using SqliteConnection connection = OpenConnection();
+        using SqliteCommand command = connection.CreateCommand();
+
+        string placeholders = string.Join(
+            ", ",
+            ids.Select((_, index) => $"$id{index}"));
+
+        command.CommandText = $"""
+            SELECT DISTINCT BeatmapId
+            FROM BeatmapAnalysis
+            WHERE BeatmapId IN ({placeholders});
+            """;
+
+        for (int index = 0; index < ids.Length; index++)
+        {
+            command.Parameters.AddWithValue($"$id{index}", ids[index]);
+        }
+
+        using SqliteDataReader reader = command.ExecuteReader();
+
+        var owned = new HashSet<int>();
+
+        while (reader.Read())
+        {
+            owned.Add(reader.GetInt32(0));
+        }
+
+        return owned;
+    }
+
 
     // ============================================================
     // ÉCRITURE

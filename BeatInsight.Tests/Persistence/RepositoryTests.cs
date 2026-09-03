@@ -447,6 +447,19 @@ public sealed class RepositoryTests : IDisposable
         Assert.Equal("deadbeef", actual.Md5);
     }
 
+    [Fact]
+    public void FindOwnedBeatmapIds_ReturnsOnlyIdsInThePersistedRuntimeIndex()
+    {
+        repository.EnsureSchema();
+        repository.Upsert(CreateRecord(PathA, beatmapId: 111));
+        repository.Upsert(CreateRecord(PathB, beatmapId: 222));
+
+        HashSet<int> owned = repository.FindOwnedBeatmapIds(
+            [111, 222, 333, 111]);
+
+        Assert.Equal([111, 222], owned.OrderBy(id => id));
+    }
+
 
     // ============================================================
     // TRAITS

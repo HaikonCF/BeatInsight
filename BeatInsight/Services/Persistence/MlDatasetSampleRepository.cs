@@ -231,6 +231,18 @@ internal sealed class MlDatasetSampleRepository
     internal IReadOnlyList<MlDatasetSample> FindCalibrationSamples(
         IReadOnlyCollection<int> beatmapIds)
     {
+        return FindByBeatmapIds(beatmapIds);
+    }
+
+    /// <summary>
+    /// Retourne les échantillons dont BeatmapId figure dans
+    /// <paramref name="beatmapIds"/>, par ordre stable de SampleId. Cette
+    /// lecture générique est utilisée par les services qui enrichissent des
+    /// métadonnées locales sans créer ni mettre à jour de sample.
+    /// </summary>
+    internal IReadOnlyList<MlDatasetSample> FindByBeatmapIds(
+        IReadOnlyCollection<int> beatmapIds)
+    {
         ArgumentNullException.ThrowIfNull(beatmapIds);
 
         List<int> distinctIds = beatmapIds.Distinct().ToList();
