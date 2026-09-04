@@ -87,6 +87,7 @@
                     <Button x:Name="MlLabWorkspaceButton"
                             Content="ML Lab"
                             Click="MlLabWorkspace_Click"
+                            Visibility="Collapsed"
                             Padding="10,4"
                             MinWidth="72"
                             Margin="4,0,0,0"/>
@@ -232,6 +233,7 @@
                               VerticalScrollBarVisibility="Auto">
                 <Grid>
                     <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
@@ -1070,6 +1072,145 @@
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
                         </ScrollViewer>
+                    </StackPanel>
+                </Border>
+
+                <!-- ===================================================== -->
+                <!-- COMMUNITY DATASET GENERATOR                           -->
+                <!-- ===================================================== -->
+
+                <Border Grid.Row="4"
+                        Grid.ColumnSpan="3"
+                        Margin="0,8,0,0"
+                        Padding="10"
+                        Background="#16000000"
+                        BorderBrush="#33FFFFFF"
+                        BorderThickness="1"
+                        CornerRadius="6">
+                    <StackPanel>
+                        <TextBlock Text="COMMUNITY DATASET GENERATOR"
+                                   FontSize="11"
+                                   FontWeight="Bold"
+                                   Foreground="#88FFFFFF"/>
+                        <TextBlock Text="Accepted community annotations remain distinct from Human Labels."
+                                   FontSize="10"
+                                   FontStyle="Italic"
+                                   Foreground="#88FFFFFF"
+                                   Margin="0,3,0,0"/>
+
+                        <WrapPanel Margin="0,8,0,0">
+                            <TextBlock Text="Samples / class"
+                                       FontSize="10"
+                                       Foreground="#CCFFFFFF"
+                                       VerticalAlignment="Center"/>
+                            <TextBox x:Name="CommunityGeneratorSamplesPerClassTextBox"
+                                     Text="100"
+                                     Width="54"
+                                     Height="25"
+                                     Padding="5,2"
+                                     Margin="5,0,12,0"/>
+                            <TextBlock Text="Min confidence"
+                                       FontSize="10"
+                                       Foreground="#CCFFFFFF"
+                                       VerticalAlignment="Center"/>
+                            <TextBox x:Name="CommunityGeneratorMinConfidenceTextBox"
+                                     Text="0.70"
+                                     Width="58"
+                                     Height="25"
+                                     Padding="5,2"
+                                     Margin="5,0,12,0"/>
+                            <TextBlock Text="Min ★"
+                                       FontSize="10"
+                                       Foreground="#CCFFFFFF"
+                                       VerticalAlignment="Center"/>
+                            <TextBox x:Name="CommunityGeneratorMinStarTextBox"
+                                     Width="54"
+                                     Height="25"
+                                     Padding="5,2"
+                                     Margin="5,0,12,0"
+                                     ToolTip="Optional minimum star rating"/>
+                            <TextBlock Text="Max ★"
+                                       FontSize="10"
+                                       Foreground="#CCFFFFFF"
+                                       VerticalAlignment="Center"/>
+                            <TextBox x:Name="CommunityGeneratorMaxStarTextBox"
+                                     Width="54"
+                                     Height="25"
+                                     Padding="5,2"
+                                     Margin="5,0,12,0"
+                                     ToolTip="Optional maximum star rating"/>
+                            <TextBlock Text="Max / mapper"
+                                       FontSize="10"
+                                       Foreground="#CCFFFFFF"
+                                       VerticalAlignment="Center"/>
+                            <TextBox x:Name="CommunityGeneratorMaxPerMapperTextBox"
+                                     Text="5"
+                                     Width="42"
+                                     Height="25"
+                                     Padding="5,2"
+                                     Margin="5,0,0,0"/>
+                        </WrapPanel>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                            <Button x:Name="GenerateCommunityDatasetButton"
+                                    Content="Generate"
+                                    Click="GenerateCommunityDataset_Click"
+                                    Height="27"
+                                    Padding="10,3"/>
+                            <Button x:Name="CancelCommunityDatasetGenerationButton"
+                                    Content="Cancel"
+                                    Click="CancelCommunityDatasetGeneration_Click"
+                                    IsEnabled="False"
+                                    Height="27"
+                                    Padding="10,3"
+                                    Margin="5,0,0,0"/>
+                            <Button x:Name="ExportCommunityDatasetCsvButton"
+                                    Content="Export CSV"
+                                    Click="ExportCommunityDatasetCsv_Click"
+                                    Height="27"
+                                    Padding="10,3"
+                                    Margin="5,0,0,0"/>
+                        </StackPanel>
+
+                        <TextBlock x:Name="CommunityGeneratorStatusText"
+                                   Text="Ready. Community seeds may be selected remotely; local availability is informational."
+                                   FontSize="11"
+                                   FontWeight="SemiBold"
+                                   Foreground="#CCFFFFFF"
+                                   Margin="0,8,0,0"/>
+                        <WrapPanel Margin="0,4,0,0">
+                            <TextBlock x:Name="CommunityGeneratorStreamProgressText"
+                                       Text="Stream 0/100"
+                                       FontSize="10"
+                                       Foreground="#CCFFFFFF"
+                                       Margin="0,0,14,0"/>
+                            <TextBlock x:Name="CommunityGeneratorJumpProgressText"
+                                       Text="Jump 0/100"
+                                       FontSize="10"
+                                       Foreground="#CCFFFFFF"
+                                       Margin="0,0,14,0"/>
+                            <TextBlock x:Name="CommunityGeneratorTechProgressText"
+                                       Text="Tech 0/100"
+                                       FontSize="10"
+                                       Foreground="#CCFFFFFF"
+                                       Margin="0,0,14,0"/>
+                            <TextBlock x:Name="CommunityGeneratorClassicMixedProgressText"
+                                       Text="Classic/Mixed 0/100"
+                                       FontSize="10"
+                                       Foreground="#CCFFFFFF"/>
+                        </WrapPanel>
+                        <TextBlock x:Name="CommunityGeneratorCountersText"
+                                   Text="Selected: 0   Already local: 0   Need acquisition: 0   Rejected ambiguous: 0   Low confidence: 0   Duplicate: 0   Diversity cap: 0"
+                                   FontSize="10"
+                                   Foreground="#99FFFFFF"
+                                   Margin="0,3,0,0"/>
+                        <TextBlock x:Name="CommunityGeneratorCurrentText"
+                                   Text=""
+                                   FontSize="10"
+                                   FontStyle="Italic"
+                                   Foreground="#99FFFFFF"
+                                   TextTrimming="CharacterEllipsis"
+                                   Margin="0,2,0,0"/>
                     </StackPanel>
                 </Border>
 

@@ -2314,6 +2314,24 @@ namespace BeatInsight
             await StartDatasetBuildAsync(songsFolder);
         }
 
+        private void GenerateCommunityDataset_Click(
+            object sender,
+            RoutedEventArgs e)
+        {
+        }
+
+        private void CancelCommunityDatasetGeneration_Click(
+            object sender,
+            RoutedEventArgs e)
+        {
+        }
+
+        private void ExportCommunityDatasetCsv_Click(
+            object sender,
+            RoutedEventArgs e)
+        {
+        }
+
         private async Task StartDatasetBuildAsync(string songsFolder)
         {
             if (IsBackgroundLibraryWorkRunning)
