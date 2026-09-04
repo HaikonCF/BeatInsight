@@ -1264,67 +1264,6 @@
                                Margin="0,1,0,4"/>
 
 
-                    <!-- ============================================= -->
-                    <!-- OSU! COMMUNITY TAGS                           -->
-                    <!-- ============================================= -->
-
-                    <TextBlock Text="COMMUNITY TAGS"
-                               FontSize="11"
-                               FontWeight="SemiBold"
-                               Foreground="#88FFFFFF"
-                               HorizontalAlignment="Center"
-                               Margin="0,5,0,1"/>
-
-
-                    <ItemsControl ItemsSource="{Binding CommunityTags}"
-                                  HorizontalAlignment="Center"
-                                  Margin="0,2,0,8">
-
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-
-                                <WrapPanel HorizontalAlignment="Center"/>
-
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-
-
-                        <ItemsControl.ItemTemplate>
-
-                            <DataTemplate>
-
-                                <Border Background="#33000000"
-                                        BorderBrush="#66FFFFFF"
-                                        BorderThickness="1"
-                                        CornerRadius="10"
-                                        Padding="9,4"
-                                        Margin="3,2">
-
-                                    <StackPanel Orientation="Horizontal">
-
-                                        <TextBlock Text="{Binding Name}"
-                                                   FontSize="12"
-                                                   Foreground="#EEEEEE"/>
-
-                                        <TextBlock Text=" · "
-                                                   FontSize="12"
-                                                   Foreground="#777777"/>
-
-                                        <TextBlock Text="{Binding Votes}"
-                                                   FontSize="12"
-                                                   FontWeight="SemiBold"
-                                                   Foreground="#FFFFFF"/>
-
-                                    </StackPanel>
-
-                                </Border>
-
-                            </DataTemplate>
-
-                        </ItemsControl.ItemTemplate>
-
-                    </ItemsControl>
-
                 </StackPanel>
 
 
@@ -1356,16 +1295,11 @@
                              VerticalAlignment="Top"
                              Margin="0,42,0,0">
 
-                    <TextBlock Text="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=AppVersion}"
+                    <TextBlock Text="BeatInsight v1"
                                FontSize="11"
                                Foreground="#88FFFFFF"
                                HorizontalAlignment="Right"
                                Margin="0,4,0,10"/>
-
-
-                    <Button Content="⚠ Classification incorrecte ?"
-                            Click="ReportClassification_Click"
-                            Padding="12,6"/>
 
                 </StackPanel>
 
@@ -2071,8 +2005,8 @@
                             <!-- CONTENT -->
 
                             <StackPanel Grid.Row="1"
-            HorizontalAlignment="Stretch"
-            VerticalAlignment="Top">
+                                        HorizontalAlignment="Stretch"
+                                        VerticalAlignment="Top">
 
                                 <!-- TITLE -->
 
@@ -2334,7 +2268,7 @@
                Foreground="#BFFFFFFF"
                HorizontalAlignment="Center"/>
 
-                                <Grid Margin="8,11,8,0">
+                                 <Grid Margin="8,10,8,0">
 
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="150"/>
@@ -2454,11 +2388,52 @@
 
                                 </Grid>
 
+                                 <TextBlock Text="COMMUNITY TAGS"
+                                            FontSize="10"
+                                            FontWeight="SemiBold"
+                                            Foreground="#88FFFFFF"
+                                            HorizontalAlignment="Left"
+                                            Margin="8,12,8,2"/>
+
+                                 <ItemsControl ItemsSource="{Binding CommunityTags}"
+                                               HorizontalAlignment="Stretch"
+                                               Margin="5,0,5,2">
+                                     <ItemsControl.ItemsPanel>
+                                         <ItemsPanelTemplate>
+                                             <WrapPanel HorizontalAlignment="Left"/>
+                                         </ItemsPanelTemplate>
+                                     </ItemsControl.ItemsPanel>
+
+                                     <ItemsControl.ItemTemplate>
+                                         <DataTemplate>
+                                             <Border Background="#33000000"
+                                                     BorderBrush="#66FFFFFF"
+                                                     BorderThickness="1"
+                                                     CornerRadius="10"
+                                                     Padding="8,3"
+                                                     Margin="3,2">
+                                                 <StackPanel Orientation="Horizontal">
+                                                     <TextBlock Text="{Binding Name}"
+                                                                FontSize="11"
+                                                                Foreground="#EEEEEE"/>
+                                                     <TextBlock Text=" · "
+                                                                FontSize="11"
+                                                                Foreground="#777777"/>
+                                                     <TextBlock Text="{Binding Votes}"
+                                                                FontSize="11"
+                                                                FontWeight="SemiBold"
+                                                                Foreground="#FFFFFF"/>
+                                                 </StackPanel>
+                                             </Border>
+                                         </DataTemplate>
+                                     </ItemsControl.ItemTemplate>
+                                 </ItemsControl>
+
                                 <TextBlock Text="No structural community evidence"
                                            FontSize="11"
                                            Foreground="#AA99A9B8"
                                            HorizontalAlignment="Center"
-                                           Margin="0,10,0,0">
+                                            Margin="0,8,0,0">
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">
                                             <Setter Property="Visibility" Value="Collapsed"/>
