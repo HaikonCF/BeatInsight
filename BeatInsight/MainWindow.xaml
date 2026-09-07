@@ -455,6 +455,13 @@
                                 Padding="7,3"
                                 Margin="0,4,0,0"
                                 HorizontalAlignment="Stretch"/>
+                        <Button x:Name="NextTechCandidateButton"
+                                Content="Next Tech Candidate"
+                                Click="NextTechCandidate_Click"
+                                Height="27"
+                                Padding="7,3"
+                                Margin="0,4,0,0"
+                                HorizontalAlignment="Stretch"/>
                         <Button x:Name="ExitFastLabelingButton"
                                 Content="Exit Fast Labeling"
                                 Click="ExitFastLabeling_Click"
@@ -1812,7 +1819,7 @@
                             <Ellipse Canvas.Left="84" Canvas.Top="6" Width="8" Height="8" Fill="#CCB46CFF"/>
                         </Canvas>
 
-                        <TextBlock Text="{Binding GameplayProfile.TechPresence, StringFormat={}{0:F0}%}"
+                        <TextBlock Text="{Binding GameplayProfile.TechPresence, StringFormat={}{0:P0}}"
                    FontSize="23"
                    FontWeight="Bold"
                    Foreground="#FFB46CFF"
