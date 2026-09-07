@@ -1786,9 +1786,6 @@ namespace BeatInsight
             currentPrimaryHumanLabel = null;
             currentSecondaryHumanLabel = null;
 
-            // Une map nouvellement chargée ne reçoit jamais une sélection
-            // automatique, y compris quand elle possède déjà une annotation
-            // humaine ou une Identity BeatInsight forte.
             selectedPrimaryHumanLabel = null;
             selectedSecondaryHumanLabel = null;
 
@@ -1821,6 +1818,16 @@ namespace BeatInsight
                 currentPrimaryHumanLabel = sample.PrimaryHumanLabel;
                 currentSecondaryHumanLabel = sample.SecondaryHumanLabel;
 
+                if (!sample.HumanValidated
+                    && sample.PrimaryHumanLabel is null
+                    && HumanLabelPrefillPolicy.TryCreate(
+                        beatmap.GameplayProfile.Identity,
+                        out HumanLabelPrefill prefill))
+                {
+                    selectedPrimaryHumanLabel = prefill.Primary;
+                    selectedSecondaryHumanLabel = prefill.Secondary;
+                }
+
                 HumanLabelSampleStatusText.Text = "Dataset sample: Ready";
                 HumanLabelCurrentPrimaryText.Text = sample.PrimaryHumanLabel is null
                     ? "Primary: Unlabeled"
@@ -1829,6 +1836,13 @@ namespace BeatInsight
                 HumanLabelCurrentSecondaryText.Text = sample.SecondaryHumanLabel is null
                     ? "Secondary: —"
                     : $"Secondary: {FormatHumanLabel(sample.SecondaryHumanLabel.Value)}";
+
+                HumanLabelSampleStatusText.Text =
+                    sample.HumanValidated
+                        ? "Dataset sample: Ready"
+                        : selectedPrimaryHumanLabel.HasValue
+                            ? "Dataset sample: Ready (prefilled from BeatInsight)"
+                            : "Dataset sample: Ready";
             }
             catch (Exception ex)
             {

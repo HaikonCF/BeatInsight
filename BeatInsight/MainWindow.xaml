@@ -87,7 +87,6 @@
                     <Button x:Name="MlLabWorkspaceButton"
                             Content="ML Lab"
                             Click="MlLabWorkspace_Click"
-                            Visibility="Collapsed"
                             Padding="10,4"
                             MinWidth="72"
                             Margin="4,0,0,0"/>
@@ -539,7 +538,7 @@
                      independent from the analyzer classification. -->
                 <Border Grid.Row="1"
                          Grid.ColumnSpan="3"
-                         Visibility="Collapsed"
+                         Visibility="Visible"
                          Margin="0,8,0,0"
                         Padding="10,8"
                         Background="#16000000"
