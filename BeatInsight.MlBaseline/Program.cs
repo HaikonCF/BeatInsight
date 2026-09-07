@@ -3,16 +3,25 @@ using BeatInsight.Services.Ml;
 using BeatInsight.Services.Persistence;
 using System.Globalization;
 
-string databasePath = args.Length > 0
-    ? Path.GetFullPath(args[0])
+bool techOnly = args.Contains("--tech", StringComparer.OrdinalIgnoreCase);
+string? suppliedDatabasePath = args.FirstOrDefault(argument =>
+    !string.Equals(argument, "--tech", StringComparison.OrdinalIgnoreCase));
+string databasePath = suppliedDatabasePath is not null
+    ? Path.GetFullPath(suppliedDatabasePath)
     : MlDatasetSampleRepository.DefaultDatabasePath;
 
 try
 {
-    HumanStructuralBaselineReport report = HumanStructuralBaseline.TrainAndEvaluate(
-        new MlDatasetSampleRepository(databasePath));
+    MlDatasetSampleRepository repository = new(databasePath);
 
-    PrintReport(report);
+    if (techOnly)
+    {
+        PrintTechReport(HumanTechBaseline.TrainAndEvaluate(repository));
+    }
+    else
+    {
+        PrintReport(HumanStructuralBaseline.TrainAndEvaluate(repository));
+    }
     return 0;
 }
 catch (Exception exception)
@@ -75,3 +84,56 @@ static void PrintEvaluation(string name, StructuralMlEvaluation evaluation)
 
 static string Percent(double value) =>
     value.ToString("P1", CultureInfo.InvariantCulture);
+
+static void PrintTechReport(HumanTechBaselineReport report)
+{
+    Console.WriteLine("BEATINSIGHT HUMAN-ONLY TECH / NON-TECH BASELINE");
+    Console.WriteLine($"Samples included: {report.IncludedSampleCount}");
+    Console.WriteLine($"Samples excluded: {report.ExcludedSampleCount}");
+    Console.WriteLine($"Model: {report.ModelSettings}");
+    Console.WriteLine();
+    Console.WriteLine("SPLITS");
+
+    foreach ((StructuralSplit split, IReadOnlyList<HumanTechTrainingSample> samples)
+        in report.SamplesBySplit.OrderBy(pair => pair.Key))
+    {
+        Console.WriteLine($"{split}: {samples.Count}");
+        Console.WriteLine($"  Tech: {samples.Count(sample => sample.IsTech)}");
+        Console.WriteLine($"  Non-Tech: {samples.Count(sample => !sample.IsTech)}");
+    }
+
+    PrintTechEvaluation("VALIDATION", report.Validation);
+    PrintTechEvaluation("TEST", report.Test);
+}
+
+static void PrintTechEvaluation(string name, BinaryTechEvaluation evaluation)
+{
+    Console.WriteLine();
+    Console.WriteLine(name);
+    Console.WriteLine($"Mean P(Tech) for actual Tech: " +
+        Percent(evaluation.MeanProbabilityForActualTech));
+    Console.WriteLine($"Mean P(Tech) for actual Non-Tech: " +
+        Percent(evaluation.MeanProbabilityForActualNonTech));
+    PrintTechMetrics(evaluation.CalculateMetrics(0.50));
+    Console.WriteLine("Threshold sweep");
+
+    foreach (double threshold in HumanTechBaseline.EvaluationThresholds)
+    {
+        BinaryTechMetrics metrics = evaluation.CalculateMetrics(threshold);
+        Console.WriteLine($"  {threshold:F2}: Precision {Percent(metrics.TechPrecision)} | " +
+            $"Recall {Percent(metrics.TechRecall)} | F1 {Percent(metrics.TechF1)}");
+    }
+}
+
+static void PrintTechMetrics(BinaryTechMetrics metrics)
+{
+    Console.WriteLine($"Threshold: {metrics.Threshold:F2}");
+    Console.WriteLine($"Accuracy: {Percent(metrics.Accuracy)}");
+    Console.WriteLine($"Tech precision: {Percent(metrics.TechPrecision)}");
+    Console.WriteLine($"Tech recall: {Percent(metrics.TechRecall)}");
+    Console.WriteLine($"Tech F1: {Percent(metrics.TechF1)}");
+    Console.WriteLine($"Non-Tech specificity: {Percent(metrics.NonTechSpecificity)}");
+    Console.WriteLine($"Confusion matrix: TP {metrics.TruePositive} | " +
+        $"FP {metrics.FalsePositive} | TN {metrics.TrueNegative} | " +
+        $"FN {metrics.FalseNegative}");
+}
