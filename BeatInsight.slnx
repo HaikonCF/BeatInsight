@@ -1,4 +1,5 @@
 <Solution>
   <Project Path="BeatInsight/BeatInsight.csproj" />
   <Project Path="BeatInsight.Tests/BeatInsight.Tests.csproj" />
+  <Project Path="BeatInsight.MlBaseline/BeatInsight.MlBaseline.csproj" />
 </Solution>
