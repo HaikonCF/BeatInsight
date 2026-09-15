@@ -7,6 +7,8 @@ je construis ça et j'ai besoin de joueurs pour me dire si mon algo raconte n'im
 
 Lien de présentation de l'appli => https://youtu.be/6ewRDpj2UPs
 
+Lien du Discord => https://discord.gg/DC3xZevRds
+
 > ⚠️ BeatInsight is currently in an early public testing phase.
 > The analysis and classification systems are still being calibrated.
 
