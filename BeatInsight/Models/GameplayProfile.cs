@@ -11,6 +11,14 @@ namespace BeatInsight.Models;
 /// </summary>
 public sealed class GameplayProfile
 {
+    /// <summary>
+    /// Transient, immutable snapshots of local values already produced by the
+    /// skill analyzers. These are analytical inputs for future aggregation and
+    /// are deliberately not part of persistence or presentation contracts.
+    /// </summary>
+    public GameplaySkillContributionProfile SkillContributions { get; init; }
+        = GameplaySkillContributionProfile.Empty;
+
     // ============================================================
     // 1. STATISTIQUES GÉNÉRALES
     // ============================================================
@@ -140,6 +148,13 @@ public sealed class GameplayProfile
     /// aux TechSections validées.
     /// </summary>
     public double TechPresence { get; init; }
+
+    /// <summary>
+    /// Présence temporelle Tech V2 expérimentale, issue des régions locales
+    /// déterministes : durée Tech / durée jouable. Elle est réservée à
+    /// l'affichage et reste distincte de TechPresence legacy circle-based.
+    /// </summary>
+    public double TechV2Presence { get; init; }
 
     /// <summary>
     /// Intensité technique intrinsèque sur 100, avant modulation

@@ -112,14 +112,15 @@ internal sealed class GameplayProfileRecord
     // Les trois grandeurs Tech ont des sémantiques distinctes et ne
     // doivent jamais être confondues :
     //
-    // - TechPresence  = couverture structurelle Tech
+    // - TechPresence  = couverture structurelle Tech legacy circle-based
+    // - TechV2Presence = présence temporelle Tech V2 réservée à l'affichage
     // - TechIntensity = intensité technique brute
     // - TechScore     = pression technique finale
     //
-    // TechPresence et TechScore sont tous deux consommés, le premier
-    // par les bindings UI, le second par les rapports et par
-    // ClassificationReasons : les deux sont donc persistés côte à
-    // côte, sans fusion.
+    // TechV2Presence alimente le binding UI de présence, tandis que
+    // TechPresence reste disponible pour les consommateurs legacy et
+    // TechScore pour les rapports et ClassificationReasons. Les trois
+    // valeurs sont donc persistées côte à côte, sans fusion.
     //
     // TechIntensity n'est consommé par aucun des quatre chemins du
     // périmètre et n'est volontairement pas persisté.
@@ -131,6 +132,9 @@ internal sealed class GameplayProfileRecord
 
     /// <summary>Couverture structurelle Tech.</summary>
     internal double TechPresence { get; init; }
+
+    /// <summary>Présence temporelle Tech V2 destinée à l'affichage.</summary>
+    internal double TechV2Presence { get; init; }
 
     /// <summary>Pression technique finale.</summary>
     internal double TechScore { get; init; }

@@ -13,6 +13,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <None Remove="Assets\Brand\BeatInsightLogo.png" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="ppy.osu.Game.Rulesets.Osu" Version="2026.702.1" />
 
     <!-- Référence explicite : Microsoft.Data.Sqlite arrivait déjà de
@@ -20,6 +24,16 @@
          ici évite qu'une future montée de version d'osu! ne la retire
          ou n'en change silencieusement la version. -->
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.9" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\Brand\BeatInsightLogo.png">
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </Resource>
+    <Resource Include="..\Assets\BiaChan\*.png">
+      <Link>Assets\BiaChan\%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </Resource>
   </ItemGroup>
 
 </Project>

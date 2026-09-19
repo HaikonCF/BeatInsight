@@ -1,9 +1,155 @@
 ﻿<Application x:Class="BeatInsight.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:local="clr-namespace:BeatInsight"
+             xmlns:converters="clr-namespace:BeatInsight.Converters"
              StartupUri="MainWindow.xaml">
     <Application.Resources>
-         
+        <!-- ========================================================= -->
+        <!-- COLOR PALETTE                                             -->
+        <!-- ========================================================= -->
+        <Color x:Key="BackgroundMainColor">#0D0E12</Color>
+        <Color x:Key="PanelBackgroundColor">#14151C</Color>
+        <Color x:Key="CardBackgroundColor">#1B1C26</Color>
+        <Color x:Key="CardBackgroundTranslucentColor">#EE161722</Color>
+
+        <Color x:Key="AccentMagentaColor">#FF2E93</Color>
+        <Color x:Key="AccentMagentaHoverColor">#FF54A8</Color>
+        <Color x:Key="AccentMagentaGlowColor">#44FF2E93</Color>
+        <Color x:Key="AccentSoftColor">#2A1320</Color>
+
+        <Color x:Key="TextPrimaryColor">#FFFFFF</Color>
+        <Color x:Key="TextSecondaryColor">#A0A5B5</Color>
+        <Color x:Key="TextMutedColor">#5C6070</Color>
+
+        <Color x:Key="BorderSubtleColor">#272836</Color>
+        <Color x:Key="BorderAccentColor">#66FF2E93</Color>
+
+        <!-- Structure Colors -->
+        <Color x:Key="StructureStreamColor">#38BDF8</Color>
+        <Color x:Key="StructureJumpColor">#F43F5E</Color>
+        <Color x:Key="StructureTechColor">#A855F7</Color>
+        <Color x:Key="StructureClassicMixedColor">#10B981</Color>
+
+        <!-- Status Colors -->
+        <Color x:Key="StatusSuccessColor">#22C55E</Color>
+        <Color x:Key="StatusWarningColor">#F59E0B</Color>
+        <Color x:Key="StatusErrorColor">#EF4444</Color>
+
+        <!-- Solid Brushes -->
+        <SolidColorBrush x:Key="BackgroundMainBrush" Color="{StaticResource BackgroundMainColor}"/>
+        <SolidColorBrush x:Key="PanelBackgroundBrush" Color="{StaticResource PanelBackgroundColor}"/>
+        <SolidColorBrush x:Key="CardBackgroundBrush" Color="{StaticResource CardBackgroundColor}"/>
+        <SolidColorBrush x:Key="CardBackgroundTranslucentBrush" Color="{StaticResource CardBackgroundTranslucentColor}"/>
+
+        <SolidColorBrush x:Key="AccentMagentaBrush" Color="{StaticResource AccentMagentaColor}"/>
+        <SolidColorBrush x:Key="AccentMagentaHoverBrush" Color="{StaticResource AccentMagentaHoverColor}"/>
+        <SolidColorBrush x:Key="AccentMagentaGlowBrush" Color="{StaticResource AccentMagentaGlowColor}"/>
+        <SolidColorBrush x:Key="AccentSoftBrush" Color="{StaticResource AccentSoftColor}"/>
+
+        <SolidColorBrush x:Key="TextPrimaryBrush" Color="{StaticResource TextPrimaryColor}"/>
+        <SolidColorBrush x:Key="TextSecondaryBrush" Color="{StaticResource TextSecondaryColor}"/>
+        <SolidColorBrush x:Key="TextMutedBrush" Color="{StaticResource TextMutedColor}"/>
+
+        <SolidColorBrush x:Key="BorderSubtleBrush" Color="{StaticResource BorderSubtleColor}"/>
+        <SolidColorBrush x:Key="BorderAccentBrush" Color="{StaticResource BorderAccentColor}"/>
+
+        <SolidColorBrush x:Key="StructureStreamBrush" Color="{StaticResource StructureStreamColor}"/>
+        <SolidColorBrush x:Key="StructureJumpBrush" Color="{StaticResource StructureJumpColor}"/>
+        <SolidColorBrush x:Key="StructureTechBrush" Color="{StaticResource StructureTechColor}"/>
+        <SolidColorBrush x:Key="StructureClassicMixedBrush" Color="{StaticResource StructureClassicMixedColor}"/>
+
+        <SolidColorBrush x:Key="StatusSuccessBrush" Color="{StaticResource StatusSuccessColor}"/>
+        <SolidColorBrush x:Key="StatusWarningBrush" Color="{StaticResource StatusWarningColor}"/>
+        <SolidColorBrush x:Key="StatusErrorBrush" Color="{StaticResource StatusErrorColor}"/>
+
+        <!-- ========================================================= -->
+        <!-- CONVERTERS                                                -->
+        <!-- ========================================================= -->
+        <converters:NullOrEmptyToVisibilityConverter x:Key="NullOrEmptyToVisibilityConverter"/>
+        <converters:NullOrEmptyToVisibilityConverter x:Key="InvertedNullOrEmptyToVisibilityConverter" Invert="True"/>
+        <converters:StructureToBrushConverter x:Key="StructureToBrushConverter"/>
+        <converters:TabActiveConverter x:Key="TabActiveConverter"/>
+        <converters:InvertedBoolToVisibilityConverter x:Key="InvertedBoolToVisibilityConverter"/>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
+
+        <!-- ========================================================= -->
+        <!-- REUSABLE CONTROL STYLES                                   -->
+        <!-- ========================================================= -->
+        <Style x:Key="CardBorderStyle" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource CardBackgroundTranslucentBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource BorderSubtleBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="12"/>
+            <Setter Property="Padding" Value="16"/>
+        </Style>
+
+        <Style x:Key="TabButtonNavStyle" TargetType="RadioButton">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Padding" Value="14,8"/>
+            <Setter Property="Margin" Value="2,0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Border x:Name="TabBorder"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="8"
+                                Padding="{TemplateBinding Padding}"
+                                BorderThickness="1"
+                                BorderBrush="Transparent">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                                <Setter TargetName="TabBorder" Property="Background" Value="#22FFFFFF"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                                <Setter TargetName="TabBorder" Property="Background" Value="{StaticResource AccentSoftBrush}"/>
+                                <Setter TargetName="TabBorder" Property="BorderBrush" Value="{StaticResource BorderAccentBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="ActionPillButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="#1F202C"/>
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource BorderSubtleBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Padding" Value="12,6"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="ButtonBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ButtonBorder" Property="BorderBrush" Value="{StaticResource AccentMagentaBrush}"/>
+                                <Setter TargetName="ButtonBorder" Property="Background" Value="#2B1D28"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="ButtonBorder" Property="Background" Value="{StaticResource AccentMagentaBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Application.Resources>
 </Application>

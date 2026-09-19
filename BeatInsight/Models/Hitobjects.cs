@@ -9,6 +9,7 @@ namespace BeatInsight.Models
     public class HitObject
     {
         public int Type { get; set; }
+        public bool IsNewCombo { get; set; }
         public int Time { get; set; }
         public int Slides { get; set; }
         public double Length { get; set; }

@@ -315,6 +315,46 @@ public static class GameplayAnalyzer
         TechAnalysis tech =
             AnalyzeTech(objects);
 
+        IReadOnlyList<TechV2ExperimentalWindowResult> techV2Windows =
+            TechDetectorV2Experimental.Analyze(
+                objects,
+                IsSpinner,
+                IsSlider,
+                IsComplexSlider,
+                GetObjectStartPosition,
+                GetObjectEndPosition,
+                GetTechTurnAngle);
+
+        DebugTechV2Experimental(techV2Windows);
+
+        // Tech V2 regions remain isolated from Identity, TechScore and Rating.
+        // Their temporal presence is exposed separately for presentation only.
+        double playableStartTime = objects.Count > 0 ? objects[0].Time : 0;
+        // HitObject does not retain a parsed slider end time. Until a runtime
+        // end-time source exists, playable duration ends at the final object's
+        // start time rather than inventing a slider-duration estimate here.
+        double playableEndTime = objects.Count > 0 ? objects[^1].Time : 0;
+        TechV2SustainedPromotionResult techV2Promotion =
+            TechV2ExperimentalDecisionEngine.PromoteSustainedTechWithDiagnostics(
+                TechV2ExperimentalDecisionEngine.Decide(techV2Windows));
+        IReadOnlyList<TechV2WindowDecision> techV2Decisions = techV2Promotion.Decisions;
+        TechV2PresenceResult techV2Presence =
+            TechV2ExperimentalDecisionEngine.BuildPresence(
+                techV2Decisions,
+                playableStartTime,
+                playableEndTime);
+        TechV2CombinedCorrectionShadowResult techV2Shadow =
+            TechV2CombinedCorrectionShadowRuntime.Compute(
+                objects,
+                techV2Windows,
+                techV2Decisions);
+
+        DebugTechV2RegionsExperimental(
+            techV2Decisions,
+            techV2Presence,
+            techV2Promotion.RejectedRuns,
+            techV2Shadow);
+
         BeatInsight.Diagnostics.DebugLogger.Detailed(
             $"SECTIONS DEBUG | " +
             $"Tech={tech.TechSections.Count}");
@@ -539,6 +579,12 @@ public static class GameplayAnalyzer
         // --------------------------------------------------------
         GameplayProfile profile = new()
         {
+            SkillContributions = new GameplaySkillContributionProfile(
+                aim.Contributions,
+                speed.Contributions,
+                read.Contributions,
+                tech.Contributions),
+
             // ----------------------------
             // Statistiques générales
             // ----------------------------
@@ -586,6 +632,7 @@ public static class GameplayAnalyzer
             TechObjectCount = techCircleCount,
             TechRatio = techRatio,
             TechPresence = techCoverage,
+            TechV2Presence = techV2Presence.PresenceRatio,
             TechIntensity = rawTechScore,
             TechScore = tech.Score,
             TechLevel = GetTechLevel(tech.Score, techCoverage),
@@ -802,11 +849,60 @@ public static class GameplayAnalyzer
         double distance =
             Distance(previous, current);
 
-        return interval >= StreamMinimumIntervalMs
-            && interval <= StreamMaximumIntervalMs
+        return IsStreamTimingInterval(interval)
             && distance > 0
             && distance <= StreamMaximumDistance;
     }
+
+    private static LocalSkillContributionSet CreateTechContributions(
+        IReadOnlyList<HitObject> objects,
+        IReadOnlyList<double> techPatternEvidence,
+        IReadOnlyList<GameplaySection> techSections)
+    {
+        bool[] coverageQualified = CreateSectionObjectMask(objects.Count, techSections);
+        List<LocalSkillContribution> contributions = new(objects.Count);
+
+        // All source objects are retained because Tech V1 evidence may live on
+        // sliders, while only circles participate in the legacy coverage denominator.
+        for (int i = 0; i < objects.Count; i++)
+        {
+            bool isEligible = IsCircle(objects[i]);
+            contributions.Add(new LocalSkillContribution(
+                i,
+                techPatternEvidence[i],
+                isEligible,
+                isEligible && coverageQualified[i]));
+        }
+
+        return new LocalSkillContributionSet(true, contributions);
+    }
+
+    private static bool[] CreateSectionObjectMask(
+        int objectCount,
+        IReadOnlyList<GameplaySection> sections)
+    {
+        bool[] mask = new bool[objectCount];
+
+        foreach (GameplaySection section in sections)
+        {
+            for (int objectIndex = section.StartObjectIndex;
+                 objectIndex <= section.EndObjectIndex;
+                 objectIndex++)
+            {
+                mask[objectIndex] = true;
+            }
+        }
+
+        return mask;
+    }
+
+    /// <summary>
+    /// Shared temporal qualification for rapid Stream-family links.
+    /// Pattern analysis reuses this without inheriting Stream geometry.
+    /// </summary>
+    internal static bool IsStreamTimingInterval(double interval) =>
+        interval >= StreamMinimumIntervalMs
+        && interval <= StreamMaximumIntervalMs;
 
     /// <summary>
     /// Vérifie que les intervalles d'un Stream restent suffisamment réguliers
@@ -948,11 +1044,15 @@ public static class GameplayAnalyzer
     private static bool IsJumpLink(
         HitObject previous,
         HitObject current)
+        => IsJumpLink(previous, current, out _);
+
+    // Share qualification and computed distance with local pattern recognition.
+    internal static bool IsJumpLink(HitObject previous, HitObject current, out double distance)
     {
         double interval =
             current.Time - previous.Time;
 
-        double distance =
+        distance =
             Distance(previous, current);
 
         return interval >= JumpMinimumIntervalMs
@@ -1824,6 +1924,12 @@ public static class GameplayAnalyzer
                 techObjects,
                 techPatternEvidence);
 
+        LocalSkillContributionSet contributions =
+            CreateTechContributions(
+                objects,
+                techPatternEvidence,
+                techSections);
+
         // --------------------------------------------------------
         // Résultat
         // --------------------------------------------------------
@@ -1838,10 +1944,11 @@ public static class GameplayAnalyzer
                 structureCombinedSignal,
                 spatialSignal,
                 temporalSignal,
-                techSections);
+                techSections,
+                contributions);
 
     }
-    private static (double X, double Y) GetObjectStartPosition(
+    internal static (double X, double Y) GetObjectStartPosition(
     HitObject hitObject)
     {
         return (
@@ -1849,7 +1956,7 @@ public static class GameplayAnalyzer
             hitObject.Y);
     }
 
-    private static (double X, double Y) GetObjectEndPosition(
+    internal static (double X, double Y) GetObjectEndPosition(
     HitObject hitObject)
     {
         if (!IsSlider(hitObject))
@@ -1864,7 +1971,7 @@ public static class GameplayAnalyzer
             hitObject.SliderEndPosition.Y);
     }
 
-    private static double GetTechTurnAngle(
+    internal static double GetTechTurnAngle(
     HitObject previous,
     HitObject current,
     HitObject next)
@@ -2129,7 +2236,7 @@ public static class GameplayAnalyzer
     /// </summary>
     /// 
 
-    private static bool IsComplexSlider(HitObject hitObject)
+    internal static bool IsComplexSlider(HitObject hitObject)
     {
         bool complexCurve =
             hitObject.SliderCurveType is "C" or "P";
@@ -2259,7 +2366,8 @@ public static class GameplayAnalyzer
                 0,
                 0,
                 0,
-                Array.Empty<GameplaySection>());
+                Array.Empty<GameplaySection>(),
+                LocalSkillContributionSet.EmptySupported);
 
         double approachTime =
             GetApproachTime(beatmap.AR);
@@ -2284,10 +2392,12 @@ public static class GameplayAnalyzer
                 0,
                 0,
                 0,
-                Array.Empty<GameplaySection>());
+                Array.Empty<GameplaySection>(),
+                LocalSkillContributionSet.EmptySupported);
 
         int readObjectCount = 0;
         List<int> readObjectIndices = new();
+        List<(int ObjectIndex, double Pressure)> localContributions = new(analysedReadObjects);
 
         double totalDensitySignal = 0;
         double totalClutterSignal = 0;
@@ -2379,6 +2489,8 @@ public static class GameplayAnalyzer
                     densitySignal,
                     clutterSignal,
                     persistenceSignal);
+
+            localContributions.Add((i, localIntensity));
 
             // Un objet entre dans la présence Reading lorsqu'au
             // moins deux informations futures sont visibles.
@@ -2526,6 +2638,16 @@ public static class GameplayAnalyzer
                 readSections,
                 analysedReadObjects);
 
+        bool[] coverageQualified = CreateSectionObjectMask(objects.Count, readSections);
+        LocalSkillContributionSet contributions = new(
+            true,
+            localContributions.Select(contribution =>
+                new LocalSkillContribution(
+                    contribution.ObjectIndex,
+                    contribution.Pressure,
+                    true,
+                    coverageQualified[contribution.ObjectIndex])));
+
         // --------------------------------------------------------
         // Score Read global.
         //
@@ -2556,7 +2678,8 @@ public static class GameplayAnalyzer
             readSpacingRegularity,
             readTrajectoryRepetition,
             readAmbiguity,
-            readSections);
+            readSections,
+            contributions);
     }
 
     private static double CalculateReadDensitySignal(
@@ -3048,6 +3171,18 @@ public static class GameplayAnalyzer
 
         if (circles.Count < 2)
         {
+            LocalSkillContributionSet emptyContributions = new(
+                true,
+                objects
+                    .Select((hitObject, index) => (hitObject, index))
+                    .Where(item => IsCircle(item.hitObject))
+                    .Select(item => new LocalSkillContribution(
+                        item.index,
+                        0,
+                        true,
+                        false,
+                        0)));
+
             return new SpeedAnalysis(
                 0,
                 0,
@@ -3059,7 +3194,8 @@ public static class GameplayAnalyzer
                 0,
                 0,
                 0,
-                Array.Empty<GameplaySection>());
+                Array.Empty<GameplaySection>(),
+                emptyContributions);
         }
 
         bool[] fastObjects =
@@ -3141,9 +3277,14 @@ public static class GameplayAnalyzer
                 objects,
                 fastTransitionEnds);
 
+        double[] pressureByObject = new double[objects.Count];
+        double[] weightByObject = new double[objects.Count];
+
         double intensity =
             CalculateSpeedIntensity(
-                speedSections);
+                speedSections,
+                pressureByObject,
+                weightByObject);
 
         double presence =
             CalculateSpeedPresence(
@@ -3174,6 +3315,18 @@ public static class GameplayAnalyzer
         score =
             Math.Clamp(score, 0, 1) * 100;
 
+        LocalSkillContributionSet contributions = new(
+            true,
+            objects
+                .Select((hitObject, index) => (hitObject, index))
+                .Where(item => IsCircle(item.hitObject))
+                .Select(item => new LocalSkillContribution(
+                    item.index,
+                    pressureByObject[item.index],
+                    true,
+                    fastObjects[item.index],
+                    weightByObject[item.index])));
+
         return new SpeedAnalysis(
                 speedObjectCount,
                 score,
@@ -3185,11 +3338,14 @@ public static class GameplayAnalyzer
                 presence,
                 nearThresholdTransitions,
                 nearThresholdTransitionRatio,
-                speedSections);
+                speedSections,
+                contributions);
     }
 
     private static double CalculateSpeedIntensity(
-        IReadOnlyList<GameplaySection> speedSections)
+        IReadOnlyList<GameplaySection> speedSections,
+        double[] pressureByObject,
+        double[] weightByObject)
     {
         double weightedIntensity = 0;
         double totalWeight = 0;
@@ -3218,6 +3374,14 @@ public static class GameplayAnalyzer
                     cadence / SpeedCadenceSaturationObjectsPerSecond,
                     0,
                     1);
+
+            for (int objectIndex = section.StartObjectIndex;
+                 objectIndex <= section.EndObjectIndex;
+                 objectIndex++)
+            {
+                pressureByObject[objectIndex] = cadenceSignal;
+                weightByObject[objectIndex] = lengthFactor;
+            }
 
             double weight =
                 section.ObjectCount * lengthFactor;
@@ -3600,7 +3764,8 @@ public static class GameplayAnalyzer
                         0,
                         0,
                         0,
-                        0.60);
+                        0.60,
+                        LocalSkillContributionSet.Unsupported);
 
         double averageDistance =
             significantMovementCount == 0
@@ -3728,7 +3893,8 @@ public static class GameplayAnalyzer
              speedSignal,
              angleSignal,
              temporalSignal,
-             temporalModifier);
+             temporalModifier,
+             LocalSkillContributionSet.Unsupported);
     }
 
     private static double CalculateAimTemporalSignal(
@@ -3895,7 +4061,8 @@ public static class GameplayAnalyzer
        double SpeedSignal,
        double AngleSignal,
        double TemporalSignal,
-       double TemporalModifier);
+       double TemporalModifier,
+       LocalSkillContributionSet Contributions);
 
 
     private static int GetTraitPriority(string trait)
@@ -4815,7 +4982,7 @@ public static class GameplayAnalyzer
     /// <summary>
     /// Vérifie si l'objet est un slider.
     /// </summary>
-    private static bool IsSlider(
+    internal static bool IsSlider(
         HitObject hitObject)
     {
         return (hitObject.Type & 2) == 2;
@@ -4824,7 +4991,7 @@ public static class GameplayAnalyzer
     /// <summary>
     /// Vérifie si l'objet est un spinner.
     /// </summary>
-    private static bool IsSpinner(
+    internal static bool IsSpinner(
         HitObject hitObject)
     {
         return (hitObject.Type & 8) == 8;
@@ -4866,7 +5033,7 @@ public static class GameplayAnalyzer
     /// Calcule l'angle de changement de direction entre
     /// trois objets consécutifs.
     /// </summary>
-    private static double GetTurnAngle(
+    internal static double GetTurnAngle(
     HitObject previous,
     HitObject current,
     HitObject next)
@@ -5191,6 +5358,134 @@ public static class GameplayAnalyzer
                 objectCount));
     }
 
+    private static void DebugTechV2Experimental(
+        IReadOnlyList<TechV2ExperimentalWindowResult> windows)
+    {
+        if (!DebugLogger.DebugMode
+            || !DebugLogger.DetailedDebug
+            || !DebugLogger.TechV2ExperimentalEnabled)
+        {
+            return;
+        }
+
+        IReadOnlyList<TechV2ExperimentalWindowResult> topWindows =
+            TechDetectorV2Experimental.TopByLikelihood(windows, 10);
+
+        DebugLogger.Detailed("===== TECH V2 EXPERIMENTAL =====");
+        DebugLogger.Detailed($"Windows = {windows.Count} | Top = {topWindows.Count}");
+
+        foreach (TechV2ExperimentalWindowResult window in topWindows)
+        {
+            string startTime = TimeSpan.FromMilliseconds(window.StartTime).ToString(@"mm\:ss\.fff");
+            string endTime = TimeSpan.FromMilliseconds(window.EndTime).ToString(@"mm\:ss\.fff");
+
+            DebugLogger.Detailed("WINDOW");
+            DebugLogger.Detailed($"Index = {window.StartIndex}-{window.EndIndex}");
+            DebugLogger.Detailed($"Time = {startTime} -> {endTime}");
+            DebugLogger.Detailed($"Geometry = {window.GeometryIrregularity:F2}");
+            DebugLogger.Detailed($"Rhythm = {window.RhythmIrregularity:F2}");
+            DebugLogger.Detailed($"Slider = {window.SliderComplexity:F2}");
+            DebugLogger.Detailed($"Awkward = {window.Awkwardness:F2}");
+            DebugLogger.Detailed($"Spacing = {window.SpacingVariation:F2}");
+            DebugLogger.Detailed($"Likelihood = {window.TechLikelihoodExperimental:F2}");
+            DebugLogger.Detailed(
+                $"AngleCoherenceWithSupport = " +
+                $"{window.AngleCoherenceWithSupport:F2} " +
+                $"(StructuralPivots={window.AngleCoherenceStructuralPivotCount})");
+            DebugLogger.Detailed(
+                $"SliderTransitionTopology = " +
+                $"S>S {window.ComplexSliderTransitionTopology.SliderToSliderRatio:F2} | " +
+                $"S>C {window.ComplexSliderTransitionTopology.SliderToCircleRatio:F2} | " +
+                $"C>S {window.ComplexSliderTransitionTopology.CircleToSliderRatio:F2} | " +
+                $"C>C {window.ComplexSliderTransitionTopology.CircleToCircleRatio:F2}");
+            DebugLogger.Detailed(
+                $"ComplexSliderRunLength = {window.ComplexSliderRunLength}");
+            DebugLogger.Detailed(
+                $"CoupledTechnicalMotifContinuity = " +
+                $"{window.CoupledTechnicalMotifContinuity:F2} " +
+                $"(LongestRun={window.CoupledTechnicalMotifRunLength})");
+        }
+    }
+
+    private static void DebugTechV2RegionsExperimental(
+        IReadOnlyList<TechV2WindowDecision> decisions,
+        TechV2PresenceResult presence,
+        IReadOnlyList<TechV2SustainedRunGeometryRejection> rejectedRuns,
+        TechV2CombinedCorrectionShadowResult shadow)
+    {
+        if (!DebugLogger.DebugMode
+            || !DebugLogger.DetailedDebug
+            || !DebugLogger.TechV2RegionExperimentalEnabled)
+        {
+            return;
+        }
+
+        DebugLogger.Detailed("===== TECH V2 REGIONS =====");
+        DebugLogger.Detailed(
+            $"Windows = {presence.WindowCount} | Tech Windows = {presence.TechWindowCount} " +
+            $"(Strong={decisions.Count(decision => decision.IsStrongTech)} | " +
+            $"Sustained={decisions.Count(decision => decision.IsSustainedTech)})");
+
+        int regionNumber = 1;
+        foreach (TechV2Region region in presence.Regions)
+        {
+            DebugLogger.Detailed($"Region {regionNumber++}:");
+            DebugLogger.Detailed(
+                $" {FormatTechV2Time(region.StartTime)} -> {FormatTechV2Time(region.EndTime)}");
+            DebugLogger.Detailed($" Duration = {region.Duration / 1000.0:F2}s");
+            DebugLogger.Detailed(
+                $" Windows = {region.WindowCount} | Strong = {region.StrongTechWindowCount} | " +
+                $"Sustained = {region.SustainedTechWindowCount}");
+            if (region.StrongTechWindowCount > 0)
+            {
+                DebugLogger.Detailed(
+                    $" LongPropagationAllowed = {region.LongPropagationAllowed} | " +
+                    $"SupportAbsorbedBefore = {region.SupportAbsorbedBefore} | " +
+                    $"SupportAbsorbedAfter = {region.SupportAbsorbedAfter}");
+                if (region.AnchorPropagationLimited)
+                    DebugLogger.Detailed(" AnchorPropagationLimited = true");
+            }
+        }
+
+        DebugLogger.Detailed($"Total Tech Duration = {presence.TotalTechDuration / 1000.0:F2}s");
+        DebugLogger.Detailed($"Playable Duration = {presence.PlayableDuration / 1000.0:F2}s");
+        DebugLogger.Detailed($"Tech Presence = {presence.PresencePercent:F2}%");
+        DebugLogger.Detailed(
+            $"Shadow correction windows = {shadow.Windows.Count} | " +
+            $"Decision invariance unchanged/changed = " +
+            $"{shadow.UnchangedDecisionKindCount}/{shadow.ChangedDecisionKindCount}");
+
+        foreach (TechV2SustainedRunGeometryRejection rejectedRun in rejectedRuns)
+        {
+            DebugLogger.Detailed("SUSTAINED TECH RUN REJECTED");
+            DebugLogger.Detailed(
+                $" {FormatTechV2Time(rejectedRun.StartTime)} -> " +
+                $"{FormatTechV2Time(rejectedRun.EndTime)}");
+            DebugLogger.Detailed($" WindowCount = {rejectedRun.WindowCount}");
+            DebugLogger.Detailed($" AverageGeometry = {rejectedRun.AverageGeometryEvidence:F3}");
+            DebugLogger.Detailed($" GuardThreshold = {rejectedRun.GuardThreshold:F3}");
+            DebugLogger.Detailed(
+                $" RejectedByGeometryGuard = {rejectedRun.RejectedByGeometryGuard}");
+        }
+
+        foreach (TechV2WindowDecision decision in decisions.Where(decision => decision.IsDetectedTech))
+        {
+            DebugLogger.Detailed(
+                decision.IsStrongTech ? "STRONG TECH WINDOW" : "SUSTAINED TECH WINDOW");
+            DebugLogger.Detailed(
+                $"Time = {FormatTechV2Time(decision.StartTime)} -> {FormatTechV2Time(decision.EndTime)}");
+            DebugLogger.Detailed($"Geometry = {decision.GeometryEvidence:F2}");
+            DebugLogger.Detailed($"Movement = {decision.MovementEvidence:F2}");
+            DebugLogger.Detailed($"Slider = {decision.SliderEvidence:F2}");
+            DebugLogger.Detailed($"Motif = {decision.MotifEvidence:F2}");
+            DebugLogger.Detailed($"FamilyCount = {decision.EvidenceFamilyCount}");
+            DebugLogger.Detailed($"RawScore = {decision.RawScore:F2}");
+        }
+    }
+
+    private static string FormatTechV2Time(double milliseconds) =>
+        TimeSpan.FromMilliseconds(milliseconds).ToString(@"mm\:ss\.fff");
+
 
 
     // ============================================================
@@ -5210,7 +5505,8 @@ public static class GameplayAnalyzer
        double StructureSignal,
        double SpatialSignal,
        double TemporalSignal,
-       List<GameplaySection> TechSections);
+       List<GameplaySection> TechSections,
+       LocalSkillContributionSet Contributions);
 
     /// <summary>
     /// Résultat intermédiaire de l'analyse Read.
@@ -5231,7 +5527,8 @@ public static class GameplayAnalyzer
     double ReadSpacingRegularity,
     double ReadTrajectoryRepetition,
     double ReadAmbiguity,
-    IReadOnlyList<GameplaySection> ReadSections);
+    IReadOnlyList<GameplaySection> ReadSections,
+    LocalSkillContributionSet Contributions);
 
     private sealed record ReadPredictabilitySignals(
     double? Predictability,
@@ -5343,5 +5640,6 @@ public static class GameplayAnalyzer
     double Presence,
     int NearThresholdTransitionCount,
     double NearThresholdTransitionRatio,
-    IReadOnlyList<GameplaySection> SpeedSections);
+    IReadOnlyList<GameplaySection> SpeedSections,
+    LocalSkillContributionSet Contributions);
 }

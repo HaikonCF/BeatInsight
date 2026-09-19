@@ -26,5 +26,5 @@ internal static class PersistenceSchemaVersion
     /// <see cref="GameplayProfileRecord"/> change de manière
     /// incompatible avec les enregistrements déjà stockés.
     /// </summary>
-    internal const int Current = 1;
+    internal const int Current = 2;
 }

@@ -531,6 +531,7 @@ internal sealed class BeatmapAnalysisRepository
 
             // Tech : les trois sémantiques restent distinctes.
             writer.WriteNumber("TechPresence", profile.TechPresence);
+            writer.WriteNumber("TechV2Presence", profile.TechV2Presence);
             writer.WriteNumber("TechScore", profile.TechScore);
             writer.WriteNumber(
                 "TechTransitionSignal",
@@ -644,6 +645,7 @@ internal sealed class BeatmapAnalysisRepository
             BurstRatio = Number(root, "BurstRatio"),
 
             TechPresence = Number(root, "TechPresence"),
+            TechV2Presence = Number(root, "TechV2Presence"),
             TechScore = Number(root, "TechScore"),
             TechTransitionSignal =
                 Number(root, "TechTransitionSignal"),

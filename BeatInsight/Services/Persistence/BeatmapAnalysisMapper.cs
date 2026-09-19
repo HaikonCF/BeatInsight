@@ -163,6 +163,7 @@ internal static class BeatmapAnalysisMapper
 
             // Tech
             TechPresence = profile.TechPresence,
+            TechV2Presence = profile.TechV2Presence,
             TechScore = profile.TechScore,
             TechTransitionSignal = profile.TechTransitionSignal,
             TechStructureSignal = profile.TechStructureSignal,
@@ -256,6 +257,7 @@ internal static class BeatmapAnalysisMapper
 
             // Tech
             TechPresence = record.TechPresence,
+            TechV2Presence = record.TechV2Presence,
             TechScore = record.TechScore,
             TechTransitionSignal = record.TechTransitionSignal,
             TechStructureSignal = record.TechStructureSignal,

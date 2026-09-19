@@ -24,7 +24,7 @@ public static class DebugLogger
     /// - contexte sliders
     /// - calculs intermédiaires
     /// </summary>
-    public static bool DetailedDebug = false;
+    public static bool DetailedDebug = true;
 
     private static readonly object Lock = new();
     
@@ -33,7 +33,9 @@ public static class DebugLogger
     // ============================================================
     
     public static bool IdentityEnabled = false;
-    public static bool TechEnabled = false;
+    public static bool TechEnabled = true;
+    public static bool TechV2ExperimentalEnabled = false;
+    public static bool TechV2RegionExperimentalEnabled = false;
     public static bool ReadEnabled = true;
     public static bool SpeedEnabled = false;
     public static bool AimEnabled = false;

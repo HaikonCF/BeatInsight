@@ -1,17 +1,20 @@
 ﻿using AutoMapper;
 using BeatInsight.Diagnostics;
 using BeatInsight.Models;
+using BeatInsight.Models.AnalysisCache;
 using BeatInsight.Models.Discovery;
 using BeatInsight.Models.Library;
 using BeatInsight.Models.Ml;
 using BeatInsight.Models.Persistence;
 using BeatInsight.Parser;
 using BeatInsight.Services;
+using BeatInsight.Services.AnalysisCache;
 using BeatInsight.Services.CommunityDiscovery;
 using BeatInsight.Services.Download;
 using BeatInsight.Services.Library;
 using BeatInsight.Services.Ml;
 using BeatInsight.Services.Persistence;
+using BeatInsight.ViewModels;
 using System;
 using System.Diagnostics;
 using System.IO;
@@ -50,6 +53,12 @@ namespace BeatInsight
         private bool isUpdating;
         private bool tosuConnected;
         private string? currentBeatmapUrl;
+        private long lastMapTimerTickTimestamp;
+        private long mapTimerTickSequence;
+        private string? pendingTosuMapPath;
+        private long pendingTosuMapFirstSeenTimestamp;
+        private long pendingTosuMapFileAvailableTimestamp;
+        private CancellationTokenSource? mapEnrichmentCancellation;
 
         // Index persistant des analyses.
         //
@@ -61,6 +70,25 @@ namespace BeatInsight
             new(new BeatmapAnalysisRepository(
                 BeatmapAnalysisRepository.DefaultDatabasePath));
 
+        // UI V2 : ViewModel racine du Window (Overview/Skills/Sections/
+        // Identity/Difficulty). Entièrement indépendant du pipeline V1
+        // ci-dessus : celui-ci reste la seule source pour le ML Lab, la
+        // labellisation et la découverte communautaire.
+        private readonly MainWindowViewModel mainViewModel = new();
+        private OverviewLoadCoordinator? overviewLoadCoordinator;
+
+        // Snapshot V2 (analyzers frozen) utilisé uniquement pour peupler
+        // Overview. Le cache JSON est propre à cette instance et ne
+        // partage rien avec BeatmapAnalysisCacheService (V1) ni avec
+        // le dataset ML.
+        private readonly CachedBeatmapAnalysisService overviewAnalysisService =
+            new(new JsonBeatmapAnalysisCache());
+
+        // Dernière Beatmap V1 affichée, utilisée par CopyAnalysis_Click.
+        // Remplace l'ancienne lecture via DataContext, désormais réservé
+        // à mainViewModel.
+        private Beatmap? currentBeatmap;
+
         // Index runtime consulté uniquement pour charger en revue un candidat
         // déjà installé. Il ne déclenche jamais de parcours du dossier Songs.
         private readonly BeatmapAnalysisRepository localAnalysisRepository =
@@ -70,6 +98,11 @@ namespace BeatInsight
         // qu'aux statistiques et au builder de captures fraîches.
         private readonly MlDatasetSampleRepository mlDatasetRepository =
             new(MlDatasetSampleRepository.DefaultDatabasePath);
+
+        // File de revue Tech locale : elle lit l'Identity persistée pour
+        // ordonner les candidats mais n'écrit jamais de label automatiquement.
+        private readonly TechHumanLabelingCandidateSelector
+            techHumanLabelingCandidateSelector;
 
         // Résolution du dossier Songs (préférence manuelle > tosu).
         private readonly SongsPathResolver songsPathResolver = new();
@@ -132,6 +165,11 @@ namespace BeatInsight
         // autre (double-clic, ou Space maintenu) sans introduire d'état
         // persistant supplémentaire.
         private bool isNavigatingFastLabeling;
+
+        // Ancre et garde de la file Tech ciblée. Elles sont indépendantes de
+        // la file Fast Unlabeled afin de ne pas mélanger leurs parcours.
+        private long? currentTechCandidateSampleId;
+        private bool isNavigatingTechCandidates;
 
         // Tant que ce mode est actif, UpdateMap() ignore le polling tosu
         // afin qu'il ne remplace jamais la map chargée manuellement pour
@@ -205,6 +243,20 @@ namespace BeatInsight
 
             InitializeComponent();
 
+            DataContext = mainViewModel;
+            overviewLoadCoordinator = new OverviewLoadCoordinator(mainViewModel.Overview);
+            DashboardViewHost.ChangeSongsFolderRequested +=
+                ChangeSongsFolder_Click;
+            DashboardViewHost.ScanLibraryRequested +=
+                ScanLibrary_Click;
+            DashboardViewHost.CancelLibraryScanRequested +=
+                CancelLibraryScan_Click;
+
+            techHumanLabelingCandidateSelector =
+                new TechHumanLabelingCandidateSelector(
+                    mlDatasetRepository,
+                    localAnalysisRepository);
+
             communityDiscoveryService = new CommunityBeatmapDiscoveryService(
                 new OsuCommunityBeatmapDiscoverySource(osuApi),
                 new RepositoryCommunityBeatmapLocalStateSource(
@@ -270,22 +322,43 @@ namespace BeatInsight
             MlLabWorkspacePanel.Visibility =
                 isAnalyzer ? Visibility.Collapsed : Visibility.Visible;
 
-            AnalyzerWorkspaceButton.IsEnabled = !isAnalyzer;
-            MlLabWorkspaceButton.IsEnabled = isAnalyzer;
+
         }
 
         // Si une mise à jour précédente n'est pas terminée, on quitte immédiatement pour éviter deux traitements simultanés.
 
         private async void MapTimer_Tick(object? sender, EventArgs e)
         {
+            long tickTimestamp = Stopwatch.GetTimestamp();
+            long tickSequence = ++mapTimerTickSequence;
+            TimeSpan tickGap = lastMapTimerTickTimestamp == 0
+                ? TimeSpan.Zero
+                : Stopwatch.GetElapsedTime(
+                    lastMapTimerTickTimestamp,
+                    tickTimestamp);
+            lastMapTimerTickTimestamp = tickTimestamp;
+
+            DebugLogger.Log(
+                $"MAP SWITCH E2E TICK | Sequence={tickSequence} | " +
+                $"Utc={DateTime.UtcNow:O} | SW={tickTimestamp} | " +
+                $"Gap={tickGap.TotalMilliseconds:F1} ms | " +
+                $"IsUpdating={isUpdating} | " +
+                $"BackgroundWork={IsBackgroundLibraryWorkRunning}");
+
             if (isUpdating || IsBackgroundLibraryWorkRunning)
+            {
+                DebugLogger.Log(
+                    $"MAP SWITCH E2E TICK SKIPPED | " +
+                    $"Sequence={tickSequence} | SW={Stopwatch.GetTimestamp()} | " +
+                    $"Reason={(isUpdating ? "IsUpdating" : "BackgroundWork")}");
                 return;
+            }
 
             isUpdating = true;
 
             try
             {
-                await UpdateMap();
+                await UpdateMap(tickGap, tickSequence, tickTimestamp);
             }
             catch (Exception ex)
             {
@@ -298,12 +371,17 @@ namespace BeatInsight
             finally
             {
                 isUpdating = false;
+                long completedTimestamp = Stopwatch.GetTimestamp();
+                DebugLogger.Log(
+                    $"MAP SWITCH E2E TICK COMPLETE | " +
+                    $"Sequence={tickSequence} | SW={completedTimestamp} | " +
+                    $"Duration={Stopwatch.GetElapsedTime(tickTimestamp, completedTimestamp).TotalMilliseconds:F1} ms");
             }
         }
 
         private void CopyAnalysis_Click(object sender, RoutedEventArgs e)
         {
-            if (DataContext is not Beatmap beatmap)
+            if (currentBeatmap is not { } beatmap)
                 return;
 
             GameplayProfile profile = beatmap.GameplayProfile;
@@ -472,6 +550,7 @@ namespace BeatInsight
                 songsPathResolver.Resolve(lastTosuSongsPath);
 
             SongsFolderText.Text = resolved ?? "Not set";
+            mainViewModel.Library.SetSongsFolder(resolved);
         }
 
         private void ChangeSongsFolder_Click(
@@ -636,8 +715,8 @@ namespace BeatInsight
             }
 
             cancellation.Cancel();
-            CancelLibraryScanButton.IsEnabled = false;
-            LibraryScanStatusText.Text = "Cancelling scan...";
+            mainViewModel.Library.ShowCancelling();
+            SyncLegacyLibraryPanel();
         }
 
         private void SetLibraryScanControls(bool isScanning)
@@ -645,37 +724,32 @@ namespace BeatInsight
             bool otherWorkRunning =
                 isDatasetBuildRunning || isBeatmapIdBackfillRunning;
 
+            mainViewModel.Library.SetControls(
+                isScanning,
+                otherWorkRunning);
+
             ChangeSongsFolderButton.IsEnabled =
-                !isScanning && !otherWorkRunning;
+                mainViewModel.Library.CanChangeFolder;
             ScanLibraryButton.IsEnabled =
-                !isScanning && !otherWorkRunning;
+                mainViewModel.Library.CanScan;
             BuildDatasetButton.IsEnabled =
                 !isScanning && !otherWorkRunning;
             BackfillBeatmapIdsButton.IsEnabled =
                 !isScanning && !otherWorkRunning;
-            CancelLibraryScanButton.Visibility = isScanning
-                ? Visibility.Visible
-                : Visibility.Collapsed;
-
-            if (isScanning)
-                CancelLibraryScanButton.IsEnabled = true;
+            CancelLibraryScanButton.Visibility =
+                mainViewModel.Library.IsScanning
+                    ? Visibility.Visible
+                    : Visibility.Collapsed;
+            CancelLibraryScanButton.IsEnabled =
+                mainViewModel.Library.CanCancel;
 
             UpdateHumanLabelActionState();
         }
 
         private void ShowLibraryScanPreparingState()
         {
-            LibraryScanProgressPanel.Visibility = Visibility.Visible;
-            LibraryScanStatusText.Text = "Scanning library...";
-            LibraryScanProgressBar.Value = 0;
-            LibraryScanProgressText.Text = "Finding beatmaps...";
-            LibraryScanPercentText.Text = "0.0%";
-            LibraryScanAnalyzedText.Text = "Analyzed: 0";
-            LibraryScanUpToDateText.Text = "Up to date: 0";
-            LibraryScanUnsupportedText.Text = "Unsupported: 0";
-            LibraryScanFailedText.Text = "Failed: 0";
-            LibraryScanCurrentFileText.Text = "Current file: —";
-            LibraryScanCurrentFileText.ToolTip = null;
+            mainViewModel.Library.ShowPreparing();
+            SyncLegacyLibraryPanel();
         }
 
         private void UpdateLibraryScanProgress(
@@ -684,74 +758,45 @@ namespace BeatInsight
             if (!acceptsLibraryScanProgress)
                 return;
 
-            LibraryScanProgressPanel.Visibility = Visibility.Visible;
-            LibraryScanStatusText.Text = "Scanning library...";
-            LibraryScanProgressBar.Value = Math.Clamp(
-                progress.Percent,
-                0.0,
-                100.0);
-            LibraryScanProgressText.Text =
-                $"Processed {progress.ProcessedFiles} / {progress.TotalFiles}";
-            LibraryScanPercentText.Text = $"{progress.Percent:0.0}%";
-            LibraryScanAnalyzedText.Text =
-                $"Analyzed: {progress.AnalyzedFiles}";
-            LibraryScanUpToDateText.Text =
-                $"Up to date: {progress.SkippedUpToDateFiles}";
-            LibraryScanUnsupportedText.Text =
-                $"Unsupported: {progress.SkippedUnsupportedFiles}";
-            LibraryScanFailedText.Text =
-                $"Failed: {progress.FailedFiles}";
-
-            string currentFile = string.IsNullOrWhiteSpace(progress.CurrentFile)
-                ? "—"
-                : Path.GetFileName(progress.CurrentFile);
-
-            LibraryScanCurrentFileText.Text =
-                $"Current file: {currentFile}";
-            LibraryScanCurrentFileText.ToolTip = progress.CurrentFile;
+            mainViewModel.Library.UpdateProgress(progress);
+            SyncLegacyLibraryPanel();
         }
 
         private void ShowLibraryScanSummary(LibraryScanResult result)
         {
-            double percent = result.TotalFiles == 0
-                ? 0.0
-                : result.ProcessedFiles * 100.0 / result.TotalFiles;
-
-            LibraryScanProgressPanel.Visibility = Visibility.Visible;
-            LibraryScanStatusText.Text = result.WasCancelled
-                ? "Library scan cancelled"
-                : "Library scan complete";
-            LibraryScanProgressBar.Value = Math.Clamp(percent, 0.0, 100.0);
-            LibraryScanProgressText.Text =
-                $"Processed {result.ProcessedFiles} / {result.TotalFiles}";
-            LibraryScanPercentText.Text = $"{percent:0.0}%";
-            LibraryScanAnalyzedText.Text = $"Analyzed: {result.AnalyzedFiles}";
-            LibraryScanUpToDateText.Text =
-                $"Up to date: {result.SkippedUpToDateFiles}";
-            LibraryScanUnsupportedText.Text =
-                $"Unsupported: {result.SkippedUnsupportedFiles}";
-            LibraryScanFailedText.Text = $"Failed: {result.FailedFiles}";
-            LibraryScanCurrentFileText.Text = result.WasCancelled
-                ? $"Cancelled after {result.Elapsed:mm\\:ss}."
-                : $"Completed in {result.Elapsed:mm\\:ss}.";
-            LibraryScanCurrentFileText.ToolTip = null;
+            mainViewModel.Library.ShowSummary(result);
+            SyncLegacyLibraryPanel();
         }
 
         private void ShowLibraryScanCancelledWithoutResult()
         {
-            LibraryScanStatusText.Text = "Library scan cancelled";
-            LibraryScanCurrentFileText.Text =
-                "Cancelled before a final summary was available.";
-            LibraryScanCurrentFileText.ToolTip = null;
+            mainViewModel.Library.ShowCancelledWithoutResult();
+            SyncLegacyLibraryPanel();
         }
 
         private void ShowLibraryScanFailure(Exception exception)
         {
-            LibraryScanProgressPanel.Visibility = Visibility.Visible;
-            LibraryScanStatusText.Text = "Library scan failed";
-            LibraryScanCurrentFileText.Text =
-                $"Error: {exception.Message}";
-            LibraryScanCurrentFileText.ToolTip = exception.ToString();
+            mainViewModel.Library.ShowFailure(exception);
+            SyncLegacyLibraryPanel();
+        }
+
+        private void SyncLegacyLibraryPanel()
+        {
+            LibraryPanelViewModel library = mainViewModel.Library;
+
+            LibraryScanProgressPanel.Visibility = library.HasProgress
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+            LibraryScanStatusText.Text = library.StatusText;
+            LibraryScanProgressBar.Value = library.ProgressValue;
+            LibraryScanProgressText.Text = library.ProcessedText;
+            LibraryScanPercentText.Text = library.ProgressPercentText;
+            LibraryScanAnalyzedText.Text = library.AnalyzedText;
+            LibraryScanUpToDateText.Text = library.UpToDateText;
+            LibraryScanUnsupportedText.Text = library.UnsupportedText;
+            LibraryScanFailedText.Text = library.FailedText;
+            LibraryScanCurrentFileText.Text = library.CurrentFileText;
+            LibraryScanCurrentFileText.ToolTip = library.CurrentFileToolTip;
         }
 
 
@@ -1040,7 +1085,8 @@ namespace BeatInsight
                 currentBeatmapUrl =
                     $"https://osu.ppy.sh/b/{candidate.BeatmapId}";
                 BackgroundImage.Source = null;
-                DataContext = beatmap;
+                currentBeatmap = beatmap;
+                await UpdateOverviewFromSourceAsync(target.SourceFilePath);
 
                 // Même isolation anti-tosu que les files ML, mais cette
                 // source n'a aucune navigation automatique. RefreshHuman...
@@ -1437,6 +1483,87 @@ namespace BeatInsight
             await NavigateToUnlabeledAsync(forward: true);
         }
 
+        private async void NextTechCandidate_Click(
+            object sender,
+            RoutedEventArgs e)
+        {
+            await NavigateToNextTechCandidateAsync();
+        }
+
+        private async Task NavigateToNextTechCandidateAsync()
+        {
+            if (IsBackgroundLibraryWorkRunning || isNavigatingTechCandidates)
+            {
+                return;
+            }
+
+            isNavigatingTechCandidates = true;
+            NextTechCandidateButton.IsEnabled = false;
+            SetFastLabelingMode(true);
+            FastLabelingModeText.Text = "Mode: Tech candidates";
+            activeLabelingQueue = LabelingQueueKind.TechCandidates;
+
+            try
+            {
+                TechHumanLabelingCandidate? candidate = await Task.Run(() =>
+                    techHumanLabelingCandidateSelector.FindNext(
+                        currentTechCandidateSampleId));
+
+                if (candidate is null)
+                {
+                    HumanLabelSampleStatusText.Text =
+                        "No unlabeled Tech candidate remains.";
+                    return;
+                }
+
+                Beatmap beatmap;
+
+                try
+                {
+                    beatmap = await Task.Run(() =>
+                        analysisCache.GetOrAnalyze(
+                            candidate.Sample.SourceFilePath));
+                }
+                catch (Exception ex)
+                {
+                    DebugLogger.Log(
+                        $"TECH LABELING LOAD ERROR | {ex.Message}");
+                    DebugLogger.Detailed(ex.ToString());
+
+                    HumanLabelSampleStatusText.Text =
+                        "Dataset sample: Unavailable (file not found)";
+                    return;
+                }
+
+                if (IsBackgroundLibraryWorkRunning)
+                {
+                    return;
+                }
+
+                currentMapPath = candidate.Sample.SourceFilePath;
+                currentBeatmapUrl = candidate.Sample.BeatmapId is int beatmapId
+                    ? $"https://osu.ppy.sh/b/{beatmapId}"
+                    : null;
+                BackgroundImage.Source = null;
+                currentBeatmap = beatmap;
+                await UpdateOverviewFromSourceAsync(candidate.Sample.SourceFilePath);
+
+                currentTechCandidateSampleId = candidate.Sample.SampleId;
+                RefreshHumanLabelPanel(beatmap, candidate.Sample.SourceFilePath);
+            }
+            catch (Exception ex)
+            {
+                DebugLogger.Log($"TECH LABELING NAV ERROR | {ex.Message}");
+                DebugLogger.Detailed(ex.ToString());
+            }
+            finally
+            {
+                isNavigatingTechCandidates = false;
+                NextTechCandidateButton.IsEnabled =
+                    !IsBackgroundLibraryWorkRunning;
+            }
+        }
+
         /// <summary>
         /// Avance ou recule dans la file des échantillons non validés,
         /// sans jamais écrire ni recréer de sample. Le pipeline
@@ -1496,7 +1623,8 @@ namespace BeatInsight
                     : null;
                 BackgroundImage.Source = null;
 
-                DataContext = beatmap;
+                currentBeatmap = beatmap;
+                await UpdateOverviewFromSourceAsync(sample.SourceFilePath);
 
                 RefreshHumanLabelPanel(beatmap, sample.SourceFilePath);
                 RefreshFastLabelingProgress();
@@ -1544,6 +1672,11 @@ namespace BeatInsight
             object sender,
             RoutedEventArgs e)
         {
+            if (activeLabelingQueue == LabelingQueueKind.TechCandidates)
+            {
+                currentTechCandidateSampleId = null;
+            }
+
             SetFastLabelingMode(false);
             activeLabelingQueue = LabelingQueueKind.None;
         }
@@ -1618,6 +1751,33 @@ namespace BeatInsight
             await NavigateCalibrationAsync(forward: true);
         }
 
+        private void OpenTechReviewWindow_Click(
+            object sender,
+            RoutedEventArgs e)
+        {
+            try
+            {
+                TechReviewWindow window = new()
+                {
+                    Owner = this
+                };
+
+                window.Show();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    this,
+                    "Unable to open Tech Review UI: " + ex.Message,
+                    "Tech Review UI",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+
+                DebugLogger.Log($"TECH REVIEW UI OPEN ERROR | {ex.Message}");
+                DebugLogger.Detailed(ex.ToString());
+            }
+        }
+
         /// <summary>
         /// Avance ou recule dans la Calibration Queue, en ignorant
         /// toujours les échantillons déjà validés. Réutilise le même gel
@@ -1680,7 +1840,8 @@ namespace BeatInsight
                     : null;
                 BackgroundImage.Source = null;
 
-                DataContext = beatmap;
+                currentBeatmap = beatmap;
+                await UpdateOverviewFromSourceAsync(sample.SourceFilePath);
 
                 currentCalibrationSampleId = sample.SampleId;
 
@@ -1859,7 +2020,7 @@ namespace BeatInsight
 
         private void RefreshHumanLabelPanelForCurrentBeatmap()
         {
-            if (DataContext is Beatmap beatmap &&
+            if (currentBeatmap is { } beatmap &&
                 !string.IsNullOrWhiteSpace(currentMapPath))
             {
                 RefreshHumanLabelPanel(beatmap, currentMapPath);
@@ -1942,7 +2103,7 @@ namespace BeatInsight
             if (!hasCurrentDatasetSample ||
                 selectedPrimaryHumanLabel is not MlHumanLabel primaryHumanLabel ||
                 string.IsNullOrWhiteSpace(currentHumanLabelSourceFilePath) ||
-                DataContext is not Beatmap beatmap ||
+                currentBeatmap is not { } beatmap ||
                 IsBackgroundLibraryWorkRunning)
             {
                 return;
@@ -1976,8 +2137,10 @@ namespace BeatInsight
                 // Space/auto-advance) détermine où Validate avance
                 // automatiquement. Hors de toute file (map tosu normale),
                 // Validate ne navigue nulle part.
-                if (LabelingQueueNavigationPolicy.ShouldAutoAdvanceAfterValidation(
-                    activeLabelingQueue))
+                if (LabelingQueueNavigationPolicy
+                    .ShouldAutoAdvanceAfterSuccessfulValidation(
+                        saveSucceeded: updated,
+                        activeQueue: activeLabelingQueue))
                 {
                     switch (activeLabelingQueue)
                     {
@@ -1987,6 +2150,10 @@ namespace BeatInsight
 
                         case LabelingQueueKind.FastUnlabeled:
                             await NavigateToUnlabeledAsync(forward: true);
+                            break;
+
+                        case LabelingQueueKind.TechCandidates:
+                            await NavigateToNextTechCandidateAsync();
                             break;
                     }
                 }
@@ -2004,7 +2171,7 @@ namespace BeatInsight
         {
             if (!hasCurrentDatasetSample ||
                 string.IsNullOrWhiteSpace(currentHumanLabelSourceFilePath) ||
-                DataContext is not Beatmap beatmap ||
+                currentBeatmap is not { } beatmap ||
                 IsBackgroundLibraryWorkRunning)
             {
                 return;
@@ -2141,6 +2308,8 @@ namespace BeatInsight
             ClearHumanLabelButton.IsEnabled = canLabel &&
                 (currentPrimaryHumanLabel.HasValue ||
                     currentSecondaryHumanLabel.HasValue);
+            NextTechCandidateButton.IsEnabled =
+                !IsBackgroundLibraryWorkRunning && !isNavigatingTechCandidates;
 
             ApplyHumanLabelSelectionVisuals();
         }
@@ -2862,8 +3031,13 @@ namespace BeatInsight
                 ? "● Tosu connecté"
                 : "● En attente de Tosu...";
         }
-        private async Task UpdateMap()
+        private async Task UpdateMap(
+            TimeSpan timerTickGap = default,
+            long tickSequence = 0,
+            long tickTimestamp = 0)
         {
+            var performance = new MapChangePerformance(timerTickGap);
+
             // Le mode Fast Labeling gèle la beatmap affichée : le timer
             // continue de tourner (aucun arrêt définitif du polling), mais
             // aucun tick ne doit écraser la map chargée manuellement tant
@@ -2875,8 +3049,18 @@ namespace BeatInsight
             // TOSU CONNECTION
             // ============================================================
 
+            long tosuRequestStartTimestamp = Stopwatch.GetTimestamp();
+            Stopwatch tosuWatch = Stopwatch.StartNew();
             if (!await IsTosuAvailable())
             {
+                tosuWatch.Stop();
+                long unavailableTimestamp = Stopwatch.GetTimestamp();
+                DebugLogger.Log(
+                    $"MAP SWITCH E2E TOSU UNAVAILABLE | " +
+                    $"Sequence={tickSequence} | " +
+                    $"RequestStartSW={tosuRequestStartTimestamp} | " +
+                    $"RequestEndSW={unavailableTimestamp} | " +
+                    $"Duration={tosuWatch.Elapsed.TotalMilliseconds:F1} ms");
                 if (tosuConnected)
                 {
                     tosuConnected = false;
@@ -2885,7 +3069,7 @@ namespace BeatInsight
                         "TOSU | Déconnecté.");
                 }
 
-                SetTosuStatus(false);
+                ResetPolledBeatmapState();
 
                 return;
             }
@@ -2905,11 +3089,16 @@ namespace BeatInsight
             // RÉCUPÉRATION DES DONNÉES TOSU
             // ============================================================
 
+            long tosuSnapshotRequestStartTimestamp = Stopwatch.GetTimestamp();
             string json = await client.GetStringAsync(
                 $"http://127.0.0.1:24050/json?t={DateTime.UtcNow.Ticks}"
             );
+            long tosuRequestEndTimestamp = Stopwatch.GetTimestamp();
+            tosuWatch.Stop();
+            performance.TosuRequest = tosuWatch.Elapsed;
 
             // On récupère le dossier racine dans lequel osu! stocke ses beatmaps.
+            Stopwatch jsonWatch = Stopwatch.StartNew();
             JsonDocument document = JsonDocument.Parse(json);
 
             int debugBeatmapId = document.RootElement
@@ -2918,41 +3107,43 @@ namespace BeatInsight
                 .GetProperty("id")
                 .GetInt32();
 
-            string debugFile = document.RootElement
+            string? debugFile = document.RootElement
                 .GetProperty("menu")
                 .GetProperty("bm")
                 .GetProperty("path")
                 .GetProperty("file")
-                .GetString()!;
+                .GetString();
 
-            string folder =
+            string? folder =
                 document.RootElement
                 .GetProperty("menu")
                 .GetProperty("bm")
                 .GetProperty("path")
                 .GetProperty("folder")
                 // On récupère le nom du fichier .osu actuellement sélectionné.
-                .GetString()!;
+                .GetString();
 
-            string songs =
+            string? songs =
                 document.RootElement
                 .GetProperty("settings")
                 .GetProperty("folders")
                 .GetProperty("songs")
-                .GetString()!;
+                .GetString();
 
-            lastTosuSongsPath = songs;
+            lastTosuSongsPath = string.IsNullOrWhiteSpace(songs)
+                ? null
+                : songs;
             RefreshSongsFolderDisplay();
 
             // On récupère le chemin du background associé à la difficulté actuelle.
 
-            string file =
+            string? file =
                 document.RootElement
                 .GetProperty("menu")
                 .GetProperty("bm")
                 .GetProperty("path")
                 .GetProperty("file")
-                .GetString()!;
+                .GetString();
 
             // On assemble le dossier Songs, le dossier de la beatmap et le fichier .osu pour obtenir son chemin complet.
 
@@ -2974,13 +3165,97 @@ namespace BeatInsight
     .GetProperty("id")
     .GetInt32();
 
+            jsonWatch.Stop();
+            performance.JsonParse = jsonWatch.Elapsed;
 
 
-            string chemin = System.IO.Path.Combine(
+
+            string? rawPath = TosuBeatmapPollingGuard.ResolvePath(
+                songs,
+                folder,
+                file);
+            bool isSameMap = string.Equals(
+                rawPath,
+                currentMapPath,
+                StringComparison.OrdinalIgnoreCase);
+            bool fileExistsAtResponse = rawPath is not null
+                && File.Exists(rawPath);
+            long tosuParsedTimestamp = Stopwatch.GetTimestamp();
+
+            DebugLogger.Log(
+                $"MAP SWITCH E2E TOSU RESPONSE | " +
+                $"Sequence={tickSequence} | Utc={DateTime.UtcNow:O} | " +
+                $"TickSW={tickTimestamp} | " +
+                $"RequestStartSW={tosuRequestStartTimestamp} | " +
+                $"SnapshotRequestStartSW={tosuSnapshotRequestStartTimestamp} | " +
+                $"RequestEndSW={tosuRequestEndTimestamp} | " +
+                $"ParsedSW={tosuParsedTimestamp} | " +
+                $"RequestDuration={Stopwatch.GetElapsedTime(tosuRequestStartTimestamp, tosuRequestEndTimestamp).TotalMilliseconds:F1} ms | " +
+                $"BeatmapId={beatmapId} | SameMap={isSameMap} | " +
+                $"FileExists={fileExistsAtResponse} | " +
+                $"Path={rawPath ?? "<null>"}");
+
+            if (!isSameMap)
+            {
+                if (rawPath is not null
+                    && !string.Equals(
+                        pendingTosuMapPath,
+                        rawPath,
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    pendingTosuMapPath = rawPath;
+                    pendingTosuMapFirstSeenTimestamp = tosuParsedTimestamp;
+                    pendingTosuMapFileAvailableTimestamp = 0;
+                }
+
+                if (fileExistsAtResponse
+                    && pendingTosuMapFileAvailableTimestamp == 0)
+                {
+                    pendingTosuMapFileAvailableTimestamp =
+                        Stopwatch.GetTimestamp();
+                }
+
+                DebugLogger.Log(
+                    $"MAP SWITCH E2E NEW TOSU DATA | " +
+                    $"Sequence={tickSequence} | SW={tosuParsedTimestamp} | " +
+                    $"BeatmapId={beatmapId} | " +
+                    $"FileExists={fileExistsAtResponse} | " +
+                    $"Path={rawPath ?? "<null>"}");
+            }
+
+            Stopwatch pathWatch = Stopwatch.StartNew();
+            string? chemin = TosuBeatmapPollingGuard.ResolveExistingPath(
                 songs,
                 folder,
                 file
             );
+            pathWatch.Stop();
+            performance.PathResolve = pathWatch.Elapsed;
+
+            if (chemin is not null)
+            {
+                DebugLogger.Log(
+                    $"MAP SWITCH E2E FILE AVAILABLE | " +
+                    $"Sequence={tickSequence} | SW={Stopwatch.GetTimestamp()} | " +
+                    $"Path={chemin}");
+            }
+
+            if (chemin is null)
+            {
+                if (currentMapPath is not null || currentBeatmap is not null)
+                {
+                    DebugLogger.Log(
+                        $"TOSU MAP WAITING | File unavailable | " +
+                        $"Songs={songs ?? "<null>"} | " +
+                        $"Folder={folder ?? "<null>"} | " +
+                        $"File={file ?? debugFile ?? "<null>"}");
+                }
+
+                ResetPolledBeatmapState();
+                return;
+            }
+
+            SetTosuStatus(true);
 
             // ============================================================
             // MÊME MAP → ON NE FAIT RIEN
@@ -2991,26 +3266,52 @@ namespace BeatInsight
                 return;
             }
 
+            performance.FirstNewTosuDataTimestamp =
+                string.Equals(
+                    pendingTosuMapPath,
+                    chemin,
+                    StringComparison.OrdinalIgnoreCase)
+                    ? pendingTosuMapFirstSeenTimestamp
+                    : tosuParsedTimestamp;
+            performance.FileAvailableTimestamp =
+                pendingTosuMapFileAvailableTimestamp != 0
+                    ? pendingTosuMapFileAvailableTimestamp
+                    : Stopwatch.GetTimestamp();
+            performance.DetectedDifferentPathTimestamp =
+                Stopwatch.GetTimestamp();
+            performance.TickTimestamp = tickTimestamp;
+            performance.TickSequence = tickSequence;
+
             // ============================================================
             // NOUVELLE MAP
             // ============================================================
 
-            // On mémorise immédiatement la nouvelle map
-            currentMapPath = chemin;
-
-            // URL osu!
-            currentBeatmapUrl = $"https://osu.ppy.sh/b/{beatmapId}";
-
-
-            Beatmap beatmap;
+            long overviewRequest = overviewLoadCoordinator!.Begin(
+                "Analyzing the selected beatmap...");
+            Beatmap? beatmap;
+            BeatmapAnalysisOutcome? v1Outcome = null;
+            performance.V1StartTimestamp = Stopwatch.GetTimestamp();
+            DebugLogger.Log(
+                $"MAP SWITCH E2E V1 START | Sequence={tickSequence} | " +
+                $"SW={performance.V1StartTimestamp} | Path={chemin}");
+            Stopwatch v1Watch = Stopwatch.StartNew();
 
             try
             {
-                beatmap = await Task.Run(() =>
-                    analysisCache.GetOrAnalyze(chemin, beatmapId));
+                beatmap = await TosuBeatmapPollingGuard.TryLoadAsync(
+                    chemin,
+                    async path =>
+                    {
+                        v1Outcome = await Task.Run(() =>
+                            analysisCache.GetOrAnalyzeDetailed(path, beatmapId));
+                        return v1Outcome.Beatmap;
+                    });
             }
             catch (Exception ex)
             {
+                overviewLoadCoordinator!.Fail(
+                    overviewRequest,
+                    "Unable to analyze this beatmap for the Overview panel.");
                 DebugLogger.Log(
                     $"EXCEPTION = {ex.GetType().FullName}");
 
@@ -3023,123 +3324,48 @@ namespace BeatInsight
                 throw;
             }
 
-            // Les opérations longues de bibliothèque suspendent les appels
-            // Community Tags. Cette seconde garde couvre une demande de scan
-            // ou de backfill faite pendant l'analyse locale de la map active.
-            if (IsBackgroundLibraryWorkRunning)
+            v1Watch.Stop();
+            performance.V1EndTimestamp = Stopwatch.GetTimestamp();
+            performance.V1Load = v1Watch.Elapsed;
+            performance.V1CacheHit = v1Outcome?.WasCacheHit;
+            DebugLogger.Log(
+                $"MAP SWITCH E2E V1 END | Sequence={tickSequence} | " +
+                $"SW={performance.V1EndTimestamp} | " +
+                $"Duration={performance.V1Load.TotalMilliseconds:F1} ms | " +
+                $"CacheHit={performance.V1CacheHit}");
+
+            if (!overviewLoadCoordinator!.IsCurrent(overviewRequest))
                 return;
+
+            if (beatmap is null)
+            {
+                DebugLogger.Log(
+                    $"TOSU MAP WAITING | File disappeared before analysis | " +
+                    $"Path={chemin}");
+
+                ResetPolledBeatmapState();
+                return;
+            }
+
+            // Le chemin n'est mémorisé qu'après une ouverture réussie.
+            currentMapPath = chemin;
+            currentBeatmapUrl = $"https://osu.ppy.sh/b/{beatmapId}";
 
             // Le panneau de labellisation lit uniquement l'analyse locale et
             // le sample ML existant : il reste indépendant des tags/API.
             RefreshHumanLabelPanel(beatmap, chemin);
 
             // ============================================================
-            // COMMUNITY TAGS
-            // ============================================================
-
-            List<OsuApiService.OsuTagVote> osuCommunityTags =
-                await osuApi.GetBeatmapCommunityTags(beatmapId);
-
-            beatmap.CommunityTags =
-                osuCommunityTags
-                    .Select(tag => new CommunityTag
-                    {
-                        Name = tag.Name,
-                        Votes = tag.Votes
-                    })
-                    .ToList();
-
-
-            // ============================================================
-            // COMMUNITY TAGS <-> GAMEPLAY IDENTITY
-            // ============================================================
-
-            GameplayProfile gameplayProfile =
-                beatmap.GameplayProfile;
-
-            GameplayIdentity identity =
-                gameplayProfile.Identity;
-
-
-            // ------------------------------------------------------------
-            // Comparaison
-            // ------------------------------------------------------------
-
-            GameplayTagComparisonResult tagComparison =
-                GameplayTagComparer.Compare(
-                    beatmap.CommunityTags,
-                    identity.FullName,
-                    identity.Traits);
-
-
-            // ------------------------------------------------------------
-            // Stockage du résultat
-            // ------------------------------------------------------------
-
-            beatmap.TagComparison =
-                tagComparison;
-
-            CommunityIdentityAgreement communityIdentityAgreement =
-                CommunityIdentityAgreementComparer.Compare(
-                    beatmap.CommunityTags,
-                    identity);
-
-            beatmap.CommunityIdentityAgreement =
-                communityIdentityAgreement;
-
-            GameplayDebug.CommunityIdentityAgreement(
-                communityIdentityAgreement);
-
-            // ------------------------------------------------------------
-            // Community
-            // ------------------------------------------------------------
-
-            if (GameplayDebug.CommunityTagsEnabled)
-            {
-                DebugLogger.Log(
-                    "===== COMMUNITY TAG COMPARISON =====");
-
-                if (!tagComparison.HasTags)
-                {
-                    DebugLogger.Log(
-                        "TAG COMPARISON = Unavailable | No community tags");
-                }
-                else
-                {
-                    DebugLogger.Log(
-                        $"TAG CONSISTENCY = {tagComparison.Score * 100:F1}%");
-
-                    DebugLogger.Log(
-                        $"TAG STATUS = {tagComparison.Status}");
-
-                    DebugLogger.Log(
-                        $"TOTAL COMMUNITY VOTES = {tagComparison.TotalVotes}");
-
-                    foreach (GameplayTagComparison match
-                             in tagComparison.Matches)
-                    {
-                        DebugLogger.Log(
-                            $"TAG = {match.Tag} | " +
-                            $"VOTES = {match.Votes} | " +
-                            $"STATUS = {match.Status} | " +
-                            $"SCORE = {match.Score * 100:F1}% | " +
-                            $"WEIGHT = {match.VoteWeight:F3} | " +
-                            $"CONCEPTS = {string.Join(", ", match.Concepts)}");
-                    }
-                }
-            }
-
-
-
-            // ============================================================
             // BACKGROUND
             // ============================================================
+
+            string? resolvedBackgroundPath = null;
 
             if (!string.IsNullOrWhiteSpace(bg))
             {
                 string backgroundPath = System.IO.Path.Combine(
-                    songs,
-                    folder,
+                    songs!,
+                    folder!,
                     bg
                 );
 
@@ -3149,6 +3375,7 @@ namespace BeatInsight
                     {
                         BackgroundImage.Source =
                             new BitmapImage(new Uri(backgroundPath));
+                        resolvedBackgroundPath = backgroundPath;
                     }
                     catch
                     {
@@ -3166,7 +3393,375 @@ namespace BeatInsight
             }
 
 
-            DataContext = beatmap;
+            currentBeatmap = beatmap;
+            await UpdateOverviewFromSourceAsync(
+                chemin,
+                resolvedBackgroundPath,
+                performance,
+                overviewRequest);
+            performance.CommunityTagsDeferred = true;
+            await performance.LogAsync(
+                beatmapId,
+                chemin,
+                Dispatcher,
+                () => DashboardViewHost.IsOverviewDisplayed(
+                    mainViewModel.Overview.Title,
+                    mainViewModel.Overview.Version));
+            if (!overviewLoadCoordinator!.IsCurrent(overviewRequest))
+                return;
+
+            pendingTosuMapPath = null;
+            pendingTosuMapFirstSeenTimestamp = 0;
+            pendingTosuMapFileAvailableTimestamp = 0;
+
+            mapEnrichmentCancellation?.Cancel();
+            mapEnrichmentCancellation?.Dispose();
+            mapEnrichmentCancellation = null;
+            if (!IsBackgroundLibraryWorkRunning)
+            {
+                mapEnrichmentCancellation = new CancellationTokenSource();
+                _ = UpdateCommunityTagsAsync(
+                    beatmap,
+                    beatmapId,
+                    chemin,
+                    mapEnrichmentCancellation.Token);
+            }
+        }
+
+        private async Task UpdateCommunityTagsAsync(
+            Beatmap beatmap,
+            int beatmapId,
+            string sourcePath,
+            CancellationToken cancellationToken)
+        {
+            Stopwatch stopwatch = Stopwatch.StartNew();
+
+            try
+            {
+                List<OsuApiService.OsuTagVote> osuCommunityTags =
+                    await osuApi.GetBeatmapCommunityTags(
+                        beatmapId,
+                        cancellationToken);
+
+                if (!ReferenceEquals(currentBeatmap, beatmap)
+                    || !TosuBeatmapPollingGuard.ShouldApplyDeferredResult(
+                        sourcePath,
+                        currentMapPath,
+                        cancellationToken.IsCancellationRequested))
+                {
+                    return;
+                }
+
+                beatmap.CommunityTags = osuCommunityTags
+                    .Select(tag => new CommunityTag
+                    {
+                        Name = tag.Name,
+                        Votes = tag.Votes
+                    })
+                    .ToList();
+                mainViewModel.Overview.UpdateCommunityTags(
+                    beatmap.CommunityTags);
+
+                GameplayIdentity identity = beatmap.GameplayProfile.Identity;
+                GameplayTagComparisonResult tagComparison =
+                    GameplayTagComparer.Compare(
+                        beatmap.CommunityTags,
+                        identity.FullName,
+                        identity.Traits);
+                beatmap.TagComparison = tagComparison;
+
+                CommunityIdentityAgreement communityIdentityAgreement =
+                    CommunityIdentityAgreementComparer.Compare(
+                        beatmap.CommunityTags,
+                        identity);
+                beatmap.CommunityIdentityAgreement =
+                    communityIdentityAgreement;
+                GameplayDebug.CommunityIdentityAgreement(
+                    communityIdentityAgreement);
+
+                if (GameplayDebug.CommunityTagsEnabled)
+                {
+                    DebugLogger.Log(
+                        "===== COMMUNITY TAG COMPARISON =====");
+
+                    if (!tagComparison.HasTags)
+                    {
+                        DebugLogger.Log(
+                            "TAG COMPARISON = Unavailable | No community tags");
+                    }
+                    else
+                    {
+                        DebugLogger.Log(
+                            $"TAG CONSISTENCY = {tagComparison.Score * 100:F1}%");
+                        DebugLogger.Log(
+                            $"TAG STATUS = {tagComparison.Status}");
+                        DebugLogger.Log(
+                            $"TOTAL COMMUNITY VOTES = {tagComparison.TotalVotes}");
+
+                        foreach (GameplayTagComparison match
+                                 in tagComparison.Matches)
+                        {
+                            DebugLogger.Log(
+                                $"TAG = {match.Tag} | " +
+                                $"VOTES = {match.Votes} | " +
+                                $"STATUS = {match.Status} | " +
+                                $"SCORE = {match.Score * 100:F1}% | " +
+                                $"WEIGHT = {match.VoteWeight:F3} | " +
+                                $"CONCEPTS = {string.Join(", ", match.Concepts)}");
+                        }
+                    }
+                }
+            }
+            catch (OperationCanceledException) when (
+                cancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (Exception ex)
+            {
+                DebugLogger.Log(
+                    $"COMMUNITY TAGS BACKGROUND ERROR | " +
+                    $"BeatmapId={beatmapId} | {ex.Message}");
+                DebugLogger.Detailed(ex.ToString());
+            }
+            finally
+            {
+                stopwatch.Stop();
+                DebugLogger.Log(
+                    $"MAP CHANGE PERF | Community tags background=" +
+                    $"{stopwatch.Elapsed.TotalMilliseconds:F1} ms | " +
+                    $"BeatmapId={beatmapId} | " +
+                    $"Cancelled={cancellationToken.IsCancellationRequested}");
+            }
+        }
+
+        private void ResetPolledBeatmapState()
+        {
+            overviewLoadCoordinator?.Invalidate();
+            bool shouldClearOverview =
+                currentMapPath is not null
+                || currentBeatmap is not null
+                || mainViewModel.Overview.HasBeatmap
+                || mainViewModel.Overview.IsLoading
+                || mainViewModel.Overview.HasError;
+
+            currentMapPath = null;
+            currentBeatmapUrl = null;
+            currentBeatmap = null;
+            mapEnrichmentCancellation?.Cancel();
+            mapEnrichmentCancellation?.Dispose();
+            mapEnrichmentCancellation = null;
+
+            if (shouldClearOverview)
+            {
+                BackgroundImage.Source = null;
+                mainViewModel.Overview.Clear();
+            }
+
+            SetTosuStatus(false);
+        }
+
+        // ============================================================
+        // UI V2 — OVERVIEW VIEWMODEL BRIDGE
+        // ============================================================
+
+        /// <summary>
+        /// Recalcule un BeatmapAnalysisSnapshot (V2, via les analyzers
+        /// frozen) pour le fichier donné et met à jour Overview. Ce
+        /// pipeline est entièrement indépendant du cache V1
+        /// (analysisCache/GetOrAnalyze) qui continue de piloter
+        /// currentBeatmap, le ML Lab et la labellisation.
+        /// </summary>
+        private async Task UpdateOverviewFromSourceAsync(
+            string sourceFilePath,
+            string? backgroundPath = null,
+            MapChangePerformance? performance = null,
+            long? existingRequest = null)
+        {
+            long request = existingRequest
+                ?? overviewLoadCoordinator!.Begin(
+                    "Analyzing the selected beatmap...");
+
+            try
+            {
+                if (performance is not null)
+                {
+                    performance.V2StartTimestamp = Stopwatch.GetTimestamp();
+                    DebugLogger.Log(
+                        $"MAP SWITCH E2E V2 START | " +
+                        $"Sequence={performance.TickSequence} | " +
+                        $"SW={performance.V2StartTimestamp} | " +
+                        $"Path={sourceFilePath}");
+                }
+
+                Stopwatch snapshotWatch = Stopwatch.StartNew();
+                CachedBeatmapAnalysisResult result =
+                    await overviewAnalysisService.AnalyzeAsync(sourceFilePath);
+                snapshotWatch.Stop();
+
+                if (!overviewLoadCoordinator!.IsCurrent(request)
+                    || !string.Equals(sourceFilePath, currentMapPath,
+                        StringComparison.OrdinalIgnoreCase))
+                    return;
+
+                if (performance is not null)
+                {
+                    performance.V2Snapshot = snapshotWatch.Elapsed;
+                    performance.V2CacheLookup = result.LoadTime;
+                    performance.V2CacheHit = result.WasCacheHit;
+                    performance.V2EndTimestamp = Stopwatch.GetTimestamp();
+                    DebugLogger.Log(
+                        $"MAP SWITCH E2E V2 END | " +
+                        $"Sequence={performance.TickSequence} | " +
+                        $"SW={performance.V2EndTimestamp} | " +
+                        $"Duration={performance.V2Snapshot.TotalMilliseconds:F1} ms | " +
+                        $"CacheHit={performance.V2CacheHit}");
+                }
+
+                if (performance is not null)
+                {
+                    performance.ViewModelStartTimestamp =
+                        Stopwatch.GetTimestamp();
+                }
+
+                Stopwatch loadSnapshotWatch = Stopwatch.StartNew();
+                overviewLoadCoordinator.Complete(
+                    request,
+                    result.Snapshot,
+                    result.WasCacheHit,
+                    result.LoadTime,
+                    backgroundPath);
+                loadSnapshotWatch.Stop();
+
+                if (performance is not null)
+                {
+                    performance.OverviewLoadSnapshot =
+                        loadSnapshotWatch.Elapsed;
+                    performance.ViewModelEndTimestamp =
+                        Stopwatch.GetTimestamp();
+                    DebugLogger.Log(
+                        $"MAP SWITCH E2E VIEWMODEL | " +
+                        $"Sequence={performance.TickSequence} | " +
+                        $"StartSW={performance.ViewModelStartTimestamp} | " +
+                        $"EndSW={performance.ViewModelEndTimestamp} | " +
+                        $"Duration={performance.OverviewLoadSnapshot.TotalMilliseconds:F1} ms | " +
+                        $"Title={mainViewModel.Overview.Title} | " +
+                        $"Difficulty={mainViewModel.Overview.Version}");
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugLogger.Log(
+                    $"OVERVIEW SNAPSHOT ERROR | {ex.Message}");
+                DebugLogger.Detailed(ex.ToString());
+
+                if (string.Equals(sourceFilePath, currentMapPath,
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    overviewLoadCoordinator!.Fail(
+                        request,
+                        "Unable to analyze this beatmap for the Overview panel.");
+                }
+            }
+        }
+
+        private sealed class MapChangePerformance
+        {
+            private readonly Stopwatch total = Stopwatch.StartNew();
+
+            internal MapChangePerformance(TimeSpan timerTickGap)
+            {
+                TimerTickGap = timerTickGap;
+            }
+
+            internal TimeSpan TimerTickGap { get; }
+            internal TimeSpan TosuRequest { get; set; }
+            internal TimeSpan JsonParse { get; set; }
+            internal TimeSpan PathResolve { get; set; }
+            internal TimeSpan V1Load { get; set; }
+            internal TimeSpan CommunityTags { get; set; }
+            internal TimeSpan V2Snapshot { get; set; }
+            internal TimeSpan V2CacheLookup { get; set; }
+            internal TimeSpan OverviewLoadSnapshot { get; set; }
+            internal bool? V1CacheHit { get; set; }
+            internal bool? V2CacheHit { get; set; }
+            internal bool CommunityTagsDeferred { get; set; }
+            internal long TickSequence { get; set; }
+            internal long TickTimestamp { get; set; }
+            internal long FirstNewTosuDataTimestamp { get; set; }
+            internal long DetectedDifferentPathTimestamp { get; set; }
+            internal long FileAvailableTimestamp { get; set; }
+            internal long V1StartTimestamp { get; set; }
+            internal long V1EndTimestamp { get; set; }
+            internal long V2StartTimestamp { get; set; }
+            internal long V2EndTimestamp { get; set; }
+            internal long ViewModelStartTimestamp { get; set; }
+            internal long ViewModelEndTimestamp { get; set; }
+
+            internal async Task LogAsync(
+                int beatmapId,
+                string path,
+                Dispatcher dispatcher,
+                Func<bool> isOverviewDisplayed)
+            {
+                long uiDispatchStartTimestamp = Stopwatch.GetTimestamp();
+                await dispatcher.InvokeAsync(
+                    () => { },
+                    DispatcherPriority.DataBind);
+                await dispatcher.InvokeAsync(
+                    () => { },
+                    DispatcherPriority.ContextIdle);
+                long uiRenderTimestamp = Stopwatch.GetTimestamp();
+                bool overviewDisplayed = isOverviewDisplayed();
+                total.Stop();
+
+                DebugLogger.Log(
+                    $"MAP SWITCH E2E UI RENDER | " +
+                    $"Sequence={TickSequence} | Utc={DateTime.UtcNow:O} | " +
+                    $"SW={uiRenderTimestamp} | DisplayMatches={overviewDisplayed} | " +
+                    $"Path={path}");
+
+                DebugLogger.Log(
+                    "MAP SWITCH E2E | " +
+                    $"BeatmapId={beatmapId} | Path={path} | " +
+                    $"FirstNewTosuSW={FirstNewTosuDataTimestamp} | " +
+                    $"FinalUiSW={uiRenderTimestamp} | " +
+                    $"Timer interval=500.0 ms | " +
+                    $"Tick delay={TimerTickGap.TotalMilliseconds:F1} ms | " +
+                    $"Tosu request={TosuRequest.TotalMilliseconds:F1} ms | " +
+                    $"JSON parse={JsonParse.TotalMilliseconds:F1} ms | " +
+                    $"Path resolve={PathResolve.TotalMilliseconds:F1} ms | " +
+                    $"Tosu new-map visibility delay=" +
+                    $"{Stopwatch.GetElapsedTime(FirstNewTosuDataTimestamp, DetectedDifferentPathTimestamp).TotalMilliseconds:F1} ms | " +
+                    $"Path/File availability delay=" +
+                    $"{Stopwatch.GetElapsedTime(FirstNewTosuDataTimestamp, FileAvailableTimestamp).TotalMilliseconds:F1} ms | " +
+                    $"V1 cache/load={V1Load.TotalMilliseconds:F1} ms | " +
+                    $"Community tags=" +
+                    (CommunityTagsDeferred
+                        ? "deferred | "
+                        : $"{CommunityTags.TotalMilliseconds:F1} ms | ") +
+                    $"V2 snapshot={V2Snapshot.TotalMilliseconds:F1} ms | " +
+                    $"V2 cache lookup={V2CacheLookup.TotalMilliseconds:F1} ms | " +
+                    $"Overview LoadSnapshot={OverviewLoadSnapshot.TotalMilliseconds:F1} ms | " +
+                    $"UI dispatch/render=" +
+                    $"{Stopwatch.GetElapsedTime(uiDispatchStartTimestamp, uiRenderTimestamp).TotalMilliseconds:F1} ms | " +
+                    $"Total from first new tosu data=" +
+                    $"{Stopwatch.GetElapsedTime(FirstNewTosuDataTimestamp, uiRenderTimestamp).TotalMilliseconds:F1} ms | " +
+                    $"CacheHit V1={V1CacheHit?.ToString() ?? "unknown"} | " +
+                    $"CacheHit V2={V2CacheHit?.ToString() ?? "unknown"} | " +
+                    $"DisplayMatches={overviewDisplayed}");
+            }
+        }
+
+        private void AnalyzerTab_Checked(object sender, RoutedEventArgs e)
+        {
+            if (sender is not FrameworkElement { Tag: string tabName }
+                || !Enum.TryParse(tabName, out NavigationTab tab))
+            {
+                return;
+            }
+
+            mainViewModel.SelectedTab = tab;
         }
     }
 }

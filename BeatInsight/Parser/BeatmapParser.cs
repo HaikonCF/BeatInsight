@@ -128,6 +128,7 @@ namespace BeatInsight.Parser
                         hitObject.X = int.Parse(valeurs[0], CultureInfo.InvariantCulture);
                         hitObject.Y = int.Parse(valeurs[1], CultureInfo.InvariantCulture);
                         hitObject.Type = int.Parse(valeurs[3], CultureInfo.InvariantCulture);
+                        hitObject.IsNewCombo = (hitObject.Type & 4) == 4;
                         hitObject.Time = int.Parse(valeurs[2], CultureInfo.InvariantCulture);
 
                         // Le bit 2 indique qu'il s'agit d'un slider : on peut donc lire ses répétitions et sa longueur.
