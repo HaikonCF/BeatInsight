@@ -6,11 +6,25 @@ using static BeatInsight.Controls.SectionTimelineGraphControl;
 
 namespace BeatInsight.Views
 {
+    internal sealed class OsuApiCredentialsSaveRequestedEventArgs(
+        string clientId,
+        string clientSecret) : EventArgs
+    {
+        internal string ClientId { get; } = clientId;
+
+        internal string ClientSecret { get; } = clientSecret;
+    }
+
     public partial class DashboardView : UserControl
     {
         public event RoutedEventHandler? ChangeSongsFolderRequested;
         public event RoutedEventHandler? ScanLibraryRequested;
         public event RoutedEventHandler? CancelLibraryScanRequested;
+        internal event EventHandler<OsuApiCredentialsSaveRequestedEventArgs>?
+            SaveOsuApiCredentialsRequested;
+        internal event RoutedEventHandler? TestOsuApiConnectionRequested;
+        internal event RoutedEventHandler? RemoveOsuApiCredentialsRequested;
+        internal event RoutedEventHandler? CreateOsuOAuthApplicationRequested;
 
         public DashboardView()
         {
@@ -135,6 +149,50 @@ namespace BeatInsight.Views
 
             SettingsDismissLayer.Visibility = visibility;
             SettingsPanel.Visibility = visibility;
+
+            if (!isOpen)
+            {
+                OsuClientSecretPasswordBox.Clear();
+            }
+        }
+
+        private void SaveOsuApiCredentialsButton_Click(
+            object sender,
+            RoutedEventArgs e)
+        {
+            try
+            {
+                SaveOsuApiCredentialsRequested?.Invoke(
+                    this,
+                    new OsuApiCredentialsSaveRequestedEventArgs(
+                        OsuClientIdTextBox.Text,
+                        OsuClientSecretPasswordBox.Password));
+            }
+            finally
+            {
+                OsuClientSecretPasswordBox.Clear();
+            }
+        }
+
+        private void TestOsuApiConnectionButton_Click(
+            object sender,
+            RoutedEventArgs e)
+        {
+            TestOsuApiConnectionRequested?.Invoke(this, e);
+        }
+
+        private void RemoveOsuApiCredentialsButton_Click(
+            object sender,
+            RoutedEventArgs e)
+        {
+            RemoveOsuApiCredentialsRequested?.Invoke(this, e);
+        }
+
+        private void CreateOsuOAuthApplicationButton_Click(
+            object sender,
+            RoutedEventArgs e)
+        {
+            CreateOsuOAuthApplicationRequested?.Invoke(this, e);
         }
 
         private void ChangeSongsFolderButton_Click(

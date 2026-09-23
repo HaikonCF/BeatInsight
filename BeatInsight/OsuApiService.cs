@@ -31,12 +31,20 @@ namespace BeatInsight
             !string.IsNullOrWhiteSpace(ClientId)
             && !string.IsNullOrWhiteSpace(ClientSecret);
 
-        internal static OsuApiCredentials FromEnvironment() => new(
-            Environment.GetEnvironmentVariable(ClientIdEnvironmentVariable)
-                ?.Trim() ?? "",
-            Environment.GetEnvironmentVariable(
-                    ClientSecretEnvironmentVariable)
-                ?.Trim() ?? "");
+        internal static OsuApiCredentials FromEnvironment() =>
+            FromEnvironment(Environment.GetEnvironmentVariable);
+
+        internal static OsuApiCredentials FromEnvironment(
+            Func<string, string?> readEnvironmentVariable)
+        {
+            ArgumentNullException.ThrowIfNull(readEnvironmentVariable);
+
+            return new OsuApiCredentials(
+                readEnvironmentVariable(ClientIdEnvironmentVariable)
+                    ?.Trim() ?? "",
+                readEnvironmentVariable(ClientSecretEnvironmentVariable)
+                    ?.Trim() ?? "");
+        }
     }
 
     internal sealed class OsuApiNotConfiguredException :
@@ -50,6 +58,15 @@ namespace BeatInsight
         }
     }
 
+    internal enum OsuApiConnectionTestResult
+    {
+        Connected,
+        NotConfigured,
+        InvalidCredentials,
+        NetworkUnavailable,
+        UnexpectedApiError,
+    }
+
     internal class OsuApiService
     {
         private const string TokenEndpoint = "https://osu.ppy.sh/oauth/token";
@@ -58,7 +75,7 @@ namespace BeatInsight
         private readonly HttpClient client;
         private readonly TimeProvider timeProvider;
         private readonly OsuCommunityRequestPolicy communityRequestPolicy;
-        private readonly OsuApiCredentials credentials;
+        private OsuApiCredentials credentials;
         private readonly SemaphoreSlim accessTokenGate = new(1, 1);
         private readonly SemaphoreSlim osuTagsGate = new(1, 1);
         private readonly ConcurrentDictionary<int, IReadOnlyList<OsuTagVote>>
@@ -84,6 +101,74 @@ namespace BeatInsight
 
         internal bool IsConfigured => credentials.IsConfigured;
 
+        internal async Task UpdateCredentialsAsync(
+            OsuApiCredentials updatedCredentials,
+            CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(updatedCredentials);
+
+            await osuTagsGate.WaitAsync(cancellationToken);
+            try
+            {
+                await accessTokenGate.WaitAsync(cancellationToken);
+                try
+                {
+                    credentials = updatedCredentials;
+                    accessToken = null;
+                    accessTokenRefreshAtUtc = DateTimeOffset.MinValue;
+                    osuTags = null;
+                    communityTagsByBeatmapId.Clear();
+                }
+                finally
+                {
+                    accessTokenGate.Release();
+                }
+            }
+            finally
+            {
+                osuTagsGate.Release();
+            }
+        }
+
+        internal async Task<OsuApiConnectionTestResult> TestConnectionAsync(
+            CancellationToken cancellationToken = default)
+        {
+            if (!IsConfigured)
+            {
+                return OsuApiConnectionTestResult.NotConfigured;
+            }
+
+            try
+            {
+                _ = await GetAccessToken(cancellationToken);
+                return OsuApiConnectionTestResult.Connected;
+            }
+            catch (OperationCanceledException) when (
+                cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (OperationCanceledException)
+            {
+                return OsuApiConnectionTestResult.NetworkUnavailable;
+            }
+            catch (HttpRequestException ex) when (ex.StatusCode is
+                System.Net.HttpStatusCode.BadRequest
+                or System.Net.HttpStatusCode.Unauthorized
+                or System.Net.HttpStatusCode.Forbidden)
+            {
+                return OsuApiConnectionTestResult.InvalidCredentials;
+            }
+            catch (HttpRequestException ex) when (!ex.StatusCode.HasValue)
+            {
+                return OsuApiConnectionTestResult.NetworkUnavailable;
+            }
+            catch
+            {
+                return OsuApiConnectionTestResult.UnexpectedApiError;
+            }
+        }
+
         public async Task<string> GetAccessToken(
             CancellationToken cancellationToken = default,
             CommunityDiscoveryRequestDiagnostics? diagnostics = null)
@@ -103,6 +188,11 @@ namespace BeatInsight
 
             try
             {
+                if (!IsConfigured)
+                {
+                    throw new OsuApiNotConfiguredException();
+                }
+
                 if (HasReusableAccessToken())
                 {
                     diagnostics?.RecordCacheHit();

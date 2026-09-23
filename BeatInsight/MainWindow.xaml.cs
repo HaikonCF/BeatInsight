@@ -14,7 +14,9 @@ using BeatInsight.Services.Download;
 using BeatInsight.Services.Library;
 using BeatInsight.Services.Ml;
 using BeatInsight.Services.Persistence;
+using BeatInsight.Services.Settings;
 using BeatInsight.ViewModels;
+using BeatInsight.Views;
 using System;
 using System.Diagnostics;
 using System.IO;
@@ -45,7 +47,9 @@ namespace BeatInsight
         private readonly HttpClient client = new HttpClient();
         // Indique qu'une mise à jour est déjà en cours pour éviter que deux appels UpdateMap() se chevauchent.
         private readonly DispatcherTimer mapTimer;
-        private readonly OsuApiService osuApi = new OsuApiService();
+        private readonly IOsuApiCredentialStore osuApiCredentialStore;
+        private readonly OsuApiCredentialResolver osuApiCredentialResolver;
+        private readonly OsuApiService osuApi;
 
         // Le constructeur prépare la fenêtre et démarre la surveillance automatique de la map.
         private string? currentMapPath;
@@ -209,10 +213,19 @@ namespace BeatInsight
         public MainWindow()
         // On crée le timer qui servira à vérifier régulièrement l'état actuel d'osu!.
         {
+            osuApiCredentialStore = new DpapiOsuApiCredentialStore();
+            osuApiCredentialResolver = new OsuApiCredentialResolver(
+                osuApiCredentialStore);
+            OsuApiCredentialResolution credentialResolution =
+                osuApiCredentialResolver.Resolve();
+            osuApi = new OsuApiService(
+                credentials: credentialResolution.Credentials);
 
             InitializeComponent();
 
             DataContext = mainViewModel;
+            mainViewModel.OsuApiSettings.ApplyResolution(
+                credentialResolution);
             overviewLoadCoordinator = new OverviewLoadCoordinator(mainViewModel.Overview);
             DashboardViewHost.ChangeSongsFolderRequested +=
                 ChangeSongsFolder_Click;
@@ -220,6 +233,14 @@ namespace BeatInsight
                 ScanLibrary_Click;
             DashboardViewHost.CancelLibraryScanRequested +=
                 CancelLibraryScan_Click;
+            DashboardViewHost.SaveOsuApiCredentialsRequested +=
+                SaveOsuApiCredentials_Click;
+            DashboardViewHost.TestOsuApiConnectionRequested +=
+                TestOsuApiConnection_Click;
+            DashboardViewHost.RemoveOsuApiCredentialsRequested +=
+                RemoveOsuApiCredentials_Click;
+            DashboardViewHost.CreateOsuOAuthApplicationRequested +=
+                CreateOsuOAuthApplication_Click;
 
             techHumanLabelingCandidateSelector =
                 new TechHumanLabelingCandidateSelector(
@@ -244,6 +265,7 @@ namespace BeatInsight
             SetActiveWorkspace(ActiveWorkspace.Analyzer);
             ApplyDiscoveryFilterVisuals();
             SetDiscoverySearchState(isRunning: false);
+            RefreshOsuApiAvailability(credentialResolution);
 
 
 
@@ -483,8 +505,157 @@ namespace BeatInsight
         }
 
         // ============================================================
-        // OSU! LIBRARY
+        // SETTINGS / OSU! LIBRARY
         // ============================================================
+
+        private async void SaveOsuApiCredentials_Click(
+            object? sender,
+            OsuApiCredentialsSaveRequestedEventArgs e)
+        {
+            mainViewModel.OsuApiSettings.ClientId = e.ClientId;
+
+            if (!mainViewModel.OsuApiSettings.TryValidateForSave(
+                    e.ClientSecret,
+                    out _))
+            {
+                return;
+            }
+
+            mainViewModel.OsuApiSettings.SetSaving();
+
+            try
+            {
+                osuApiCredentialStore.Save(
+                    mainViewModel.OsuApiSettings.ClientId,
+                    e.ClientSecret);
+                OsuApiCredentialResolution resolution =
+                    osuApiCredentialResolver.Resolve();
+                await osuApi.UpdateCredentialsAsync(resolution.Credentials);
+                RefreshOsuApiAvailability(resolution);
+                mainViewModel.OsuApiSettings.SetSaved();
+            }
+            catch (Exception ex)
+            {
+                mainViewModel.OsuApiSettings.SetSaveFailed();
+                DebugLogger.Log(
+                    "OSU API CREDENTIAL SAVE ERROR | "
+                    + ex.GetType().Name);
+            }
+        }
+
+        private async void TestOsuApiConnection_Click(
+            object sender,
+            RoutedEventArgs e)
+        {
+            if (mainViewModel.OsuApiSettings.IsBusy)
+            {
+                return;
+            }
+
+            mainViewModel.OsuApiSettings.SetTesting();
+            OsuApiConnectionTestResult result =
+                await osuApi.TestConnectionAsync();
+            mainViewModel.OsuApiSettings.SetTestResult(result);
+        }
+
+        private async void RemoveOsuApiCredentials_Click(
+            object sender,
+            RoutedEventArgs e)
+        {
+            OsuApiCredentialResolution current =
+                osuApiCredentialResolver.Resolve();
+
+            if (current.Source == OsuApiCredentialSource.Environment)
+            {
+                mainViewModel.OsuApiSettings
+                    .SetEnvironmentRemovalUnavailable();
+                return;
+            }
+
+            if (current.Source == OsuApiCredentialSource.UserStore)
+            {
+                MessageBoxResult confirmation = MessageBox.Show(
+                    this,
+                    "Remove the saved osu! API credentials from this Windows account?",
+                    "Remove osu! API credentials",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Warning);
+
+                if (confirmation != MessageBoxResult.Yes)
+                {
+                    return;
+                }
+            }
+
+            mainViewModel.OsuApiSettings.SetRemoving();
+
+            try
+            {
+                osuApiCredentialStore.Clear();
+                OsuApiCredentialResolution resolution =
+                    osuApiCredentialResolver.Resolve();
+                await osuApi.UpdateCredentialsAsync(resolution.Credentials);
+                RefreshOsuApiAvailability(resolution);
+            }
+            catch (Exception ex)
+            {
+                mainViewModel.OsuApiSettings.SetRemoveFailed();
+                DebugLogger.Log(
+                    "OSU API CREDENTIAL REMOVE ERROR | "
+                    + ex.GetType().Name);
+            }
+        }
+
+        private void CreateOsuOAuthApplication_Click(
+            object sender,
+            RoutedEventArgs e)
+        {
+            try
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName =
+                        "https://osu.ppy.sh/home/account/edit#new-oauth-application",
+                    UseShellExecute = true,
+                });
+            }
+            catch (Exception)
+            {
+                mainViewModel.OsuApiSettings.SetExternalLinkFailed();
+            }
+        }
+
+        private void RefreshOsuApiAvailability(
+            OsuApiCredentialResolution resolution)
+        {
+            mainViewModel.OsuApiSettings.ApplyResolution(resolution);
+            SetDiscoverySearchState(isDiscoveryRunning);
+
+            if (resolution.Credentials.IsConfigured)
+            {
+                if (!isDiscoveryRunning)
+                {
+                    DiscoveryStatusText.Text = "Ready to search.";
+                }
+
+                if (currentBeatmap is not null)
+                {
+                    mainViewModel.Overview.SetCommunityTagsStatus(
+                        "Community tags available on the next map load.");
+                }
+            }
+            else
+            {
+                DiscoveryStatusText.Text =
+                    "osu! API not configured. Community Discovery is unavailable.";
+
+                if (currentBeatmap is not null)
+                {
+                    mainViewModel.Overview.SetCommunityTagsUnavailable(
+                        "Community tags unavailable — osu! API not configured.");
+                }
+            }
+        }
 
         // Met à jour l'affichage du dossier Songs résolu (préférence
         // manuelle prioritaire, sinon chemin tosu). N'écrit jamais la
@@ -922,7 +1093,6 @@ namespace BeatInsight
                     "COMMUNITY DISCOVERY RATE LIMIT EXHAUSTED | "
                     + $"Request kind = {ex.RequestKind} | "
                     + $"Retry-After present = {ex.RetryAfter.HasValue}");
-                DebugLogger.Log(ex.ToString());
             }
             catch (Exception ex)
             {
@@ -935,9 +1105,8 @@ namespace BeatInsight
                     : "Unavailable";
                 DebugLogger.Log(
                     "COMMUNITY DISCOVERY ERROR | " +
-                    $"{ex.GetType().Name} | {ex.Message} | " +
+                    $"{ex.GetType().Name} | " +
                     $"HTTP status = {status}");
-                DebugLogger.Log(ex.ToString());
             }
             finally
             {
@@ -1331,8 +1500,9 @@ namespace BeatInsight
         {
             isDiscoveryRunning = isRunning;
 
-            FindDiscoveryCandidatesButton.IsEnabled = !isRunning &&
-                !IsBackgroundLibraryWorkRunning;
+            FindDiscoveryCandidatesButton.IsEnabled = !isRunning
+                && !IsBackgroundLibraryWorkRunning
+                && osuApi.IsConfigured;
             CancelDiscoveryButton.IsEnabled = isRunning;
             DiscoveryJumpFamilyButton.IsEnabled = !isRunning;
             DiscoveryStreamFamilyButton.IsEnabled = !isRunning;

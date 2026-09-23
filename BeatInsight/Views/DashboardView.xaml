@@ -1832,6 +1832,7 @@
                 Grid.RowSpan="2"
                 Panel.ZIndex="901"
                 Width="390"
+                MaxHeight="650"
                 HorizontalAlignment="Right"
                 VerticalAlignment="Top"
                 Margin="0,92,188,0"
@@ -1842,8 +1843,11 @@
                 CornerRadius="16"
                 Visibility="Collapsed"
                 MouseLeftButtonDown="SettingsPanel_MouseLeftButtonDown">
+            <ScrollViewer VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled">
             <Grid>
                 <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
@@ -1852,11 +1856,11 @@
 
                 <Grid Grid.Row="0">
                     <StackPanel>
-                        <TextBlock Text="LIBRARY"
+                        <TextBlock Text="SETTINGS"
                                    Foreground="White"
                                    FontSize="15"
                                    FontWeight="Bold"/>
-                        <TextBlock Text="Songs folder and local analysis index"
+                        <TextBlock Text="Library and optional community API"
                                    Foreground="{StaticResource TextMutedBrush}"
                                    FontSize="10"
                                    Margin="0,2,0,0"/>
@@ -1962,7 +1966,92 @@
                             Visibility="{Binding Library.IsScanning, Converter={StaticResource BooleanToVisibilityConverter}}"
                             Click="CancelLibraryScanButton_Click"/>
                 </StackPanel>
+
+                <Border Grid.Row="4"
+                        Background="#171820"
+                        BorderBrush="#2B2D39"
+                        BorderThickness="1"
+                        CornerRadius="9"
+                        Padding="12"
+                        Margin="0,16,0,0">
+                    <StackPanel>
+                        <TextBlock Text="OSU! API"
+                                   Foreground="White"
+                                   FontSize="13"
+                                   FontWeight="Bold"/>
+                        <TextBlock Text="BeatInsight uses your personal osu! API credentials for Community Tags and Community Discovery."
+                                   Foreground="{StaticResource TextMutedBrush}"
+                                   FontSize="10"
+                                   TextWrapping="Wrap"
+                                   Margin="0,4,0,10"/>
+
+                        <TextBlock Text="CLIENT ID"
+                                   Foreground="{StaticResource TextMutedBrush}"
+                                   FontSize="9"
+                                   FontWeight="SemiBold"/>
+                        <TextBox x:Name="OsuClientIdTextBox"
+                                 Text="{Binding OsuApiSettings.ClientId, UpdateSourceTrigger=PropertyChanged}"
+                                 Background="#20222C"
+                                 Foreground="White"
+                                 BorderBrush="#3A3D4B"
+                                 Padding="8,6"
+                                 Margin="0,4,0,9"/>
+
+                        <TextBlock Text="CLIENT SECRET"
+                                   Foreground="{StaticResource TextMutedBrush}"
+                                   FontSize="9"
+                                   FontWeight="SemiBold"/>
+                        <PasswordBox x:Name="OsuClientSecretPasswordBox"
+                                     Background="#20222C"
+                                     Foreground="White"
+                                     BorderBrush="#3A3D4B"
+                                     Padding="8,6"
+                                     Margin="0,4,0,10"/>
+
+                        <UniformGrid Columns="2">
+                            <Button x:Name="SaveOsuApiCredentialsButton"
+                                    Content="Save credentials"
+                                    Style="{StaticResource ActionPillButtonStyle}"
+                                    Margin="0,0,5,0"
+                                    IsEnabled="{Binding OsuApiSettings.CanEdit}"
+                                    Click="SaveOsuApiCredentialsButton_Click"/>
+                            <Button x:Name="TestOsuApiConnectionButton"
+                                    Content="Test connection"
+                                    Style="{StaticResource ActionPillButtonStyle}"
+                                    Margin="5,0,0,0"
+                                    IsEnabled="{Binding OsuApiSettings.CanEdit}"
+                                    Click="TestOsuApiConnectionButton_Click"/>
+                        </UniformGrid>
+                        <Button x:Name="RemoveOsuApiCredentialsButton"
+                                Content="Remove credentials"
+                                Style="{StaticResource ActionPillButtonStyle}"
+                                Margin="0,8,0,0"
+                                IsEnabled="{Binding OsuApiSettings.CanEdit}"
+                                Click="RemoveOsuApiCredentialsButton_Click"/>
+
+                        <TextBlock Margin="0,10,0,0"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   FontSize="10">
+                            <Run Text="Status: "/>
+                            <Run Text="{Binding OsuApiSettings.StatusText, Mode=OneWay}"
+                                 FontWeight="SemiBold"/>
+                        </TextBlock>
+
+                        <Button x:Name="CreateOsuOAuthApplicationButton"
+                                Content="Create osu! OAuth application"
+                                Style="{StaticResource ActionPillButtonStyle}"
+                                HorizontalAlignment="Stretch"
+                                Margin="0,10,0,0"
+                                Click="CreateOsuOAuthApplicationButton_Click"/>
+                        <TextBlock Foreground="{StaticResource TextMutedBrush}"
+                                   FontSize="9.5"
+                                   TextWrapping="Wrap"
+                                   Margin="0,8,0,0"
+                                   Text="1. Create an OAuth application on osu!&#x0a;2. Leave the callback URL blank for Client Credentials&#x0a;3. Copy its Client ID and Client Secret here&#x0a;4. Save, then test the connection"/>
+                    </StackPanel>
+                </Border>
             </Grid>
+            </ScrollViewer>
         </Border>
     </Grid>
 </UserControl>

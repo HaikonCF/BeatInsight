@@ -271,6 +271,7 @@ public sealed class OsuCommunityRequestPolicyTests
     public async Task CommunityTags_NetworkFailureIsAbsorbedWithoutLoggingSecret()
     {
         string secret = $"credential-{Guid.NewGuid():N}";
+        string token = $"token-{Guid.NewGuid():N}";
         var service = new OsuApiService(
             new HttpClient(new ThrowingHandler(secret)),
             communityRequestPolicy: CreatePolicy([]),
@@ -282,8 +283,96 @@ public sealed class OsuCommunityRequestPolicyTests
         Assert.Empty(tags);
         string log = OsuApiService.CreateCommunityTagsFailureLog(
             42,
-            new HttpRequestException(secret));
+            new HttpRequestException(secret + token));
         Assert.DoesNotContain(secret, log);
+        Assert.DoesNotContain(token, log);
+    }
+
+    [Fact]
+    public async Task UpdateCredentials_InvalidatesTokenAndUsesNewCredentials()
+    {
+        var handler = new OAuthRequestHandler(["first-token", "second-token"]);
+        var service = new OsuApiService(
+            new HttpClient(handler),
+            communityRequestPolicy: CreatePolicy([]),
+            credentials: new OsuApiCredentials("111", "old-secret"));
+
+        string first = await service.GetAccessToken();
+        await service.UpdateCredentialsAsync(
+            new OsuApiCredentials("222", "new-secret"));
+        string second = await service.GetAccessToken();
+
+        Assert.Equal("first-token", first);
+        Assert.Equal("second-token", second);
+        Assert.Equal(2, handler.RequestBodies.Count);
+        Assert.Contains("client_id=111", handler.RequestBodies[0]);
+        Assert.Contains("client_secret=old-secret", handler.RequestBodies[0]);
+        Assert.Contains("client_id=222", handler.RequestBodies[1]);
+        Assert.Contains("client_secret=new-secret", handler.RequestBodies[1]);
+    }
+
+    [Fact]
+    public async Task TestConnection_UnconfiguredDoesNotSendRequest()
+    {
+        var handler = new RoutingHandler(_ =>
+            new HttpResponseMessage(HttpStatusCode.InternalServerError));
+        var service = new OsuApiService(
+            new HttpClient(handler),
+            credentials: OsuApiCredentials.Unavailable);
+
+        OsuApiConnectionTestResult result =
+            await service.TestConnectionAsync();
+
+        Assert.Equal(OsuApiConnectionTestResult.NotConfigured, result);
+        Assert.Equal(0, handler.RequestsTo("/oauth/token"));
+    }
+
+    [Fact]
+    public async Task TestConnection_ClassifiesInvalidCredentials()
+    {
+        var service = new OsuApiService(
+            new HttpClient(new SequenceHandler(
+            [
+                new HttpResponseMessage(HttpStatusCode.Unauthorized),
+            ])),
+            communityRequestPolicy: CreatePolicy([]),
+            credentials: TestCredentials);
+
+        OsuApiConnectionTestResult result =
+            await service.TestConnectionAsync();
+
+        Assert.Equal(OsuApiConnectionTestResult.InvalidCredentials, result);
+    }
+
+    [Fact]
+    public async Task TestConnection_ClassifiesNetworkFailure()
+    {
+        var service = new OsuApiService(
+            new HttpClient(new ThrowingHandler("network unavailable")),
+            communityRequestPolicy: CreatePolicy([]),
+            credentials: TestCredentials);
+
+        OsuApiConnectionTestResult result =
+            await service.TestConnectionAsync();
+
+        Assert.Equal(OsuApiConnectionTestResult.NetworkUnavailable, result);
+    }
+
+    [Fact]
+    public async Task TestConnection_ReturnsConnectedForValidTokenResponse()
+    {
+        var service = CreateApiService(
+            new SequenceHandler(
+            [
+                JsonResponse(
+                    "{\"access_token\":\"safe-token\",\"expires_in\":3600}"),
+            ]),
+            TimeProvider.System);
+
+        OsuApiConnectionTestResult result =
+            await service.TestConnectionAsync();
+
+        Assert.Equal(OsuApiConnectionTestResult.Connected, result);
     }
 
     private static OsuApiService CreateApiService(
@@ -374,5 +463,24 @@ public sealed class OsuCommunityRequestPolicyTests
             HttpRequestMessage request,
             CancellationToken cancellationToken) =>
             throw new HttpRequestException(message);
+    }
+
+    private sealed class OAuthRequestHandler(IReadOnlyList<string> tokens) :
+        HttpMessageHandler
+    {
+        private readonly Queue<string> remainingTokens = new(tokens);
+
+        internal List<string> RequestBodies { get; } = [];
+
+        protected override async Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            RequestBodies.Add(await request.Content!.ReadAsStringAsync(
+                cancellationToken));
+            return JsonResponse(
+                $"{{\"access_token\":\"{remainingTokens.Dequeue()}\","
+                + "\"expires_in\":3600}");
+        }
     }
 }

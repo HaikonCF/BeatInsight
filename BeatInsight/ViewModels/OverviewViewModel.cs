@@ -441,6 +441,11 @@ public sealed class OverviewViewModel : ViewModelBase
 
     public void SetCommunityTagsUnavailable(string message)
     {
+        SetCommunityTagsStatus(message);
+    }
+
+    public void SetCommunityTagsStatus(string message)
+    {
         CommunityTags.Clear();
         HasCommunityTags = false;
         HasCommunityTagsStatus = true;

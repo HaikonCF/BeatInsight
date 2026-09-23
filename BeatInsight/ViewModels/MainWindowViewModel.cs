@@ -46,12 +46,14 @@ public sealed class MainWindowViewModel : ViewModelBase
     public OverviewViewModel Overview { get; }
     public SectionsViewModel Sections { get; }
     public LibraryPanelViewModel Library { get; }
+    public OsuApiSettingsViewModel OsuApiSettings { get; }
 
     public MainWindowViewModel()
     {
         Overview = new OverviewViewModel();
         Sections = new SectionsViewModel(Overview);
         Library = new LibraryPanelViewModel();
+        OsuApiSettings = new OsuApiSettingsViewModel();
     }
 
     public string StatusConnectionText

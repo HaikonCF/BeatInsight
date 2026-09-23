@@ -44,18 +44,29 @@ BeatInsight's local beatmap analysis does not require osu! API credentials.
 Without credentials, community tags and Community Discovery are shown as
 unavailable and no OAuth request is sent.
 
-Developers who need these optional features can provide their own registered
-osu! OAuth application through the process environment:
+Each user can configure a personal osu! OAuth application from BeatInsight's
+Settings panel. The Client ID is stored in the user settings file and the
+Client Secret is protected with Windows DPAPI for the current Windows user at:
+
+```text
+%LOCALAPPDATA%\BeatInsight\osu-api-credentials.json
+```
+
+Create the application from the osu! account settings page, leave the callback
+URL blank for the Client Credentials flow, then enter the Client ID and Client
+Secret in BeatInsight. Save the credentials and use **Test connection**.
+
+For developer workflows, environment variables remain a fallback when no
+credentials have been saved in Settings:
 
 ```text
 BEATINSIGHT_OSU_CLIENT_ID=<your client id>
 BEATINSIGHT_OSU_CLIENT_SECRET=<your client secret>
 ```
 
-Never commit, package, log, or distribute these values. A public distribution
-that enables the features for every user must use a server-side relay (or a
-future osu!-supported installed-app flow) so that no durable client secret is
-embedded in the desktop application.
+Never commit, package, or log these values. DPAPI prevents plaintext storage;
+it is local protection tied to the signed-in Windows account, not a guarantee
+against compromise of that account.
 
 ---
 

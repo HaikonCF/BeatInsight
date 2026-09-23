@@ -193,11 +193,16 @@ internal sealed class OsuCommunityBeatmapDiscoverySource :
         }
         catch (Exception ex)
         {
+            string status = ex is HttpRequestException
+                {
+                    StatusCode: System.Net.HttpStatusCode statusCode,
+                }
+                ? statusCode.ToString()
+                : "Unavailable";
             DebugLogger.Log(
                 "COMMUNITY DISCOVERY ENRICHMENT ERROR | "
                 + $"BeatmapId = {candidate.BeatmapId} | "
-                + $"{ex.GetType().Name} | {ex.Message}");
-            DebugLogger.Detailed(ex.ToString());
+                + $"{ex.GetType().Name} | HTTP status = {status}");
             return new CommunityCandidateMetadataEnrichmentResult(
                 candidate,
                 RateLimited: false);

@@ -69,6 +69,40 @@ public sealed class SectionOverviewRenderingTests(ITestOutputHelper output)
             Assert.Equal(Visibility.Collapsed, settingsPanel.Visibility);
             settingsButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             Assert.Equal(Visibility.Visible, settingsPanel.Visibility);
+
+            TextBox clientIdBox = Descendants(settingsPanel)
+                .OfType<TextBox>()
+                .Single(textBox => textBox.Name == "OsuClientIdTextBox");
+            PasswordBox clientSecretBox = Descendants(settingsPanel)
+                .OfType<PasswordBox>()
+                .Single(passwordBox =>
+                    passwordBox.Name == "OsuClientSecretPasswordBox");
+            Button saveCredentialsButton = Descendants(settingsPanel)
+                .OfType<Button>()
+                .Single(button =>
+                    button.Name == "SaveOsuApiCredentialsButton");
+            OsuApiCredentialsSaveRequestedEventArgs? savedCredentials = null;
+            view.SaveOsuApiCredentialsRequested += (_, eventArgs) =>
+                savedCredentials = eventArgs;
+            clientIdBox.Text = "12345";
+            clientSecretBox.Password = "ui-only-secret";
+            Layout(view, new Size(1400, 900));
+            CaptureIfRequested(
+                view,
+                new Size(1400, 900),
+                "oauth-settings-panel-1400.png");
+
+            saveCredentialsButton.RaiseEvent(
+                new RoutedEventArgs(Button.ClickEvent));
+
+            Assert.NotNull(savedCredentials);
+            Assert.Equal("12345", savedCredentials.ClientId);
+            Assert.Equal("ui-only-secret", savedCredentials.ClientSecret);
+            Assert.Empty(clientSecretBox.Password);
+            Assert.Contains(
+                Descendants(settingsPanel),
+                descendant => descendant is ScrollViewer);
+
             settingsButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             Assert.Equal(Visibility.Collapsed, settingsPanel.Visibility);
 
