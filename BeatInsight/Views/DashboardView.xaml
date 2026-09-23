@@ -375,6 +375,11 @@
                                                 </DataTemplate>
                                             </ItemsControl.ItemTemplate>
                                         </ItemsControl>
+                                        <TextBlock Margin="0,7,0,0"
+                                                   Text="{Binding Overview.CommunityTagsStatusText}"
+                                                   Foreground="{StaticResource TextMutedBrush}"
+                                                   FontSize="10"
+                                                   Visibility="{Binding Overview.HasCommunityTagsStatus, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                                         <TextBlock Margin="0,4,0,0"
                                                    Foreground="{StaticResource TextSecondaryBrush}" FontSize="11">
                                             <Run Text="mapped by "/>

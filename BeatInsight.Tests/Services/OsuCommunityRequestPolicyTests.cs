@@ -9,6 +9,9 @@ namespace BeatInsight.Tests.Services;
 
 public sealed class OsuCommunityRequestPolicyTests
 {
+    private static readonly OsuApiCredentials TestCredentials =
+        new("test-client-id", "test-client-secret");
+
     [Fact]
     public async Task GetAccessToken_ReusesTokenBeforeRefreshTime()
     {
@@ -222,6 +225,67 @@ public sealed class OsuCommunityRequestPolicyTests
         Assert.Equal(1, diagnostics.CacheHits);
     }
 
+    [Fact]
+    public async Task UnconfiguredService_DoesNotSendOAuthOrTagRequests()
+    {
+        var handler = new RoutingHandler(_ =>
+            new HttpResponseMessage(HttpStatusCode.InternalServerError));
+        var service = new OsuApiService(
+            new HttpClient(handler),
+            credentials: OsuApiCredentials.Unavailable);
+
+        List<OsuApiService.OsuTagVote> tags =
+            await service.GetBeatmapCommunityTags(42);
+        OsuApiNotConfiguredException exception =
+            await Assert.ThrowsAsync<OsuApiNotConfiguredException>(
+                () => service.GetAccessToken());
+
+        Assert.False(service.IsConfigured);
+        Assert.Empty(tags);
+        Assert.Equal(0, handler.RequestsTo("/oauth/token"));
+        Assert.DoesNotContain("client", exception.Message.ToLowerInvariant());
+    }
+
+    [Fact]
+    public async Task OAuthFailure_DoesNotExposeCredentials()
+    {
+        const string secret = "credential-that-must-not-leak";
+        var handler = new SequenceHandler(
+        [
+            new HttpResponseMessage(HttpStatusCode.Unauthorized),
+        ]);
+        var service = new OsuApiService(
+            new HttpClient(handler),
+            credentials: new OsuApiCredentials("test-client", secret));
+
+        HttpRequestException exception =
+            await Assert.ThrowsAsync<HttpRequestException>(
+                () => service.GetAccessToken());
+
+        Assert.False(exception.ToString().Contains(
+            secret,
+            StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task CommunityTags_NetworkFailureIsAbsorbedWithoutLoggingSecret()
+    {
+        string secret = $"credential-{Guid.NewGuid():N}";
+        var service = new OsuApiService(
+            new HttpClient(new ThrowingHandler(secret)),
+            communityRequestPolicy: CreatePolicy([]),
+            credentials: new OsuApiCredentials("test-client", secret));
+
+        List<OsuApiService.OsuTagVote> tags =
+            await service.GetBeatmapCommunityTags(42);
+
+        Assert.Empty(tags);
+        string log = OsuApiService.CreateCommunityTagsFailureLog(
+            42,
+            new HttpRequestException(secret));
+        Assert.DoesNotContain(secret, log);
+    }
+
     private static OsuApiService CreateApiService(
         HttpMessageHandler handler,
         TimeProvider timeProvider)
@@ -232,7 +296,8 @@ public sealed class OsuCommunityRequestPolicyTests
             new OsuCommunityRequestPolicy(
                 timeProvider,
                 TimeSpan.Zero,
-                static (_, _) => Task.CompletedTask));
+                static (_, _) => Task.CompletedTask),
+            TestCredentials);
     }
 
     private static OsuCommunityRequestPolicy CreatePolicy(
@@ -301,5 +366,13 @@ public sealed class OsuCommunityRequestPolicyTests
             requestPaths.Add(request.RequestUri!.AbsolutePath);
             return Task.FromResult(responseFactory(request));
         }
+    }
+
+    private sealed class ThrowingHandler(string message) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken) =>
+            throw new HttpRequestException(message);
     }
 }

@@ -13,6 +13,8 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Legacy local secret files must never enter the desktop assembly. -->
+    <Compile Remove="OsuSecrets.cs" />
     <None Remove="Assets\Brand\BeatInsightLogo.png" />
   </ItemGroup>
 

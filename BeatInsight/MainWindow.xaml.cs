@@ -840,6 +840,13 @@ namespace BeatInsight
                 return;
             }
 
+            if (!osuApi.IsConfigured)
+            {
+                DiscoveryStatusText.Text =
+                    "osu! API not configured. Community Discovery is unavailable.";
+                return;
+            }
+
             // Les schemas préexistants sont seulement préparés avant les
             // lectures d'enrichissement. Aucun sample, label ou cache ne
             // peut être créé par une recherche.
@@ -3190,6 +3197,21 @@ namespace BeatInsight
 
             try
             {
+                if (!osuApi.IsConfigured)
+                {
+                    if (ReferenceEquals(currentBeatmap, beatmap)
+                        && TosuBeatmapPollingGuard.ShouldApplyDeferredResult(
+                            sourcePath,
+                            currentMapPath,
+                            cancellationToken.IsCancellationRequested))
+                    {
+                        mainViewModel.Overview.SetCommunityTagsUnavailable(
+                            "Community tags unavailable — osu! API not configured.");
+                    }
+
+                    return;
+                }
+
                 List<OsuApiService.OsuTagVote> osuCommunityTags =
                     await osuApi.GetBeatmapCommunityTags(
                         beatmapId,

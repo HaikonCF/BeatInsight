@@ -8,15 +8,57 @@ using System.Text.Json;
 
 namespace BeatInsight
 {
+    internal sealed class OsuApiCredentials
+    {
+        internal const string ClientIdEnvironmentVariable =
+            "BEATINSIGHT_OSU_CLIENT_ID";
+        internal const string ClientSecretEnvironmentVariable =
+            "BEATINSIGHT_OSU_CLIENT_SECRET";
+
+        internal static OsuApiCredentials Unavailable { get; } = new("", "");
+
+        internal OsuApiCredentials(string clientId, string clientSecret)
+        {
+            ClientId = clientId;
+            ClientSecret = clientSecret;
+        }
+
+        internal string ClientId { get; }
+
+        internal string ClientSecret { get; }
+
+        internal bool IsConfigured =>
+            !string.IsNullOrWhiteSpace(ClientId)
+            && !string.IsNullOrWhiteSpace(ClientSecret);
+
+        internal static OsuApiCredentials FromEnvironment() => new(
+            Environment.GetEnvironmentVariable(ClientIdEnvironmentVariable)
+                ?.Trim() ?? "",
+            Environment.GetEnvironmentVariable(
+                    ClientSecretEnvironmentVariable)
+                ?.Trim() ?? "");
+    }
+
+    internal sealed class OsuApiNotConfiguredException :
+        InvalidOperationException
+    {
+        internal OsuApiNotConfiguredException()
+            : base(
+                "osu! API is not configured. Set the BeatInsight osu! "
+                + "development credentials to enable community features.")
+        {
+        }
+    }
+
     internal class OsuApiService
     {
-        private const string ClientId = "66257";
         private const string TokenEndpoint = "https://osu.ppy.sh/oauth/token";
         private const string TagCatalogEndpoint = "https://osu.ppy.sh/api/v2/tags";
 
         private readonly HttpClient client;
         private readonly TimeProvider timeProvider;
         private readonly OsuCommunityRequestPolicy communityRequestPolicy;
+        private readonly OsuApiCredentials credentials;
         private readonly SemaphoreSlim accessTokenGate = new(1, 1);
         private readonly SemaphoreSlim osuTagsGate = new(1, 1);
         private readonly ConcurrentDictionary<int, IReadOnlyList<OsuTagVote>>
@@ -29,18 +71,28 @@ namespace BeatInsight
         internal OsuApiService(
             HttpClient? client = null,
             TimeProvider? timeProvider = null,
-            OsuCommunityRequestPolicy? communityRequestPolicy = null)
+            OsuCommunityRequestPolicy? communityRequestPolicy = null,
+            OsuApiCredentials? credentials = null)
         {
             this.client = client ?? new HttpClient();
             this.timeProvider = timeProvider ?? TimeProvider.System;
             this.communityRequestPolicy = communityRequestPolicy
                 ?? new OsuCommunityRequestPolicy(this.timeProvider);
+            this.credentials = credentials
+                ?? OsuApiCredentials.FromEnvironment();
         }
+
+        internal bool IsConfigured => credentials.IsConfigured;
 
         public async Task<string> GetAccessToken(
             CancellationToken cancellationToken = default,
             CommunityDiscoveryRequestDiagnostics? diagnostics = null)
         {
+            if (!IsConfigured)
+            {
+                throw new OsuApiNotConfiguredException();
+            }
+
             if (HasReusableAccessToken())
             {
                 diagnostics?.RecordCacheHit();
@@ -100,6 +152,11 @@ namespace BeatInsight
             bool throwOnRateLimit = false,
             CommunityDiscoveryRequestDiagnostics? diagnostics = null)
         {
+            if (!IsConfigured)
+            {
+                return [];
+            }
+
             if (communityTagsByBeatmapId.TryGetValue(
                     beatmapId,
                     out IReadOnlyList<OsuTagVote>? cachedTags))
@@ -216,10 +273,7 @@ namespace BeatInsight
             }
             catch (Exception ex)
             {
-                DebugLogger.Log(
-                    $"COMMUNITY TAGS ERROR | Beatmap={beatmapId} | "
-                    + ex.Message);
-                DebugLogger.Detailed(ex.ToString());
+                DebugLogger.Log(CreateCommunityTagsFailureLog(beatmapId, ex));
 
                 return result;
             }
@@ -331,6 +385,21 @@ namespace BeatInsight
                 diagnostics,
                 cancellationToken);
 
+        internal static string CreateCommunityTagsFailureLog(
+            int beatmapId,
+            Exception exception)
+        {
+            string status = exception is HttpRequestException
+                {
+                    StatusCode: System.Net.HttpStatusCode statusCode,
+                }
+                ? statusCode.ToString()
+                : "Unavailable";
+
+            return $"COMMUNITY TAGS ERROR | Beatmap={beatmapId} | "
+                + $"{exception.GetType().Name} | HTTP status = {status}";
+        }
+
         private bool HasReusableAccessToken()
         {
             return !string.IsNullOrWhiteSpace(accessToken)
@@ -356,12 +425,12 @@ namespace BeatInsight
             return timeProvider.GetUtcNow().Add(lifetime - refreshMargin);
         }
 
-        private static HttpRequestMessage CreateOAuthTokenRequest()
+        private HttpRequestMessage CreateOAuthTokenRequest()
         {
             var values = new Dictionary<string, string>
             {
-                ["client_id"] = ClientId,
-                ["client_secret"] = OsuSecrets.ClientSecret,
+                ["client_id"] = credentials.ClientId,
+                ["client_secret"] = credentials.ClientSecret,
                 ["grant_type"] = "client_credentials",
                 ["scope"] = "public",
             };

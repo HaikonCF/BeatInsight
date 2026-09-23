@@ -16,7 +16,7 @@ namespace BeatInsight.Services.CommunityDiscovery;
 /// est documentée pour le beatmap listing osu!web/lazer plutôt que comme un
 /// endpoint de recherche API v2 dédié. Cet adaptateur est donc le seul point
 /// qui dépend de cette forme de réponse web. L'OAuth existant reste fourni par
-/// OsuApiService ; aucun secret ni token n'est journalisé ici.
+/// OsuApiService ; aucun identifiant ni token n'est journalisé ici.
 /// </summary>
 internal sealed class OsuCommunityBeatmapDiscoverySource :
     ICommunityBeatmapDiscoverySource,
@@ -66,7 +66,7 @@ internal sealed class OsuCommunityBeatmapDiscoverySource :
         try
         {
             // OsuApiService reste l'unique détenteur de la logique OAuth et
-            // des secrets associés. Son cache réutilise le token encore sûr.
+            // des identifiants de développement. Son cache réutilise le token.
             string accessToken = await osuApiService.GetAccessToken(
                 cancellationToken,
                 requestDiagnostics);

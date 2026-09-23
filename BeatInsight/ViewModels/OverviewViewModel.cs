@@ -55,6 +55,8 @@ public sealed class OverviewViewModel : ViewModelBase
     private string spikesSummaryText = "No significant difficulty spikes detected";
     private bool hasSpikes;
     private bool hasCommunityTags;
+    private bool hasCommunityTagsStatus = true;
+    private string communityTagsStatusText = "Community tags unavailable.";
 
     public bool HasBeatmap
     {
@@ -302,6 +304,18 @@ public sealed class OverviewViewModel : ViewModelBase
         set => SetProperty(ref hasCommunityTags, value);
     }
 
+    public bool HasCommunityTagsStatus
+    {
+        get => hasCommunityTagsStatus;
+        set => SetProperty(ref hasCommunityTagsStatus, value);
+    }
+
+    public string CommunityTagsStatusText
+    {
+        get => communityTagsStatusText;
+        set => SetProperty(ref communityTagsStatusText, value);
+    }
+
     public bool HasSections => Sections.Count > 0;
     public bool HasDifficultyData => DifficultyPoints.Count > 0;
 
@@ -383,6 +397,8 @@ public sealed class OverviewViewModel : ViewModelBase
         HasSpikes = false;
         CommunityTags.Clear();
         HasCommunityTags = false;
+        HasCommunityTagsStatus = true;
+        CommunityTagsStatusText = "Community tags unavailable.";
 
         SkillMetrics.Clear();
         SkillPressureMetrics.Clear();
@@ -417,6 +433,18 @@ public sealed class OverviewViewModel : ViewModelBase
         }
 
         HasCommunityTags = CommunityTags.Count > 0;
+        HasCommunityTagsStatus = !HasCommunityTags;
+        CommunityTagsStatusText = HasCommunityTags
+            ? string.Empty
+            : "No community tags available.";
+    }
+
+    public void SetCommunityTagsUnavailable(string message)
+    {
+        CommunityTags.Clear();
+        HasCommunityTags = false;
+        HasCommunityTagsStatus = true;
+        CommunityTagsStatusText = message;
     }
 
     public void LoadSnapshot(
@@ -439,6 +467,8 @@ public sealed class OverviewViewModel : ViewModelBase
         BackgroundPath = backgroundPath;
         CommunityTags.Clear();
         HasCommunityTags = false;
+        HasCommunityTagsStatus = true;
+        CommunityTagsStatusText = "Loading community tags...";
 
         // 1. Metadata
         var meta = snapshot.Metadata;

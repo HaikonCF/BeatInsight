@@ -38,6 +38,25 @@ No installation is required.
 - Tosu is required for beatInsight
 Here the link to how to download tosu => https://www.youtube.com/watch?v=KxqJkqlyym4
 
+### Optional osu! community features
+
+BeatInsight's local beatmap analysis does not require osu! API credentials.
+Without credentials, community tags and Community Discovery are shown as
+unavailable and no OAuth request is sent.
+
+Developers who need these optional features can provide their own registered
+osu! OAuth application through the process environment:
+
+```text
+BEATINSIGHT_OSU_CLIENT_ID=<your client id>
+BEATINSIGHT_OSU_CLIENT_SECRET=<your client secret>
+```
+
+Never commit, package, log, or distribute these values. A public distribution
+that enables the features for every user must use a server-side relay (or a
+future osu!-supported installed-app flow) so that no durable client secret is
+embedded in the desktop application.
+
 ---
 
 # 🎮 Gameplay Analysis

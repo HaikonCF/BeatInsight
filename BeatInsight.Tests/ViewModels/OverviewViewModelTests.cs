@@ -368,6 +368,30 @@ public sealed class OverviewViewModelTests
 
         Assert.False(overview.HasCommunityTags);
         Assert.Empty(overview.CommunityTags);
+        Assert.True(overview.HasCommunityTagsStatus);
+        Assert.Equal(
+            "No community tags available.",
+            overview.CommunityTagsStatusText);
+    }
+
+    [Fact]
+    public void UnavailableCommunityTags_AreExplicitAndClearOldTags()
+    {
+        var overview = new OverviewViewModel();
+        overview.UpdateCommunityTags(
+        [
+            new CommunityTag { Name = "stream", Votes = 12 },
+        ]);
+
+        overview.SetCommunityTagsUnavailable(
+            "Community tags unavailable — osu! API not configured.");
+
+        Assert.False(overview.HasCommunityTags);
+        Assert.Empty(overview.CommunityTags);
+        Assert.True(overview.HasCommunityTagsStatus);
+        Assert.Equal(
+            "Community tags unavailable — osu! API not configured.",
+            overview.CommunityTagsStatusText);
     }
 
     [Fact]

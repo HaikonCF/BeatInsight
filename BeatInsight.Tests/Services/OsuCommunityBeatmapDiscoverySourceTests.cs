@@ -23,7 +23,8 @@ public sealed class OsuCommunityBeatmapDiscoverySourceTests
         var api = new OsuApiService(
             new HttpClient(apiHandler),
             TimeProvider.System,
-            policy);
+            policy,
+            new OsuApiCredentials("test-client", "test-secret"));
         var source = new OsuCommunityBeatmapDiscoverySource(
             api,
             new HttpClient(searchHandler));
