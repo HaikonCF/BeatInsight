@@ -2,7 +2,8 @@ using System.Windows;
 using System.Runtime.CompilerServices;
 
 [assembly: InternalsVisibleTo("BeatInsight.Tests")]
-[assembly: InternalsVisibleTo("BeatInsight.MlBaseline")]
+[assembly: InternalsVisibleTo("BeatInsight.ML")]
+[assembly: InternalsVisibleTo("BeatInsight.ML.Tests")]
 
 [assembly: ThemeInfo(
     ResourceDictionaryLocation.None,            //where theme specific resource dictionaries are located

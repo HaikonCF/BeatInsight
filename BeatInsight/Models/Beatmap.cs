@@ -42,6 +42,8 @@ public class Beatmap
         Length.ToString(@"m\:ss");
     public int BPM { get; set; }
     public int MaxCombo { get; set; }
+    public global::BeatInsight.Analysis.BeatmapBpmV2 BpmV2 { get; set; } = global::BeatInsight.Analysis.BeatmapBpmV2.Unavailable;
+    public int? OsuMaxCombo { get; set; }
 
     public double AR { get; set; }
     public double OD { get; set; }

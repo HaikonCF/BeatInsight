@@ -1522,7 +1522,7 @@
                                 <Border Style="{StaticResource CardBorderStyle}" Width="150" Margin="6">
                                     <StackPanel>
                                         <TextBlock Text="BPM" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" HorizontalAlignment="Center"/>
-                                        <TextBlock Text="{Binding Overview.Bpm}" FontSize="24" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Center"/>
+                                        <TextBlock Text="{Binding Overview.BpmDisplay}" FontSize="24" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Center"/>
                                     </StackPanel>
                                 </Border>
                                 <Border Style="{StaticResource CardBorderStyle}" Width="150" Margin="6">
@@ -1534,7 +1534,7 @@
                                 <Border Style="{StaticResource CardBorderStyle}" Width="150" Margin="6">
                                     <StackPanel>
                                         <TextBlock Text="MAX COMBO" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" HorizontalAlignment="Center"/>
-                                        <TextBlock Text="{Binding Overview.MaxCombo}" FontSize="24" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Center"/>
+                                        <TextBlock Text="{Binding Overview.MaxComboDisplay}" FontSize="24" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Center"/>
                                     </StackPanel>
                                 </Border>
                             </StackPanel>

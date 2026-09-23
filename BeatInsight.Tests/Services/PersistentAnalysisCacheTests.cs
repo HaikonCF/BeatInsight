@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.IO;
 using BeatInsight.Models.AnalysisCache;
 using BeatInsight.Models.Fusion;
@@ -40,6 +41,50 @@ public sealed class PersistentAnalysisCacheTests
         AnalysisCacheLookupResult hit = await cache.TryLoadAsync(source);
         Assert.Equal(AnalysisCacheResultKind.Hit, hit.Result);
         AssertJsonEquivalent(snapshot, hit.Entry!.Analysis);
+    }
+
+    [Fact]
+    public async Task NewBpmAndComboMetadataRoundTripsThroughJsonCache()
+    {
+        using var scope = new TempScope();
+        string source = scope.Source("map.osu", "v2");
+        var cache = scope.Cache(schemaVersion: PersistentAnalysisCacheVersion.SchemaVersion,
+            analyzerVersion: PersistentAnalysisCacheVersion.AnalyzerVersion);
+        BeatmapAnalysisSnapshot snapshot = Snapshot("v2") with
+        {
+            Metadata = Snapshot("v2").Metadata with
+            { PrimaryBpm = 180, MinBpm = 160, MaxBpm = 190, IsVariableBpm = true, OsuMaxCombo = 1787 }
+        };
+
+        AnalysisCacheLookupResult miss = await cache.TryLoadAsync(source);
+        await cache.SaveAsync(Entry(cache, source, miss.ContentHash, snapshot));
+        BeatmapMetadataSnapshot restored = (await cache.TryLoadAsync(source)).Entry!.Analysis.Metadata;
+
+        Assert.Equal(180, restored.PrimaryBpm);
+        Assert.Equal(160, restored.MinBpm);
+        Assert.Equal(190, restored.MaxBpm);
+        Assert.True(restored.IsVariableBpm);
+        Assert.Equal(1787, restored.OsuMaxCombo);
+    }
+
+    [Fact]
+    public void OldSnapshotJsonWithoutV2MetadataDeserializesWithUnavailableFields()
+    {
+        JsonNode oldSnapshot = JsonNode.Parse(JsonSerializer.Serialize(Snapshot("old")))!;
+        JsonObject metadata = oldSnapshot["Metadata"]!.AsObject();
+        metadata.Remove("PrimaryBpm");
+        metadata.Remove("MinBpm");
+        metadata.Remove("MaxBpm");
+        metadata.Remove("IsVariableBpm");
+        metadata.Remove("OsuMaxCombo");
+        BeatmapAnalysisSnapshot? restored = oldSnapshot.Deserialize<BeatmapAnalysisSnapshot>();
+
+        Assert.NotNull(restored);
+        Assert.Null(restored.Metadata.PrimaryBpm);
+        Assert.Null(restored.Metadata.MinBpm);
+        Assert.Null(restored.Metadata.MaxBpm);
+        Assert.Null(restored.Metadata.IsVariableBpm);
+        Assert.Null(restored.Metadata.OsuMaxCombo);
     }
 
     [Fact]

@@ -12,7 +12,49 @@ public sealed class SectionTimelineItemViewModel : ViewModelBase
     private string localDifficultyDisplay = "0.0";
     private string dominantSignal = string.Empty;
     private string tooltipText = string.Empty;
+    private double jumpScore;
+    private double streamScore;
+    private double techScore;
+    private double burstScore;
+    private bool isSpike;
 
+    public double JumpScore
+    {
+        get => jumpScore;
+        set => SetProperty(ref jumpScore, value);
+    }
+
+    public double StreamScore
+    {
+        get => streamScore;
+        set => SetProperty(ref streamScore, value);
+    }
+
+    public double TechScore
+    {
+        get => techScore;
+        set => SetProperty(ref techScore, value);
+    }
+
+    public double BurstScore
+    {
+        get => burstScore;
+        set => SetProperty(ref burstScore, value);
+    }
+
+    public bool IsSpike
+    {
+        get => isSpike;
+        set => SetProperty(ref isSpike, value);
+    }
+
+    public double DurationMs => Math.Max(0, EndTimeMs - StartTimeMs);
+
+
+    public string DurationDisplay =>
+        TimeSpan.FromMilliseconds(DurationMs).ToString(@"mm\:ss");
+
+    public string SectionNumberDisplay => $"SECTION {Index + 1}";
     public int Index
     {
         get => index;
@@ -72,4 +114,5 @@ public sealed class SectionTimelineItemViewModel : ViewModelBase
         get => tooltipText;
         set => SetProperty(ref tooltipText, value);
     }
+
 }

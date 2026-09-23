@@ -1,4 +1,4 @@
-﻿using BeatInsight.Diagnostics;
+using BeatInsight.Diagnostics;
 using BeatInsight.Models;
 using BeatInsight.Services;
 using osu.Framework.Graphics.Lines;
@@ -20,6 +20,7 @@ namespace BeatInsight.Parser
     {
         public static Beatmap Load(string filePath)
         {
+            Stopwatch perf = Stopwatch.StartNew();
             Beatmap beatmap = new Beatmap();
 
             string[] lines = File.ReadAllLines(filePath);
@@ -112,7 +113,7 @@ namespace BeatInsight.Parser
                         TimingPoint timingPoint = new TimingPoint();
                         timingPoint.Time = double.Parse(valeurs[0], CultureInfo.InvariantCulture);
                         timingPoint.BeatLength = double.Parse(valeurs[1], CultureInfo.InvariantCulture);
-                        timingPoint.Uninherited = valeurs[6] == "1";
+                        timingPoint.Uninherited = valeurs.Length < 7 || valeurs[6] == "1";
                         beatmap.TimingPoints.Add(timingPoint);
 
                     }
@@ -194,6 +195,7 @@ namespace BeatInsight.Parser
                 }
 
             }
+            double parseMs = perf.Elapsed.TotalMilliseconds;
             DebugLogger.NewMap(
             beatmap.Title,
             beatmap.Version);
@@ -244,6 +246,7 @@ namespace BeatInsight.Parser
             int length = beatmap.HitObjects[beatmap.HitObjects.Count - 1].Time - beatmap.HitObjects[0].Time;
             TimeSpan duree = TimeSpan.FromMilliseconds(length);
             beatmap.Length = duree;
+
 
 
             beatmap.MaxCombo = beatmap.HitObjects.Count;
@@ -299,21 +302,32 @@ namespace BeatInsight.Parser
 
             // Le profil est volontairement isolé du Star Rating actuel :
             // il sert d'abord à observer et calibrer les patterns.
+            double preparationMs = perf.Elapsed.TotalMilliseconds - parseMs;
             beatmap.GameplayProfile =
                 global::BeatInsight.Analysis.GameplayAnalyzer.Analyze(beatmap);
+            double gameplayMs = perf.Elapsed.TotalMilliseconds - parseMs - preparationMs;
 
             // ============================================================
             // OSU! STAR RATING
             // ============================================================
 
-            beatmap.OsuStarRating =
-                OsuStarRatingCalculator.Calculate(filePath);
+            OsuStarRatingCalculator.OsuDifficultySummary osuDifficulty =
+                OsuStarRatingCalculator.CalculateSummary(filePath);
+            beatmap.OsuStarRating = osuDifficulty.StarRating;
+            beatmap.OsuMaxCombo = osuDifficulty.MaxCombo;
+            // The difficulty decoder preserves the source timing timeline, including v5.
+            beatmap.BpmV2 = global::BeatInsight.Analysis.BeatmapBpmV2Analyzer.Analyze(
+                beatmap.TimingPoints, osuDifficulty.FirstObjectTime ?? double.NaN,
+                osuDifficulty.LastObjectEndTime ?? double.NaN);
+            double starRatingMs = perf.Elapsed.TotalMilliseconds - parseMs - preparationMs - gameplayMs;
 
             // ============================================================
             // BEATINSIGHT DIFFICULTY
             // ============================================================
 
             CalculateMovementStats(beatmap);
+            double movementMs = perf.Elapsed.TotalMilliseconds - parseMs - preparationMs - gameplayMs - starRatingMs;
+            DebugLogger.Log($"ANALYZE ASYNC PERF | Map={filePath} | Parse={parseMs:F1} ms | ParserPreparation={preparationMs:F1} ms | GameplayProfile={gameplayMs:F1} ms | StarRating={starRatingMs:F1} ms | MovementStats={movementMs:F1} ms | Objects={beatmap.HitObjects.Count} | Sliders={beatmap.SliderCount} | TimingPoints={beatmap.TimingPoints.Count} | Duration={beatmap.Length.TotalMilliseconds:F0} ms");
 
             return beatmap;
         }

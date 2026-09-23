@@ -42,3 +42,18 @@ OsuSecrets.cs
 publish/
 test-release/
 *.zip
+.aider*
+
+# Local editor / model tooling
+opencode.json
+
+# Local backups
+*.bak
+
+# Generated forensic/review reports
+Dataset/TechReviewReports/
+Dataset/Reports/
+ui-v2-overview-implementation.md
+
+# Local review candidates until human annotations are versioned
+Dataset/TechWindowReviews/

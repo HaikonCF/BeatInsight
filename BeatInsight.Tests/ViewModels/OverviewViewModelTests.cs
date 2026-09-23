@@ -16,7 +16,7 @@ namespace BeatInsight.Tests.ViewModels;
 /// </summary>
 public sealed class OverviewViewModelTests
 {
-    private static BeatmapAnalysisSnapshot BuildSnapshot(
+    internal static BeatmapAnalysisSnapshot BuildSnapshot(
         double ratingScore = 5.4,
         double ratingConfidence = 0.82,
         double tripletSpeedPercent = 63.0,
@@ -113,6 +113,97 @@ public sealed class OverviewViewModelTests
     }
 
     [Fact]
+    public void LoadSnapshot_ProjectsEverySkillPressureMetricWithoutReanalysis()
+    {
+        var overview = new OverviewViewModel();
+
+        overview.LoadSnapshot(BuildSnapshot());
+
+        Assert.Equal(
+            ["Stamina", "Endurance", "Finger Control", "Burst Control", "Aim Control", "Precision", "Reading Pressure", "Rhythm Complexity"],
+            overview.SkillPressureMetrics.Select(metric => metric.Name));
+        Assert.Equal([70d, 60d, 50d, 40d, 35d, 45d, 55d, 65d],
+            overview.SkillPressureMetrics.Select(metric => metric.Value));
+        Assert.All(overview.SkillPressureMetrics, metric => Assert.True(metric.IsAvailable));
+    }
+
+    [Fact]
+    public void LoadSnapshot_UnavailablePrecisionDisplaysNaInsteadOfZero()
+    {
+        BeatmapAnalysisSnapshot snapshot = BuildSnapshot();
+        snapshot = snapshot with
+        {
+            SkillPressureV2 = snapshot.SkillPressureV2 with
+            {
+                Precision = SkillPressureMetric.Unavailable("Geometry unavailable")
+            }
+        };
+        var overview = new OverviewViewModel();
+
+        overview.LoadSnapshot(snapshot);
+
+        SkillMetricViewModel precision = overview.SkillPressureMetrics.Single(metric => metric.Name == "Precision");
+        Assert.False(precision.IsAvailable);
+        Assert.Equal("N/A", precision.DisplayValue);
+        Assert.Equal("Geometry unavailable", precision.Description);
+        SkillMetricViewModel burst = overview.SkillPressureMetrics.Single(metric => metric.Name == "Burst Control");
+        Assert.True(burst.IsAvailable);
+        Assert.Equal("40%", burst.DisplayValue);
+    }
+
+    [Fact]
+    public void LoadSnapshot_ReplacesSkillPressureMetricsForNextBeatmap()
+    {
+        var overview = new OverviewViewModel();
+        BeatmapAnalysisSnapshot first = BuildSnapshot();
+        BeatmapAnalysisSnapshot second = first with
+        {
+            SkillPressureV2 = first.SkillPressureV2 with
+            {
+                Stamina = new SkillPressureMetric(
+                    12, 0.7, true, true,
+                    new Dictionary<string, double>(), string.Empty)
+            }
+        };
+
+        overview.LoadSnapshot(first);
+        overview.LoadSnapshot(second);
+
+        Assert.Equal(8, overview.SkillPressureMetrics.Count);
+        Assert.Equal(12, overview.SkillPressureMetrics[0].Value);
+        overview.Clear();
+        Assert.Empty(overview.SkillPressureMetrics);
+    }
+
+    [Fact]
+    public void MainWindowNavigation_ActivatesOnlySkillsWhenSelected()
+    {
+        var viewModel = new MainWindowViewModel();
+
+        viewModel.SelectedTab = NavigationTab.Skills;
+
+        Assert.True(viewModel.IsSkillsTabActive);
+        Assert.False(viewModel.IsOverviewTabActive);
+        Assert.False(viewModel.IsSectionsTabActive);
+        Assert.False(viewModel.IsIdentityTabActive);
+        Assert.False(viewModel.IsDifficultyTabActive);
+    }
+
+    [Fact]
+    public void MainWindowNavigation_ActivatesOnlyIdentityWhenSelected()
+    {
+        var viewModel = new MainWindowViewModel();
+
+        viewModel.SelectedTab = NavigationTab.Identity;
+
+        Assert.True(viewModel.IsIdentityTabActive);
+        Assert.False(viewModel.IsOverviewTabActive);
+        Assert.False(viewModel.IsSkillsTabActive);
+        Assert.False(viewModel.IsSectionsTabActive);
+        Assert.False(viewModel.IsDifficultyTabActive);
+    }
+
+    [Fact]
     public void LoadSnapshot_Rating_ComesFromRatingV2()
     {
         var overview = new OverviewViewModel();
@@ -138,8 +229,25 @@ public sealed class OverviewViewModelTests
         Assert.Equal("TECH", overview.Identity.PrimaryStructure);
         Assert.Equal("CLASSICMIXED", overview.Identity.SecondaryStructure);
         Assert.True(overview.Identity.HasSecondary);
-        Assert.Single(overview.Identity.MainSkills);
-        Assert.Single(overview.Identity.MainPatterns);
+        MainSkillChipViewModel mainSkill = Assert.Single(overview.Identity.MainSkills);
+        Assert.Equal("Stream", mainSkill.Name);
+        Assert.Equal(88, mainSkill.Score);
+        Assert.Equal("Reliable", mainSkill.Reliability);
+        MainPatternChipViewModel mainPattern = Assert.Single(overview.Identity.MainPatterns);
+        Assert.Equal("Flow Stream", mainPattern.Name);
+        Assert.Equal("60% coverage", mainPattern.OccurrenceDisplay);
+        Assert.Equal("83 %", overview.Identity.GlobalConfidenceDisplay);
+    }
+
+    [Fact]
+    public void LoadSnapshot_IdentityWithoutSecondaryKeepsSecondaryHidden()
+    {
+        var overview = new OverviewViewModel();
+
+        overview.LoadSnapshot(BuildSnapshot(secondary: null));
+
+        Assert.False(overview.Identity.HasSecondary);
+        Assert.Equal("—", overview.Identity.SecondaryStructure);
     }
 
     [Fact]
@@ -154,8 +262,34 @@ public sealed class OverviewViewModelTests
         Assert.Single(overview.DifficultyPoints);
         Assert.True(overview.DifficultyPoints[0].IsSpike);
         Assert.True(overview.HasSpikes);
-        Assert.Contains("1 difficulty spike", overview.SpikesSummaryText);
+        Assert.Equal("1 significant difficulty spike detected", overview.SpikesSummaryText);
         Assert.Equal("STREAM", overview.Sections[0].Structure.ToUpperInvariant());
+        Assert.Equal(10, overview.Sections[0].JumpScore);
+        Assert.Equal(90, overview.Sections[0].StreamScore);
+        Assert.Equal(5, overview.Sections[0].TechScore);
+        Assert.Equal(5, overview.Sections[0].BurstScore);
+    }
+
+    [Fact]
+    public void LoadSnapshot_ZeroSectionSignals_DoNotClaimJumpDominance()
+    {
+        BeatmapAnalysisSnapshot snapshot = BuildSnapshot();
+        GameplaySectionV2Analysis section = snapshot.SectionAnalysisV2.Sections[0] with
+        {
+            JumpScore = 0,
+            StreamScore = 0,
+            TechScore = 0,
+            BurstScore = 0
+        };
+        snapshot = snapshot with
+        {
+            SectionAnalysisV2 = snapshot.SectionAnalysisV2 with { Sections = [section] }
+        };
+
+        var overview = new OverviewViewModel();
+        overview.LoadSnapshot(snapshot);
+
+        Assert.Equal("None", overview.Sections[0].DominantSignal);
     }
 
     [Fact]
@@ -169,6 +303,37 @@ public sealed class OverviewViewModelTests
         Assert.False(overview.HasBeatmap);
         Assert.Empty(overview.Sections);
         Assert.Empty(overview.SkillMetrics);
+    }
+
+    [Fact]
+    public void LoadSnapshot_FormatsConstantBpmAndReliableMaxCombo()
+    {
+        var overview = new OverviewViewModel();
+        BeatmapAnalysisSnapshot snapshot = BuildSnapshot();
+        snapshot = snapshot with { Metadata = snapshot.Metadata with
+            { PrimaryBpm = 180, MinBpm = 180, MaxBpm = 180, IsVariableBpm = false, OsuMaxCombo = 1498 } };
+
+        overview.LoadSnapshot(snapshot);
+
+        Assert.Equal("180 BPM", overview.BpmDisplay);
+        Assert.Equal("1498", overview.MaxComboDisplay);
+    }
+
+    [Fact]
+    public void LoadSnapshot_FormatsVariableBpmAndDoesNotFallBackToLegacyValues()
+    {
+        var overview = new OverviewViewModel();
+        BeatmapAnalysisSnapshot snapshot = BuildSnapshot();
+        snapshot = snapshot with { Metadata = snapshot.Metadata with
+            { PrimaryBpm = 180, MinBpm = 160, MaxBpm = 190, IsVariableBpm = true } };
+
+        overview.LoadSnapshot(snapshot);
+        Assert.Equal("160–190 BPM", overview.BpmDisplay);
+        Assert.Equal("—", overview.MaxComboDisplay);
+
+        overview.LoadSnapshot(BuildSnapshot());
+        Assert.Equal("—", overview.BpmDisplay);
+        Assert.Equal("—", overview.MaxComboDisplay);
     }
 
     [Fact]
@@ -262,5 +427,75 @@ public sealed class OverviewViewModelTests
         Assert.False(coordinator.Fail(old, "Late error"));
         Assert.False(overview.IsLoading);
         Assert.Equal(BiaVisualState.Idle, overview.Assistant.State);
+    }
+
+    [Fact]
+    public void CacheHit_ReadyPrecedesSecondaryProjection()
+    {
+        var overview = new OverviewViewModel();
+        var coordinator = new OverviewLoadCoordinator(overview);
+        long request = coordinator.Begin("Analyzing...");
+        var snapshot = BuildSnapshot();
+
+        Assert.True(coordinator.LoadSnapshot(
+            request, snapshot, wasCacheHit: true,
+            loadTime: TimeSpan.FromMilliseconds(4), backgroundPath: null));
+        Assert.True(overview.IsLoading);
+        Assert.True(overview.HasBeatmap);
+        Assert.Empty(overview.Sections);
+
+        Assert.True(coordinator.SetReady(request));
+        Assert.False(overview.IsLoading);
+        Assert.Equal(BiaVisualState.Idle, overview.Assistant.State);
+        Assert.Empty(overview.Sections);
+
+        Assert.True(coordinator.CompleteSecondaryDetails(
+            request, snapshot, wasCacheHit: true));
+        Assert.Single(overview.Sections);
+    }
+
+    [Fact]
+    public void RapidAtoBtoA_OnlyFinalACompletes()
+    {
+        var overview = new OverviewViewModel();
+        var coordinator = new OverviewLoadCoordinator(overview);
+        long firstA = coordinator.Begin("A first");
+        long b = coordinator.Begin("B");
+        long finalA = coordinator.Begin("A final");
+
+        Assert.False(coordinator.LoadSnapshot(
+            firstA, BuildSnapshot(), false, TimeSpan.Zero, null));
+        Assert.False(coordinator.Fail(b, "B failed late"));
+        Assert.True(overview.IsLoading);
+        Assert.Equal("A final", overview.LoadingMessage);
+
+        Assert.True(coordinator.LoadSnapshot(
+            finalA, BuildSnapshot(), true, TimeSpan.Zero, null));
+        Assert.True(coordinator.SetReady(finalA));
+        Assert.False(coordinator.CompleteSecondaryDetails(
+            firstA, BuildSnapshot(), false));
+        Assert.False(overview.IsLoading);
+        Assert.False(overview.HasError);
+        Assert.True(overview.HasBeatmap);
+    }
+
+    [Fact]
+    public void AtoB_HidesPreviousMapAndRejectsLateA()
+    {
+        var overview = new OverviewViewModel();
+        var coordinator = new OverviewLoadCoordinator(overview);
+        long a = coordinator.Begin("A");
+        Assert.True(coordinator.Complete(a, BuildSnapshot()));
+
+        long b = coordinator.Begin("B");
+        Assert.False(overview.HasBeatmap);
+        Assert.True(overview.IsLoading);
+        Assert.False(coordinator.Fail(a, "Late A error"));
+        Assert.False(coordinator.Complete(a, BuildSnapshot()));
+
+        Assert.True(coordinator.Complete(b, BuildSnapshot()));
+        Assert.True(overview.HasBeatmap);
+        Assert.False(overview.IsLoading);
+        Assert.False(overview.HasError);
     }
 }

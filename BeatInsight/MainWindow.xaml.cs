@@ -3286,145 +3286,120 @@ namespace BeatInsight
             // NOUVELLE MAP
             // ============================================================
 
+            performance.OverviewBeginTimestamp = Stopwatch.GetTimestamp();
+            performance.CommunityTagsDeferred = true;
             long overviewRequest = overviewLoadCoordinator!.Begin(
                 "Analyzing the selected beatmap...");
-            Beatmap? beatmap;
-            BeatmapAnalysisOutcome? v1Outcome = null;
-            performance.V1StartTimestamp = Stopwatch.GetTimestamp();
-            DebugLogger.Log(
-                $"MAP SWITCH E2E V1 START | Sequence={tickSequence} | " +
-                $"SW={performance.V1StartTimestamp} | Path={chemin}");
-            Stopwatch v1Watch = Stopwatch.StartNew();
-
-            try
-            {
-                beatmap = await TosuBeatmapPollingGuard.TryLoadAsync(
-                    chemin,
-                    async path =>
-                    {
-                        v1Outcome = await Task.Run(() =>
-                            analysisCache.GetOrAnalyzeDetailed(path, beatmapId));
-                        return v1Outcome.Beatmap;
-                    });
-            }
-            catch (Exception ex)
-            {
-                overviewLoadCoordinator!.Fail(
-                    overviewRequest,
-                    "Unable to analyze this beatmap for the Overview panel.");
-                DebugLogger.Log(
-                    $"EXCEPTION = {ex.GetType().FullName}");
-
-                DebugLogger.Log(
-                    $"MESSAGE = {ex.Message}");
-
-                DebugLogger.Log(
-                    $"STACK TRACE = {ex.StackTrace ?? "Unavailable"}");
-
-                throw;
-            }
-
-            v1Watch.Stop();
-            performance.V1EndTimestamp = Stopwatch.GetTimestamp();
-            performance.V1Load = v1Watch.Elapsed;
-            performance.V1CacheHit = v1Outcome?.WasCacheHit;
-            DebugLogger.Log(
-                $"MAP SWITCH E2E V1 END | Sequence={tickSequence} | " +
-                $"SW={performance.V1EndTimestamp} | " +
-                $"Duration={performance.V1Load.TotalMilliseconds:F1} ms | " +
-                $"CacheHit={performance.V1CacheHit}");
-
-            if (!overviewLoadCoordinator!.IsCurrent(overviewRequest))
-                return;
-
-            if (beatmap is null)
-            {
-                DebugLogger.Log(
-                    $"TOSU MAP WAITING | File disappeared before analysis | " +
-                    $"Path={chemin}");
-
-                ResetPolledBeatmapState();
-                return;
-            }
-
-            // Le chemin n'est mémorisé qu'après une ouverture réussie.
             currentMapPath = chemin;
             currentBeatmapUrl = $"https://osu.ppy.sh/b/{beatmapId}";
-
-            // Le panneau de labellisation lit uniquement l'analyse locale et
-            // le sample ML existant : il reste indépendant des tags/API.
-            RefreshHumanLabelPanel(beatmap, chemin);
-
-            // ============================================================
-            // BACKGROUND
-            // ============================================================
-
-            string? resolvedBackgroundPath = null;
-
-            if (!string.IsNullOrWhiteSpace(bg))
-            {
-                string backgroundPath = System.IO.Path.Combine(
-                    songs!,
-                    folder!,
-                    bg
-                );
-
-                if (System.IO.File.Exists(backgroundPath))
-                {
-                    try
-                    {
-                        BackgroundImage.Source =
-                            new BitmapImage(new Uri(backgroundPath));
-                        resolvedBackgroundPath = backgroundPath;
-                    }
-                    catch
-                    {
-                        BackgroundImage.Source = null;
-                    }
-                }
-                else
-                {
-                    BackgroundImage.Source = null;
-                }
-            }
-            else
-            {
-                BackgroundImage.Source = null;
-            }
-
-
-            currentBeatmap = beatmap;
-            await UpdateOverviewFromSourceAsync(
-                chemin,
-                resolvedBackgroundPath,
-                performance,
-                overviewRequest);
-            performance.CommunityTagsDeferred = true;
-            await performance.LogAsync(
-                beatmapId,
-                chemin,
-                Dispatcher,
-                () => DashboardViewHost.IsOverviewDisplayed(
-                    mainViewModel.Overview.Title,
-                    mainViewModel.Overview.Version));
-            if (!overviewLoadCoordinator!.IsCurrent(overviewRequest))
-                return;
-
+            currentBeatmap = null;
+            BackgroundImage.Source = null;
             pendingTosuMapPath = null;
             pendingTosuMapFirstSeenTimestamp = 0;
             pendingTosuMapFileAvailableTimestamp = 0;
-
             mapEnrichmentCancellation?.Cancel();
-            mapEnrichmentCancellation?.Dispose();
-            mapEnrichmentCancellation = null;
-            if (!IsBackgroundLibraryWorkRunning)
+            var cancellation = new CancellationTokenSource();
+            mapEnrichmentCancellation = cancellation;
+            _ = LoadSelectedMapAsync(
+                chemin, beatmapId, songs, folder, bg,
+                overviewRequest, performance, cancellation);
+        }
+
+        private async Task LoadSelectedMapAsync(
+            string sourcePath,
+            int beatmapId,
+            string? songs,
+            string? folder,
+            string? backgroundFile,
+            long request,
+            MapChangePerformance performance,
+            CancellationTokenSource cancellation)
+        {
+            try
             {
-                mapEnrichmentCancellation = new CancellationTokenSource();
-                _ = UpdateCommunityTagsAsync(
-                    beatmap,
-                    beatmapId,
-                    chemin,
-                    mapEnrichmentCancellation.Token);
+                await UpdateOverviewFromSourceAsync(
+                    sourcePath,
+                    performance: performance,
+                    existingRequest: request,
+                    cancellationToken: cancellation.Token);
+
+                if (!overviewLoadCoordinator!.IsCurrent(request)
+                    || cancellation.IsCancellationRequested)
+                    return;
+
+                // V1, le fond et les tags servent aux panneaux annexes :
+                // aucun de ces traitements ne retient l'overlay Overview.
+                performance.V1StartTimestamp = Stopwatch.GetTimestamp();
+                BeatmapAnalysisOutcome? outcome = null;
+                Beatmap? beatmap = await TosuBeatmapPollingGuard.TryLoadAsync(
+                    sourcePath,
+                    async path =>
+                    {
+                        outcome = await Task.Run(() =>
+                            analysisCache.GetOrAnalyzeDetailed(path, beatmapId));
+                        return outcome.Beatmap;
+                    });
+                performance.V1EndTimestamp = Stopwatch.GetTimestamp();
+                performance.V1Load = Stopwatch.GetElapsedTime(
+                    performance.V1StartTimestamp,
+                    performance.V1EndTimestamp);
+                performance.V1CacheHit = outcome?.WasCacheHit;
+                performance.LogOverviewLifecycle("V1 complete");
+
+                if (!overviewLoadCoordinator.IsCurrent(request)
+                    || cancellation.IsCancellationRequested
+                    || beatmap is null)
+                    return;
+
+                currentBeatmap = beatmap;
+                RefreshHumanLabelPanel(beatmap, sourcePath);
+
+                if (!string.IsNullOrWhiteSpace(songs)
+                    && !string.IsNullOrWhiteSpace(folder)
+                    && !string.IsNullOrWhiteSpace(backgroundFile))
+                {
+                    string backgroundPath = Path.Combine(
+                        songs, folder, backgroundFile);
+                    if (File.Exists(backgroundPath))
+                    {
+                        try
+                        {
+                            BackgroundImage.Source =
+                                new BitmapImage(new Uri(backgroundPath));
+                            mainViewModel.Overview.BackgroundPath =
+                                backgroundPath;
+                        }
+                        catch (Exception ex)
+                        {
+                            DebugLogger.Log(
+                                $"OVERVIEW BACKGROUND ERROR | {ex.Message}");
+                        }
+                    }
+                }
+
+                if (!IsBackgroundLibraryWorkRunning
+                    && overviewLoadCoordinator.IsCurrent(request)
+                    && !cancellation.IsCancellationRequested)
+                {
+                    await UpdateCommunityTagsAsync(
+                        beatmap, beatmapId, sourcePath,
+                        cancellation.Token);
+                }
+            }
+            catch (OperationCanceledException)
+                when (cancellation.IsCancellationRequested)
+            {
+            }
+            catch (Exception ex)
+            {
+                DebugLogger.Log($"MAP ENRICHMENT ERROR | {ex.Message}");
+                DebugLogger.Detailed(ex.ToString());
+            }
+            finally
+            {
+                if (ReferenceEquals(mapEnrichmentCancellation, cancellation))
+                    mapEnrichmentCancellation = null;
+                cancellation.Dispose();
             }
         }
 
@@ -3549,7 +3524,6 @@ namespace BeatInsight
             currentBeatmapUrl = null;
             currentBeatmap = null;
             mapEnrichmentCancellation?.Cancel();
-            mapEnrichmentCancellation?.Dispose();
             mapEnrichmentCancellation = null;
 
             if (shouldClearOverview)
@@ -3576,7 +3550,8 @@ namespace BeatInsight
             string sourceFilePath,
             string? backgroundPath = null,
             MapChangePerformance? performance = null,
-            long? existingRequest = null)
+            long? existingRequest = null,
+            CancellationToken cancellationToken = default)
         {
             long request = existingRequest
                 ?? overviewLoadCoordinator!.Begin(
@@ -3596,18 +3571,26 @@ namespace BeatInsight
 
                 Stopwatch snapshotWatch = Stopwatch.StartNew();
                 CachedBeatmapAnalysisResult result =
-                    await overviewAnalysisService.AnalyzeAsync(sourceFilePath);
+                    await overviewAnalysisService.AnalyzeAsync(
+                        sourceFilePath, cancellationToken);
                 snapshotWatch.Stop();
 
                 if (!overviewLoadCoordinator!.IsCurrent(request)
+                    || cancellationToken.IsCancellationRequested
                     || !string.Equals(sourceFilePath, currentMapPath,
                         StringComparison.OrdinalIgnoreCase))
                     return;
 
                 if (performance is not null)
+                    performance.OverviewSnapshotAvailableTimestamp =
+                        Stopwatch.GetTimestamp();
+
+                if (performance is not null)
                 {
                     performance.V2Snapshot = snapshotWatch.Elapsed;
                     performance.V2CacheLookup = result.LoadTime;
+                    performance.V2AnalysisTime = result.AnalysisTime;
+                    performance.V2SaveTime = result.SaveTime;
                     performance.V2CacheHit = result.WasCacheHit;
                     performance.V2EndTimestamp = Stopwatch.GetTimestamp();
                     DebugLogger.Log(
@@ -3625,20 +3608,29 @@ namespace BeatInsight
                 }
 
                 Stopwatch loadSnapshotWatch = Stopwatch.StartNew();
-                overviewLoadCoordinator.Complete(
+                bool loaded = overviewLoadCoordinator.LoadSnapshot(
                     request,
                     result.Snapshot,
                     result.WasCacheHit,
                     result.LoadTime,
                     backgroundPath);
                 loadSnapshotWatch.Stop();
+                if (!loaded)
+                    return;
+
+                if (performance is not null)
+                    performance.ViewModelEndTimestamp =
+                        Stopwatch.GetTimestamp();
+
+                if (!overviewLoadCoordinator.SetReady(request))
+                    return;
 
                 if (performance is not null)
                 {
+                    performance.OverviewReadyTimestamp =
+                        Stopwatch.GetTimestamp();
                     performance.OverviewLoadSnapshot =
                         loadSnapshotWatch.Elapsed;
-                    performance.ViewModelEndTimestamp =
-                        Stopwatch.GetTimestamp();
                     DebugLogger.Log(
                         $"MAP SWITCH E2E VIEWMODEL | " +
                         $"Sequence={performance.TickSequence} | " +
@@ -3647,7 +3639,16 @@ namespace BeatInsight
                         $"Duration={performance.OverviewLoadSnapshot.TotalMilliseconds:F1} ms | " +
                         $"Title={mainViewModel.Overview.Title} | " +
                         $"Difficulty={mainViewModel.Overview.Version}");
+                    performance.LogOverviewLifecycle("Ready state set");
                 }
+
+                await CompleteOverviewAfterReadyAsync(
+                    request, sourceFilePath, result.Snapshot,
+                    result.WasCacheHit, performance);
+            }
+            catch (OperationCanceledException)
+                when (cancellationToken.IsCancellationRequested)
+            {
             }
             catch (Exception ex)
             {
@@ -3662,6 +3663,54 @@ namespace BeatInsight
                         request,
                         "Unable to analyze this beatmap for the Overview panel.");
                 }
+            }
+        }
+
+        private async Task CompleteOverviewAfterReadyAsync(
+            long request,
+            string sourceFilePath,
+            BeatmapAnalysisSnapshot snapshot,
+            bool wasCacheHit,
+            MapChangePerformance? performance)
+        {
+            try
+            {
+                await Dispatcher.InvokeAsync(
+                    () => { }, DispatcherPriority.ContextIdle);
+                if (!overviewLoadCoordinator!.IsCurrent(request))
+                    return;
+
+                bool overlayVisible =
+                    DashboardViewHost.IsLoadingOverlayVisible;
+                if (performance is not null)
+                {
+                    if (!overlayVisible)
+                        performance.OverviewOverlayHiddenTimestamp =
+                            Stopwatch.GetTimestamp();
+                    performance.LogOverviewLifecycle(
+                        overlayVisible ? "Overlay still visible" : "Overlay hidden");
+                }
+
+                overviewLoadCoordinator.CompleteSecondaryDetails(
+                    request, snapshot, wasCacheHit);
+
+                if (performance is not null
+                    && overviewLoadCoordinator.IsCurrent(request))
+                {
+                    await performance.LogAsync(
+                        snapshot.Metadata?.BeatmapId ?? 0,
+                        sourceFilePath,
+                        Dispatcher,
+                        () => DashboardViewHost.IsOverviewDisplayed(
+                            mainViewModel.Overview.Title,
+                            mainViewModel.Overview.Version));
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugLogger.Log(
+                    $"OVERVIEW SECONDARY ERROR | {ex.Message}");
+                DebugLogger.Detailed(ex.ToString());
             }
         }
 
@@ -3682,6 +3731,8 @@ namespace BeatInsight
             internal TimeSpan CommunityTags { get; set; }
             internal TimeSpan V2Snapshot { get; set; }
             internal TimeSpan V2CacheLookup { get; set; }
+            internal TimeSpan V2AnalysisTime { get; set; }
+            internal TimeSpan V2SaveTime { get; set; }
             internal TimeSpan OverviewLoadSnapshot { get; set; }
             internal bool? V1CacheHit { get; set; }
             internal bool? V2CacheHit { get; set; }
@@ -3697,6 +3748,32 @@ namespace BeatInsight
             internal long V2EndTimestamp { get; set; }
             internal long ViewModelStartTimestamp { get; set; }
             internal long ViewModelEndTimestamp { get; set; }
+            internal long OverviewBeginTimestamp { get; set; }
+            internal long OverviewSnapshotAvailableTimestamp { get; set; }
+            internal long OverviewReadyTimestamp { get; set; }
+            internal long OverviewOverlayHiddenTimestamp { get; set; }
+
+            internal void LogOverviewLifecycle(string milestone)
+            {
+                string At(long timestamp) => timestamp == 0
+                    ? "pending"
+                    : $"{Stopwatch.GetElapsedTime(OverviewBeginTimestamp, timestamp).TotalMilliseconds:F1} ms";
+
+                DebugLogger.Log(
+                    "OVERVIEW LOAD LIFECYCLE | " +
+                    $"Sequence={TickSequence} | {milestone} | " +
+                    "BeginLoad=0 ms | " +
+                    $"V1 complete={At(V1EndTimestamp)} | " +
+                    $"V2 snapshot available={At(OverviewSnapshotAvailableTimestamp)} | " +
+                    $"LoadSnapshot complete={At(ViewModelEndTimestamp)} | " +
+                    $"Ready state set={At(OverviewReadyTimestamp)} | " +
+                    $"Overlay hidden={At(OverviewOverlayHiddenTimestamp)} | " +
+                    $"IsLoading true={At(OverviewReadyTimestamp)} | " +
+                    $"V2 cache hit={V2CacheHit?.ToString() ?? "pending"} | " +
+                    $"V2 lookup={V2CacheLookup.TotalMilliseconds:F1} ms | " +
+                    $"V2 analysis={V2AnalysisTime.TotalMilliseconds:F1} ms | " +
+                    $"V2 save={V2SaveTime.TotalMilliseconds:F1} ms");
+            }
 
             internal async Task LogAsync(
                 int beatmapId,
@@ -3735,7 +3812,10 @@ namespace BeatInsight
                     $"{Stopwatch.GetElapsedTime(FirstNewTosuDataTimestamp, DetectedDifferentPathTimestamp).TotalMilliseconds:F1} ms | " +
                     $"Path/File availability delay=" +
                     $"{Stopwatch.GetElapsedTime(FirstNewTosuDataTimestamp, FileAvailableTimestamp).TotalMilliseconds:F1} ms | " +
-                    $"V1 cache/load={V1Load.TotalMilliseconds:F1} ms | " +
+                    $"V1 cache/load=" +
+                    (V1EndTimestamp == 0
+                        ? "deferred | "
+                        : $"{V1Load.TotalMilliseconds:F1} ms | ") +
                     $"Community tags=" +
                     (CommunityTagsDeferred
                         ? "deferred | "

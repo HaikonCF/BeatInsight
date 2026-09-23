@@ -37,6 +37,30 @@ public static class GameplayIdentityV3Analyzer
         Beatmap analyticalMap = CreateAnalyticalMap(beatmap, global);
         SectionAnalysisResult sections = SectionAnalysisV2Analyzer.Analyze(analyticalMap);
         SkillPressureProfile pressure = SkillPressureAnalyzer.Analyze(analyticalMap);
+        return AnalyzePrepared(beatmap, analyticalMap, global, sections, pressure);
+    }
+
+    public static GameplayIdentityV3Profile Analyze(
+        Beatmap beatmap,
+        GameplayProfile global,
+        SectionAnalysisResult sections,
+        SkillPressureProfile pressure)
+    {
+        ArgumentNullException.ThrowIfNull(beatmap);
+        ArgumentNullException.ThrowIfNull(global);
+        ArgumentNullException.ThrowIfNull(sections);
+        ArgumentNullException.ThrowIfNull(pressure);
+        Beatmap analyticalMap = CreateAnalyticalMap(beatmap, global);
+        return AnalyzePrepared(beatmap, analyticalMap, global, sections, pressure);
+    }
+
+    private static GameplayIdentityV3Profile AnalyzePrepared(
+        Beatmap beatmap,
+        Beatmap analyticalMap,
+        GameplayProfile global,
+        SectionAnalysisResult sections,
+        SkillPressureProfile pressure)
+    {
         IReadOnlyList<GameplayIdentityV3PatternInput> patterns = BuildPatterns(analyticalMap, global);
         GameplayIdentityV3Profile result = Analyze(new GameplayIdentityV3Input(
             beatmap.HitObjects.Count,

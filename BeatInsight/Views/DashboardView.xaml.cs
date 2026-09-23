@@ -1,6 +1,8 @@
-﻿using System.Windows;
+﻿using BeatInsight.ViewModels;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using static BeatInsight.Controls.SectionTimelineGraphControl;
 
 namespace BeatInsight.Views
 {
@@ -27,8 +29,74 @@ namespace BeatInsight.Views
                 expectedDifficulty,
                 StringComparison.Ordinal);
 
+        internal bool IsLoadingOverlayVisible =>
+            OverviewLoadingOverlay.Visibility == Visibility.Visible;
+
         private Window? HostWindow =>
             Window.GetWindow(this);
+
+        private void SectionTimelineGraph_SectionClicked(
+            object? sender,
+            SectionClickedEventArgs e)
+        {
+            if (DataContext is not MainWindowViewModel vm)
+                return;
+
+            int index = e.Index;
+
+            if (index < 0 || index >= vm.Sections.Sections.Count)
+                return;
+
+            vm.Sections.SelectSection(vm.Sections.Sections[index]);
+        }
+
+        private void OverviewTabButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (DataContext is MainWindowViewModel vm)
+                vm.SelectedTab = NavigationTab.Overview;
+        }
+
+        private void SkillsTabButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (DataContext is MainWindowViewModel vm)
+                vm.SelectedTab = NavigationTab.Skills;
+        }
+
+        private void PreviousSectionButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (DataContext is MainWindowViewModel vm)
+                vm.Sections.SelectPrevious();
+        }
+
+        private void NextSectionButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (DataContext is MainWindowViewModel vm)
+                vm.Sections.SelectNext();
+        }
+
+        private void SectionsTabButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (DataContext is MainWindowViewModel vm)
+                vm.SelectedTab = NavigationTab.Sections;
+        }
+
+        private void PatternsTabButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (DataContext is MainWindowViewModel vm)
+                vm.SelectedTab = NavigationTab.Patterns;
+        }
+
+        private void IdentityTabButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (DataContext is MainWindowViewModel vm)
+                vm.SelectedTab = NavigationTab.Identity;
+        }
+
+        private void DifficultyTabButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (DataContext is MainWindowViewModel vm)
+                vm.SelectedTab = NavigationTab.Difficulty;
+        }
 
         private void SettingsButton_Click(
             object sender,
@@ -90,7 +158,6 @@ namespace BeatInsight.Views
             CancelLibraryScanRequested?.Invoke(this, e);
         }
 
-
         // ============================================================
         // WINDOW CONTROLS
         // ============================================================
@@ -105,7 +172,6 @@ namespace BeatInsight.Views
             window.WindowState = WindowState.Minimized;
         }
 
-
         private void MaximizeButton_Click(
             object sender,
             RoutedEventArgs e)
@@ -118,7 +184,6 @@ namespace BeatInsight.Views
                     ? WindowState.Normal
                     : WindowState.Maximized;
         }
-
 
         private void CloseButton_Click(
             object sender,

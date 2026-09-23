@@ -5,6 +5,7 @@ public enum NavigationTab
     Overview,
     Skills,
     Sections,
+    Patterns,
     Identity,
     Difficulty
 }
@@ -28,6 +29,7 @@ public sealed class MainWindowViewModel : ViewModelBase
                 OnPropertyChanged(nameof(IsOverviewTabActive));
                 OnPropertyChanged(nameof(IsSkillsTabActive));
                 OnPropertyChanged(nameof(IsSectionsTabActive));
+                OnPropertyChanged(nameof(IsPatternsTabActive));
                 OnPropertyChanged(nameof(IsIdentityTabActive));
                 OnPropertyChanged(nameof(IsDifficultyTabActive));
             }
@@ -37,11 +39,20 @@ public sealed class MainWindowViewModel : ViewModelBase
     public bool IsOverviewTabActive => SelectedTab == NavigationTab.Overview;
     public bool IsSkillsTabActive => SelectedTab == NavigationTab.Skills;
     public bool IsSectionsTabActive => SelectedTab == NavigationTab.Sections;
+    public bool IsPatternsTabActive => SelectedTab == NavigationTab.Patterns;
     public bool IsIdentityTabActive => SelectedTab == NavigationTab.Identity;
     public bool IsDifficultyTabActive => SelectedTab == NavigationTab.Difficulty;
 
-    public OverviewViewModel Overview { get; } = new();
-    public LibraryPanelViewModel Library { get; } = new();
+    public OverviewViewModel Overview { get; }
+    public SectionsViewModel Sections { get; }
+    public LibraryPanelViewModel Library { get; }
+
+    public MainWindowViewModel()
+    {
+        Overview = new OverviewViewModel();
+        Sections = new SectionsViewModel(Overview);
+        Library = new LibraryPanelViewModel();
+    }
 
     public string StatusConnectionText
     {

@@ -50,7 +50,12 @@ public sealed record BeatmapMetadataSnapshot(
     int SliderCount,
     int SpinnerCount,
     double OsuStarRating,
-    double HistoricalBeatInsightRating);
+    double HistoricalBeatInsightRating,
+    double? PrimaryBpm = null,
+    double? MinBpm = null,
+    double? MaxBpm = null,
+    bool? IsVariableBpm = null,
+    int? OsuMaxCombo = null);
 
 public sealed record GameplayProfileSnapshot(
     double AimScore,

@@ -1,9 +1,10 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Text;
 using BeatInsight.Models.AnalysisCache;
 using BeatInsight.Models.Identity;
 using BeatInsight.Models.Sections;
+using BeatInsight.Models.SkillPressure;
 
 namespace BeatInsight.ViewModels;
 
@@ -21,8 +22,10 @@ public sealed class OverviewViewModel : ViewModelBase
     private string version = "—";
     private string creator = "—";
     private int bpm;
+    private string bpmDisplay = "—";
     private string lengthDisplay = "--:--";
     private int maxCombo;
+    private string maxComboDisplay = "—";
     private double ar;
     private double od;
     private double cs;
@@ -119,6 +122,12 @@ public sealed class OverviewViewModel : ViewModelBase
         set => SetProperty(ref bpm, value);
     }
 
+    public string BpmDisplay
+    {
+        get => bpmDisplay;
+        set => SetProperty(ref bpmDisplay, value);
+    }
+
     public string LengthDisplay
     {
         get => lengthDisplay;
@@ -129,6 +138,12 @@ public sealed class OverviewViewModel : ViewModelBase
     {
         get => maxCombo;
         set => SetProperty(ref maxCombo, value);
+    }
+
+    public string MaxComboDisplay
+    {
+        get => maxComboDisplay;
+        set => SetProperty(ref maxComboDisplay, value);
     }
 
     public double Ar
@@ -287,15 +302,28 @@ public sealed class OverviewViewModel : ViewModelBase
         set => SetProperty(ref hasCommunityTags, value);
     }
 
+    public bool HasSections => Sections.Count > 0;
+    public bool HasDifficultyData => DifficultyPoints.Count > 0;
+
+    public OverviewViewModel()
+    {
+        Sections.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasSections));
+        DifficultyPoints.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasDifficultyData));
+    }
+
     public ObservableCollection<SkillMetricViewModel> SkillMetrics { get; } = [];
+    public ObservableCollection<SkillMetricViewModel> SkillPressureMetrics { get; } = [];
     public ObservableCollection<CommunityTag> CommunityTags { get; } = [];
     public IdentityViewModel Identity { get; } = new();
+    public PatternsViewModel Patterns { get; } = new();
+    public DifficultyAnalysisViewModel Difficulty { get; } = new();
     public ObservableCollection<SectionTimelineItemViewModel> Sections { get; } = [];
     public ObservableCollection<DifficultyPointViewModel> DifficultyPoints { get; } = [];
     public BiaAssistantViewModel Assistant { get; } = new();
 
     public void SetLoading(string message)
     {
+        HasBeatmap = false;
         IsLoading = true;
         LoadingMessage = message;
         ErrorMessage = null;
@@ -307,6 +335,7 @@ public sealed class OverviewViewModel : ViewModelBase
 
     public void SetError(string error)
     {
+        HasBeatmap = false;
         IsLoading = false;
         ErrorMessage = error;
         Assistant.SetState(
@@ -325,8 +354,10 @@ public sealed class OverviewViewModel : ViewModelBase
         Version = "—";
         Creator = "—";
         Bpm = 0;
+        BpmDisplay = "—";
         LengthDisplay = "--:--";
         MaxCombo = 0;
+        MaxComboDisplay = "—";
         Ar = 0;
         Od = 0;
         Cs = 0;
@@ -354,6 +385,7 @@ public sealed class OverviewViewModel : ViewModelBase
         HasCommunityTags = false;
 
         SkillMetrics.Clear();
+        SkillPressureMetrics.Clear();
         Identity.PrimaryStructure = "—";
         Identity.SecondaryStructure = "—";
         Identity.HasSecondary = false;
@@ -361,6 +393,8 @@ public sealed class OverviewViewModel : ViewModelBase
         Identity.GlobalConfidenceDisplay = "0%";
         Identity.MainSkills.Clear();
         Identity.MainPatterns.Clear();
+        Patterns.Clear();
+        Difficulty.Clear();
         Sections.Clear();
         DifficultyPoints.Clear();
         Assistant.Message = "Select or play a beatmap to see my detailed analytical breakdown!";
@@ -389,7 +423,9 @@ public sealed class OverviewViewModel : ViewModelBase
         BeatmapAnalysisSnapshot? snapshot,
         bool isCacheHit = false,
         TimeSpan? loadTime = null,
-        string? backgroundPath = null)
+        string? backgroundPath = null,
+        bool includeSecondaryDetails = true,
+        bool setReady = true)
     {
         if (snapshot is null)
         {
@@ -397,7 +433,6 @@ public sealed class OverviewViewModel : ViewModelBase
             return;
         }
 
-        IsLoading = false;
         ErrorMessage = null;
         HasBeatmap = true;
         WasCacheHit = isCacheHit;
@@ -414,8 +449,12 @@ public sealed class OverviewViewModel : ViewModelBase
             Version = string.IsNullOrWhiteSpace(meta.Version) ? "Normal" : meta.Version;
             Creator = string.IsNullOrWhiteSpace(meta.Creator) ? "Unknown" : meta.Creator;
             Bpm = meta.Bpm;
+            BpmDisplay = FormatBpm(meta);
             LengthDisplay = TimeSpan.FromTicks(meta.LengthTicks).ToString(@"mm\:ss");
             MaxCombo = meta.MaxCombo;
+            MaxComboDisplay = meta.OsuMaxCombo is > 0
+                ? meta.OsuMaxCombo.Value.ToString(CultureInfo.InvariantCulture)
+                : "—";
             Ar = meta.ApproachRate;
             Od = meta.OverallDifficulty;
             Cs = meta.CircleSize;
@@ -456,6 +495,7 @@ public sealed class OverviewViewModel : ViewModelBase
             BeatInsightRatingConfidence = 0;
             BeatInsightRatingConfidenceDisplay = "--";
         }
+        Difficulty.LoadRating(snapshot.RatingV2);
 
         // 3. Analysis Source
         if (isCacheHit)
@@ -489,9 +529,12 @@ public sealed class OverviewViewModel : ViewModelBase
         SkillMetrics.Add(new SkillMetricViewModel("Speed", speedVal, $"{speedVal:F0}%", "Global Triplet & High-BPM speed pressure", true, "AccentMagenta"));
         SkillMetrics.Add(new SkillMetricViewModel("Stamina", staminaVal, $"{staminaVal:F0}%", "Sustained physical tapping endurance", true, "AccentMagenta"));
 
+        LoadSkillPressureMetrics(snapshot.SkillPressureV2);
+
         // 5. Identity V3
         Identity.MainSkills.Clear();
         Identity.MainPatterns.Clear();
+        Patterns.Load(snapshot.PatternSummaries);
         if (snapshot.IdentityV3 is not null)
         {
             Identity.PrimaryStructure = snapshot.IdentityV3.PrimaryStructure.ToString().ToUpperInvariant();
@@ -548,11 +591,36 @@ public sealed class OverviewViewModel : ViewModelBase
             Identity.GlobalConfidenceDisplay = "0%";
         }
 
+        Sections.Clear();
+        DifficultyPoints.Clear();
+        Difficulty.LoadSections(Array.Empty<SectionTimelineItemViewModel>());
+        HasSpikes = false;
+        SpikesSummaryText = "No section data available";
+        Assistant.Name = "Bia-chan";
+        Assistant.Title = "Your Analysis Assistant";
+        Assistant.StatusBadge = isCacheHit ? "Cached Analysis" : "Fresh Analysis";
+        Assistant.Message = "Analysis ready.";
+        Assistant.State = BiaVisualState.Idle;
+        FormattedAnalysisSummary = string.Empty;
+
+        if (includeSecondaryDetails)
+            LoadSecondarySnapshotDetails(snapshot, isCacheHit);
+
+        if (setReady)
+            SetReady();
+    }
+
+    public void SetReady() => IsLoading = false;
+
+    public void LoadSecondarySnapshotDetails(
+        BeatmapAnalysisSnapshot snapshot,
+        bool isCacheHit)
+    {
         // 6. Section Analysis V2 & Spikes
         Sections.Clear();
         DifficultyPoints.Clear();
         var secAnalysis = snapshot.SectionAnalysisV2;
-        if (secAnalysis is not null && secAnalysis.Sections is not null)
+        if (secAnalysis?.Sections is { Count: > 0 })
         {
             foreach (var sec in secAnalysis.Sections)
             {
@@ -563,24 +631,40 @@ public sealed class OverviewViewModel : ViewModelBase
                 string dominantSignal = GetDominantSignalName(sec);
                 string tooltip = $"Section #{sec.SectionIndex + 1}\nTime: {startDisplay} - {endDisplay}\nStructure: {structName}\nLocal Difficulty: {sec.LocalDifficultyScore:F1}/100\nDominant Signal: {dominantSignal}";
 
+
                 Sections.Add(new SectionTimelineItemViewModel
                 {
                     Index = sec.SectionIndex,
                     StartTimeMs = sec.StartTime,
                     EndTimeMs = sec.EndTime,
-                    TimeRangeDisplay = $"{startDisplay} - {endDisplay}",
+
+                    TimeRangeDisplay =
+        $"{TimeSpan.FromMilliseconds(sec.StartTime):mm\\:ss} - {TimeSpan.FromMilliseconds(sec.EndTime):mm\\:ss}",
+
                     Structure = structName,
                     StructureColorKey = colorKey,
+
                     LocalDifficulty = sec.LocalDifficultyScore,
-                    LocalDifficultyDisplay = sec.LocalDifficultyScore.ToString("F1", CultureInfo.InvariantCulture),
+                    LocalDifficultyDisplay = sec.LocalDifficultyScore.ToString(
+                        "F1", CultureInfo.InvariantCulture),
+
                     DominantSignal = dominantSignal,
+
+                    JumpScore = sec.JumpScore,
+                    StreamScore = sec.StreamScore,
+                    TechScore = sec.TechScore,
+                    BurstScore = sec.BurstScore,
+
+                    IsSpike = sec.Spike.IsSpike,
+
                     TooltipText = tooltip
                 });
 
                 bool isSpike = sec.Spike.IsSpike;
                 string? spikeDesc = isSpike ? $"Difficulty Spike #{sec.SectionIndex + 1}: {sec.LocalDifficultyScore:F1} ({structName})" : null;
 
-                DifficultyPoints.Add(new DifficultyPointViewModel(
+                if (double.IsFinite(sec.LocalDifficultyScore))
+                    DifficultyPoints.Add(new DifficultyPointViewModel(
                     sec.SectionIndex,
                     (sec.StartTime + sec.EndTime) / 2.0,
                     startDisplay,
@@ -592,7 +676,9 @@ public sealed class OverviewViewModel : ViewModelBase
             if (secAnalysis.DifficultySpikeCount > 0)
             {
                 HasSpikes = true;
-                SpikesSummaryText = $"{secAnalysis.DifficultySpikeCount} difficulty spike(s) detected (peak: {secAnalysis.MaximumLocalDifficulty:F1})";
+                SpikesSummaryText = secAnalysis.DifficultySpikeCount == 1
+                    ? "1 significant difficulty spike detected"
+                    : $"{secAnalysis.DifficultySpikeCount} significant difficulty spikes detected";
             }
             else
             {
@@ -605,6 +691,8 @@ public sealed class OverviewViewModel : ViewModelBase
             HasSpikes = false;
             SpikesSummaryText = "No section data available";
         }
+
+        Difficulty.LoadSections(Sections);
 
         // 7. Bia-chan Assistant Message Generation (Deterministic)
         Assistant.Name = "Bia-chan";
@@ -627,7 +715,51 @@ public sealed class OverviewViewModel : ViewModelBase
             ("Burst", section.BurstScore)
         ];
 
-        return signals.OrderByDescending(s => s.Score).First().Name;
+        (string Name, double Score) dominant = signals
+            .Where(signal => double.IsFinite(signal.Score))
+            .OrderByDescending(signal => signal.Score)
+            .FirstOrDefault();
+
+        return dominant.Score > 0 ? dominant.Name : "None";
+    }
+
+    private void LoadSkillPressureMetrics(SkillPressureProfile? pressure)
+    {
+        SkillPressureMetrics.Clear();
+        AddSkillPressureMetric("Stamina", pressure?.Stamina, "AccentMagenta");
+        AddSkillPressureMetric("Endurance", pressure?.Endurance, "StructureStream");
+        AddSkillPressureMetric("Finger Control", pressure?.FingerControl, "StructureTech");
+        AddSkillPressureMetric("Burst Control", pressure?.BurstControl, "StructureStream");
+        AddSkillPressureMetric("Aim Control", pressure?.AimControl, "StructureJump");
+        AddSkillPressureMetric("Precision", pressure?.Precision, "StructureTech");
+        AddSkillPressureMetric("Reading Pressure", pressure?.ReadingPressure, "StructureClassicMixed");
+        AddSkillPressureMetric("Rhythm Complexity", pressure?.RhythmComplexity, "StructureTech");
+    }
+
+    private void AddSkillPressureMetric(
+        string name,
+        SkillPressureMetric? metric,
+        string accentKey)
+    {
+        bool isAvailable = metric is { Available: true, Score: not null }
+            && double.IsFinite(metric.Score.Value);
+        double value = isAvailable ? metric!.Score!.Value : 0.0;
+        string displayValue = isAvailable
+            ? $"{value:F0}%"
+            : "N/A";
+        string description = isAvailable
+            ? $"Skill Pressure V2 · {(metric!.Reliable ? "Reliable" : "Partial")}"
+            : string.IsNullOrWhiteSpace(metric?.Limitation)
+                ? "Skill Pressure V2 · Unavailable"
+                : metric.Limitation;
+
+        SkillPressureMetrics.Add(new SkillMetricViewModel(
+            name,
+            value,
+            displayValue,
+            description,
+            isAvailable,
+            accentKey));
     }
 
     private static string GetStructureColorKey(string structureName) => structureName.ToUpperInvariant() switch
@@ -677,6 +809,24 @@ public sealed class OverviewViewModel : ViewModelBase
         return sb.ToString();
     }
 
+    private static string FormatBpm(BeatmapMetadataSnapshot metadata)
+    {
+        static string Rounded(double value) =>
+            Math.Round(value, 0, MidpointRounding.AwayFromZero).ToString(CultureInfo.InvariantCulture);
+
+        if (metadata.PrimaryBpm is not > 0 || !double.IsFinite(metadata.PrimaryBpm.Value))
+            return "—";
+
+        if (metadata.IsVariableBpm == true
+            && metadata.MinBpm is > 0 && double.IsFinite(metadata.MinBpm.Value)
+            && metadata.MaxBpm is > 0 && double.IsFinite(metadata.MaxBpm.Value))
+        {
+            return $"{Rounded(metadata.MinBpm.Value)}–{Rounded(metadata.MaxBpm.Value)} BPM";
+        }
+
+        return $"{Rounded(metadata.PrimaryBpm.Value)} BPM";
+    }
+
     private static string GenerateAnalysisSummary(BeatmapAnalysisSnapshot snapshot)
     {
         var meta = snapshot.Metadata;
@@ -689,7 +839,8 @@ public sealed class OverviewViewModel : ViewModelBase
         if (meta is not null)
         {
             sb.AppendLine($"Map: {meta.Artist} - {meta.Title} [{meta.Version}] by {meta.Creator}");
-            sb.AppendLine($"BPM: {meta.Bpm} | Length: {TimeSpan.FromTicks(meta.LengthTicks):mm\\:ss} | CS: {meta.CircleSize:F1} | AR: {meta.ApproachRate:F1} | OD: {meta.OverallDifficulty:F1} | HP: {meta.HpDrain:F1}");
+            sb.AppendLine($"BPM: {FormatBpm(meta)} | Length: {TimeSpan.FromTicks(meta.LengthTicks):mm\\:ss} | CS: {meta.CircleSize:F1} | AR: {meta.ApproachRate:F1} | OD: {meta.OverallDifficulty:F1} | HP: {meta.HpDrain:F1}");
+            sb.AppendLine($"Max Combo: {(meta.OsuMaxCombo is > 0 ? meta.OsuMaxCombo.Value.ToString(CultureInfo.InvariantCulture) : "—")}");
             sb.AppendLine($"osu! Star Rating: {meta.OsuStarRating:F2} ★");
         }
         if (rating is not null)

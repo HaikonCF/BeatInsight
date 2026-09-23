@@ -29,9 +29,13 @@ public sealed class CachedBeatmapAnalysisService
     public async Task<CachedBeatmapAnalysisResult> AnalyzeAsync(string sourcePath, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sourcePath);
+        Stopwatch totalWatch = Stopwatch.StartNew();
         AnalysisCacheLookupResult initial = await cache.TryLoadAsync(sourcePath, cancellationToken).ConfigureAwait(false);
         if (initial.Result == AnalysisCacheResultKind.Hit)
+        {
+            DebugLogger.Log($"ANALYZE ASYNC PERF | Map={sourcePath} | Cache=Hit | Lookup={initial.LoadTime.TotalMilliseconds:F1} ms | TOTAL={totalWatch.Elapsed.TotalMilliseconds:F1} ms");
             return Hit(initial);
+        }
 
         string lockKey = initial.CacheKey.Length == 0 ? Path.GetFullPath(sourcePath) : initial.CacheKey;
         SemaphoreSlim analysisLock = AnalysisLocks.GetOrAdd(lockKey, _ => new SemaphoreSlim(1, 1));
@@ -43,7 +47,10 @@ public sealed class CachedBeatmapAnalysisService
             {
                 lookup = await cache.TryLoadAsync(sourcePath, cancellationToken).ConfigureAwait(false);
                 if (lookup.Result == AnalysisCacheResultKind.Hit)
+                {
+                    DebugLogger.Log($"ANALYZE ASYNC PERF | Map={sourcePath} | Cache=HitAfterLock | Lookup={totalWatch.Elapsed.TotalMilliseconds:F1} ms | TOTAL={totalWatch.Elapsed.TotalMilliseconds:F1} ms");
                     return Hit(lookup);
+                }
             }
 
             Stopwatch analysisWatch = Stopwatch.StartNew();
@@ -80,6 +87,7 @@ public sealed class CachedBeatmapAnalysisService
                 snapshot, false, initial.Reason, cacheKey, contentHash, cachePath,
                 initial.LoadTime, analysisWatch.Elapsed, saveWatch.Elapsed, size);
             AnalysisCacheDebug.Log(result, cache.AnalyzerVersion, cache.SchemaVersion);
+            DebugLogger.Log($"ANALYZE ASYNC PERF | Map={sourcePath} | Cache=Miss | LookupAndLock={totalWatch.Elapsed.TotalMilliseconds - analysisWatch.Elapsed.TotalMilliseconds - saveWatch.Elapsed.TotalMilliseconds:F1} ms | Analysis={analysisWatch.Elapsed.TotalMilliseconds:F1} ms | CacheSave={saveWatch.Elapsed.TotalMilliseconds:F1} ms | CacheBytes={size} | TOTAL={totalWatch.Elapsed.TotalMilliseconds:F1} ms");
             return result;
         }
         finally

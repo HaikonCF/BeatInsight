@@ -1,0 +1,18 @@
+using BeatInsight.Analysis.TechPatterns;
+using BeatInsight.Models;
+using System.Numerics;
+using Xunit;
+using BeatInsight.Models.TechPatterns;
+namespace BeatInsight.Tests.Analysis;
+public sealed class TechPatternRecognitionTests
+{
+    private static List<HitObject> Shape(double scale=1,double rotation=0,int interval=100)
+    { var c=Math.Cos(rotation); var s=Math.Sin(rotation); Vector2 R(Vector2 p)=>new((float)((p.X*c-p.Y*s)*scale),(float)((p.X*s+p.Y*c)*scale)); var p=new[]{R(new(0,0)),R(new(1,0)),R(new(0,-1))}; return p.Select((x,i)=>new HitObject{X=(int)x.X,Y=(int)x.Y,Time=i*interval}).ToList(); }
+    [Fact] public void SharpPattern_IsInvariantToTransformations(){var a=TechPatternRecognitionEngine.FindSharpDirectionChanges(Shape()); var b=TechPatternRecognitionEngine.FindSharpDirectionChanges(Shape(50,1.2,200)); Assert.NotEmpty(a); Assert.NotEmpty(b); Assert.True(a[0].Similarity>.7&&b[0].Similarity>.7);}
+    [Theory][InlineData(0)][InlineData(0.15)][InlineData(Math.PI/6)] public void NonSharpShapes_AreRejected(double rotation){var p=Shape(1,rotation); if(rotation==0)p=new(){new(){X=0,Y=0,Time=0},new(){X=1,Y=0,Time=100},new(){X=2,Y=0,Time=200}}; Assert.Empty(TechPatternRecognitionEngine.FindSharpDirectionChanges(p));}
+    [Fact] public void RelativeRhythm_IsBpmInvariant(){var a=TechSequenceExtractor.Extract(Shape(interval:100))[0]; var b=TechSequenceExtractor.Extract(Shape(interval:150))[0]; var na=TechPatternNormalizer.Normalize(a); var nb=TechPatternNormalizer.Normalize(b); Assert.Equal(na.Intervals.ToArray(),nb.Intervals.ToArray());}
+    [Fact] public void SharpVsReversal_ConfusionCasesAreSeparated(){var sharp=TechPatternRecognitionEngine.FindSharpDirectionChanges(Shape()); var reversal=TechPatternRecognitionEngine.FindDirectionReversals(new List<HitObject>{new(){X=0,Time=0},new(){X=1,Time=100},new(){X=-1,Time=200}}); Assert.NotEmpty(sharp); Assert.NotEmpty(reversal); Assert.True(sharp[0].GeometrySimilarity>0); Assert.True(reversal[0].GeometrySimilarity>sharp[0].GeometrySimilarity);}
+    [Fact] public void SliderEntryRequiresCentralSliderContext(){var objects=new List<HitObject>{new(){X=0,Y=0,Time=0},new(){X=50,Y=0,Time=100,Type=2,SliderCurveType="P",SliderControlPoints=new(){new(){X=50,Y=100}},SliderEndPosition=new(){X=50,Y=100}},new(){X=0,Y=100,Time=200}}; var matches=TechPatternRecognitionEngine.FindMatches(objects); Assert.DoesNotContain(matches,m=>m.Type==TechPatternType.TechnicalSliderEntry&&m.Similarity>=TechPatternRecognitionEngine.TechnicalSliderEntry.DetectionThreshold); Assert.DoesNotContain(TechPatternRecognitionEngine.FindDirectionReversals(Shape()),m=>m.Type==TechPatternType.TechnicalSliderEntry);}
+    [Fact] public void SliderToSliderRequiresTwoConsecutiveSliders(){var o=new List<HitObject>{new(){X=0,Time=0},new(){X=50,Time=100,Type=2,SliderControlPoints=new(){new(){X=50,Y=80}},SliderEndPosition=new(){X=50,Y=80}},new(){X=-30,Y=120,Time=200,Type=2,SliderControlPoints=new(){new(){X=-30,Y=20}},SliderEndPosition=new(){X=-30,Y=20}}}; var m=TechPatternRecognitionEngine.FindSliderToSliderTransitions(o); Assert.NotEmpty(m); Assert.All(m,x=>Assert.InRange(x.Similarity,0,1));}
+    [Fact] public void IrregularRhythmRequiresSecondaryContext(){var regular=new List<HitObject>{new(){X=0,Time=0},new(){X=1,Time=100},new(){X=2,Time=200}}; Assert.DoesNotContain(TechPatternRecognitionEngine.FindMatches(regular),m=>m.Type==TechPatternType.IrregularRhythmTransition); var contextual=new List<HitObject>{new(){X=0,Time=0},new(){X=1,Time=100},new(){X=3,Time=150}}; var hit=TechPatternRecognitionEngine.FindMatches(contextual).FirstOrDefault(m=>m.Type==TechPatternType.IrregularRhythmTransition); Assert.NotNull(hit); Assert.InRange(hit!.Similarity,0,1);}
+}

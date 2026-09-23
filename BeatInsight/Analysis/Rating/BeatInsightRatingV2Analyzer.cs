@@ -32,6 +32,32 @@ public static class BeatInsightRatingV2Analyzer
         SectionAnalysisResult sections = SectionAnalysisV2Analyzer.Analyze(analyticalMap);
         SkillPressureProfile pressure = SkillPressureAnalyzer.Analyze(analyticalMap);
         GameplayIdentityV3Profile identity = GameplayIdentityV3Analyzer.Analyze(analyticalMap);
+        return AnalyzePrepared(analyticalMap, gameplay, sections, pressure, identity);
+    }
+
+    public static BeatInsightRatingV2 Analyze(
+        Beatmap beatmap,
+        GameplayProfile gameplay,
+        SectionAnalysisResult sections,
+        SkillPressureProfile pressure,
+        GameplayIdentityV3Profile identity)
+    {
+        ArgumentNullException.ThrowIfNull(beatmap);
+        ArgumentNullException.ThrowIfNull(gameplay);
+        ArgumentNullException.ThrowIfNull(sections);
+        ArgumentNullException.ThrowIfNull(pressure);
+        ArgumentNullException.ThrowIfNull(identity);
+        Beatmap analyticalMap = CreateAnalyticalMap(beatmap);
+        return AnalyzePrepared(analyticalMap, gameplay, sections, pressure, identity);
+    }
+
+    private static BeatInsightRatingV2 AnalyzePrepared(
+        Beatmap analyticalMap,
+        GameplayProfile gameplay,
+        SectionAnalysisResult sections,
+        SkillPressureProfile pressure,
+        GameplayIdentityV3Profile identity)
+    {
         double durationSeconds = analyticalMap.HitObjects.Count < 2
             ? 0
             : Math.Max(0, analyticalMap.HitObjects[^1].Time - analyticalMap.HitObjects[0].Time) / 1000.0;

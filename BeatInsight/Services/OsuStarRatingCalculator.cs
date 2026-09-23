@@ -1,9 +1,11 @@
-﻿using BeatInsight.Diagnostics;
+using BeatInsight.Diagnostics;
 using osu.Game.Beatmaps;
 using osu.Game.Beatmaps.Formats;
 using osu.Game.IO;
 using osu.Game.Rulesets;
 using osu.Game.Rulesets.Mods;
+using osu.Game.Rulesets.Objects;
+using System.Linq;
 using osu.Game.Rulesets.Osu;
 using osu.Game.Rulesets.Osu.Difficulty;
 using System;
@@ -13,7 +15,11 @@ namespace BeatInsight.Services;
 
 public static class OsuStarRatingCalculator
 {
-    public static double Calculate(string osuFilePath)
+    public sealed record OsuDifficultySummary(double StarRating, int MaxCombo, double? FirstObjectTime = null, double? LastObjectEndTime = null);
+
+    public static double Calculate(string osuFilePath) => CalculateSummary(osuFilePath).StarRating;
+
+    public static OsuDifficultySummary CalculateSummary(string osuFilePath)
     {
         if (!File.Exists(osuFilePath))
             throw new FileNotFoundException(
@@ -45,7 +51,7 @@ public static class OsuStarRatingCalculator
             DebugLogger.Log(
                 "OSU STAR RATING | Aucun HitObject | StarRating=0");
 
-            return 0;
+            return new OsuDifficultySummary(0, 0);
         }
 
         // ============================================================
@@ -84,7 +90,11 @@ public static class OsuStarRatingCalculator
             $"Attributes={attributes.GetType().Name} | " +
             $"StarRating={osuAttributes.StarRating:F3}");
 
-        return osuAttributes.StarRating;
+        // Reuse the decoded working beatmap, without another difficulty calculation.
+        // osu! supplies slider/spinner ends, including legacy compatibility rules.
+        var playable = workingBeatmap.GetPlayableBeatmap(ruleset.RulesetInfo, Array.Empty<Mod>());
+        return new OsuDifficultySummary(osuAttributes.StarRating, osuAttributes.MaxCombo,
+            playable.HitObjects.Min(hit => hit.StartTime), playable.HitObjects.Max(hit => hit.GetEndTime()));
     }
 
     private sealed class InMemoryWorkingBeatmap : WorkingBeatmap

@@ -1,0 +1,1 @@
+using Xunit;using Xunit.Abstractions;namespace BeatInsight.Tests.Analysis;public sealed class TechPatternPhase12SupportPrecisionAuditTests(ITestOutputHelper o){[Fact]public void Run(){var r=TechPatternPhase12SupportPrecisionAudit.Run();o.WriteLine(r);Assert.Contains("PHASE 12",r);}}

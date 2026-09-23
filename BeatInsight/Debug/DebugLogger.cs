@@ -24,7 +24,9 @@ public static class DebugLogger
     /// - contexte sliders
     /// - calculs intermédiaires
     /// </summary>
-    public static bool DetailedDebug = true;
+    // Keep high-level performance/lifecycle logging enabled through DebugMode,
+    // but do not synchronously emit analyzer internals for every local section.
+    public static bool DetailedDebug = false;
 
     private static readonly object Lock = new();
     

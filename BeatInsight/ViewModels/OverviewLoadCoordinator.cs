@@ -22,12 +22,53 @@ internal sealed class OverviewLoadCoordinator(OverviewViewModel overview)
         BeatmapAnalysisSnapshot snapshot,
         bool wasCacheHit = false,
         TimeSpan? loadTime = null,
-        string? backgroundPath = null)
+        string? backgroundPath = null,
+        bool includeSecondaryDetails = true)
     {
         if (!IsCurrent(request))
             return false;
 
-        overview.LoadSnapshot(snapshot, wasCacheHit, loadTime, backgroundPath);
+        overview.LoadSnapshot(
+            snapshot, wasCacheHit, loadTime, backgroundPath,
+            includeSecondaryDetails, setReady: false);
+        overview.SetReady();
+        return true;
+    }
+
+    internal bool LoadSnapshot(
+        long request,
+        BeatmapAnalysisSnapshot snapshot,
+        bool wasCacheHit,
+        TimeSpan loadTime,
+        string? backgroundPath)
+    {
+        if (!IsCurrent(request))
+            return false;
+
+        overview.LoadSnapshot(
+            snapshot, wasCacheHit, loadTime, backgroundPath,
+            includeSecondaryDetails: false, setReady: false);
+        return true;
+    }
+
+    internal bool SetReady(long request)
+    {
+        if (!IsCurrent(request))
+            return false;
+
+        overview.SetReady();
+        return true;
+    }
+
+    internal bool CompleteSecondaryDetails(
+        long request,
+        BeatmapAnalysisSnapshot snapshot,
+        bool wasCacheHit)
+    {
+        if (!IsCurrent(request))
+            return false;
+
+        overview.LoadSecondarySnapshotDetails(snapshot, wasCacheHit);
         return true;
     }
 

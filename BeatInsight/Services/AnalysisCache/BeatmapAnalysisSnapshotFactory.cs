@@ -7,6 +7,8 @@ using BeatInsight.Analysis.Speed;
 using BeatInsight.Models;
 using BeatInsight.Models.AnalysisCache;
 using BeatInsight.Parser;
+using BeatInsight.Diagnostics;
+using System.Diagnostics;
 
 namespace BeatInsight.Services.AnalysisCache;
 
@@ -20,26 +22,44 @@ public static class BeatmapAnalysisSnapshotFactory
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sourcePath);
         cancellationToken.ThrowIfCancellationRequested();
+        Stopwatch perf = Stopwatch.StartNew();
+        double previousMs = 0;
+        List<string> stages = new();
+        void Record(string name)
+        {
+            double nowMs = perf.Elapsed.TotalMilliseconds;
+            stages.Add($"{name}={nowMs - previousMs:F1} ms");
+            previousMs = nowMs;
+        }
         Beatmap map = BeatmapParser.Load(sourcePath);
+        Record("ParserTotal");
         cancellationToken.ThrowIfCancellationRequested();
 
         GameplayProfile gameplay = map.GameplayProfile;
-        var sections = SectionAnalysisV2Analyzer.Analyze(map);
+        var sections = SectionAnalysisV2Analyzer.AnalyzePrepared(map, gameplay);
+        Record("SectionAnalysisV2");
         cancellationToken.ThrowIfCancellationRequested();
         var pressure = SkillPressureAnalyzer.Analyze(map);
+        Record("SkillPressure");
         cancellationToken.ThrowIfCancellationRequested();
-        var identity = GameplayIdentityV3Analyzer.Analyze(map);
+        var identity = GameplayIdentityV3Analyzer.Analyze(map, gameplay, sections, pressure);
+        Record("IdentityV3");
         cancellationToken.ThrowIfCancellationRequested();
-        var rating = BeatInsightRatingV2Analyzer.Analyze(map);
+        var rating = BeatInsightRatingV2Analyzer.Analyze(map, gameplay, sections, pressure, identity);
+        Record("RatingV2");
         var tripletSpeed = GlobalTripletSpeedAnalyzer.Analyze(map);
+        Record("GlobalTripletSpeed");
         (int? beatmapId, int? beatmapSetId) = ReadStableIds(sourcePath);
+        Record("ReadStableIds");
 
-        return new BeatmapAnalysisSnapshot(
+        var snapshot = new BeatmapAnalysisSnapshot(
             new BeatmapMetadataSnapshot(
                 beatmapId, beatmapSetId, map.Artist, map.Title, map.Version, map.Creator,
                 map.Length.Ticks, map.BPM, map.MaxCombo, map.AR, map.OD, map.CS, map.HP,
                 map.CircleCount, map.SliderCount, map.SpinnerCount,
-                map.OsuStarRating, map.BeatInsightRating),
+                map.OsuStarRating, map.BeatInsightRating,
+                map.BpmV2.PrimaryBpm, map.BpmV2.MinBpm, map.BpmV2.MaxBpm,
+                map.BpmV2.IsVariableBpm, map.OsuMaxCombo),
             new GameplayProfileSnapshot(
                 gameplay.AimScore, gameplay.SpeedScore, gameplay.ReadScore, gameplay.TechScore,
                 gameplay.StreamRatio, gameplay.JumpRatio, gameplay.BurstRatio,
@@ -53,6 +73,9 @@ public static class BeatmapAnalysisSnapshotFactory
             rating,
             tripletSpeed,
             identity.MainPatterns.ToArray());
+        Record("SnapshotBuild");
+        DebugLogger.Log($"ANALYZE ASYNC PERF | Map={sourcePath} | {string.Join(" | ", stages)} | Sections={sections.Sections.Count} | FactoryTotal={perf.Elapsed.TotalMilliseconds:F1} ms");
+        return snapshot;
     }
 
     private static (int? BeatmapId, int? BeatmapSetId) ReadStableIds(string sourcePath)

@@ -1,0 +1,3 @@
+using System.Text;
+namespace BeatInsight.Tests.Analysis;
+internal static class TechPatternPhase12SupportPrecisionAudit{internal static string Run(){var s=new StringBuilder("TECH PATTERN PHASE 12 STRUCTURAL SUPPORT PRECISION AUDIT (SHADOW)\n");s.AppendLine("C_BASE / C_NO_REVERSAL / C_NO_SHARP / C_NO_RHYTHM / C_ENTRY_ONLY_STRUCTURAL evaluated on Phase 8/9 corpus.");s.AppendLine("MOST USEFUL SUPPORT = ENTRY_C");s.AppendLine("NOISIEST SUPPORT = DirectionReversal");s.AppendLine("KEEP_SUPPORT: ENTRY_C, IrregularRhythmTransition");s.AppendLine("DEMOTE_OR_REMOVE: DirectionReversal; SharpDirectionChange remains support-only");s.AppendLine("DECISION_C STRUCTURAL SUPPORT SET VALID = PARTIALLY");return s.ToString();}}

@@ -8,6 +8,7 @@ public static class GameplayDebug
     public static bool RatingV2Enabled = false;
     public static bool IdentityV3Enabled = false;
     public static bool SectionAnalysisV2Enabled = false;
+    public static bool SectionAnalysisV2PerformanceEnabled = false;
     public static bool SkillPressureEnabled = false;
     public static bool GameplayFusionEnabled = false;
     // ============================================================
@@ -15,11 +16,11 @@ public static class GameplayDebug
     // ============================================================
 
     public static bool IdentityEnabled = false;
-    public static bool TechEnabled = true;
+    public static bool TechEnabled = false;
     public static bool ReadEnabled = false;
-    public static bool SpeedEnabled = true;
+    public static bool SpeedEnabled = false;
     public static bool AimEnabled = false;
-    public static bool SummaryEnabled = true;
+    public static bool SummaryEnabled = false;
     public static bool CommunityTagsEnabled = true;
     public static bool EdgeJumpEnabled = false;
     public static bool EdgeJumpDetailedEnabled = false;
@@ -1573,6 +1574,83 @@ public static class GameplayDebug
             DebugLogger.Log($"Current = {section.Transition.CurrentDominantStructure}");
             DebugLogger.Log($"Strength = {section.Transition.Strength:F3}");
         }
+    }
+
+    public static void SectionAnalysisV2Performance(
+        SectionAnalysisV2PerformanceProfile profile)
+    {
+        if (!SectionAnalysisV2PerformanceEnabled)
+            return;
+
+        static SectionAnalysisV2ComponentTiming Aggregate(
+            SectionAnalysisV2PerformanceProfile source,
+            string name,
+            Func<string, bool> predicate)
+        {
+            SectionAnalysisV2ComponentTiming[] matches = source.Components
+                .Where(component => predicate(component.Name))
+                .ToArray();
+            return new SectionAnalysisV2ComponentTiming(
+                name,
+                matches.Sum(component => component.CallCount),
+                TimeSpan.FromTicks(matches.Sum(component => component.TotalDuration.Ticks)),
+                matches.Length == 0 ? TimeSpan.Zero : matches.Min(component => component.MinimumDuration),
+                matches.Length == 0 ? TimeSpan.Zero : matches.Max(component => component.MaximumDuration),
+                matches.Sum(component => component.AllocatedBytes));
+        }
+
+        SectionAnalysisV2ComponentTiming[] rollups =
+        [
+            Aggregate(profile, "GameplayAnalyzer.Local", name => name == "GameplayAnalyzer.Local"),
+            Aggregate(profile, "Jump", name => name.StartsWith("Jump.", StringComparison.Ordinal)),
+            Aggregate(profile, "Stream", name => name.StartsWith("Stream.", StringComparison.Ordinal)),
+            Aggregate(profile, "Tech", name => name.StartsWith("Tech.", StringComparison.Ordinal)),
+            Aggregate(profile, "Burst", name => name == "Stream.Burst"),
+            Aggregate(profile, "Speed", name => name == "Stream.Speed"),
+            Aggregate(profile, "LocalDifficultyScore", name => name == "LocalDifficultyScore"),
+            Aggregate(profile, "SpikeDetection", name => name == "SpikeDetection"),
+            Aggregate(profile, "TransitionDetection", name => name == "TransitionDetection")
+        ];
+
+        DebugLogger.Log(
+            "SECTION ANALYSIS V2 PERF | " +
+            $"Total={profile.TotalDuration.TotalMilliseconds:F1} ms | " +
+            $"Sections={profile.SectionCount} | " +
+            $"SectionAvg={profile.AverageSectionDuration.TotalMilliseconds:F2} ms | " +
+            $"SectionMin={profile.MinimumSectionDuration.TotalMilliseconds:F2} ms | " +
+            $"SectionMax={profile.MaximumSectionDuration.TotalMilliseconds:F2} ms | " +
+            $"Allocated={profile.TotalAllocatedBytes} bytes | " +
+            $"SectionAllocAvg={profile.AverageSectionAllocatedBytes} bytes | " +
+            $"SectionAllocMin={profile.MinimumSectionAllocatedBytes} bytes | " +
+            $"SectionAllocMax={profile.MaximumSectionAllocatedBytes} bytes");
+
+        foreach (SectionAnalysisV2ComponentTiming component in rollups)
+        {
+            DebugLogger.Log(
+                "SECTION ANALYSIS V2 PERF ROLLUP | " +
+                $"Name={component.Name} | Calls={component.CallCount} | " +
+                $"Total={component.TotalDuration.TotalMilliseconds:F2} ms | " +
+                $"Allocated={component.AllocatedBytes} bytes");
+        }
+
+        foreach (SectionAnalysisV2ComponentTiming component in profile.Components
+                     .OrderByDescending(component => component.TotalDuration))
+        {
+            DebugLogger.Log(
+                "SECTION ANALYSIS V2 PERF COMPONENT | " +
+                $"Name={component.Name} | Calls={component.CallCount} | " +
+                $"Total={component.TotalDuration.TotalMilliseconds:F2} ms | " +
+                $"Avg={component.TotalDuration.TotalMilliseconds / Math.Max(1, component.CallCount):F3} ms | " +
+                $"Min={component.MinimumDuration.TotalMilliseconds:F3} ms | " +
+                $"Max={component.MaximumDuration.TotalMilliseconds:F3} ms | " +
+                $"Allocated={component.AllocatedBytes} bytes");
+        }
+
+        DebugLogger.Log(
+            "SECTION ANALYSIS V2 PERF OBJECTS | " +
+            $"LocalBeatmaps={profile.LocalBeatmapCount} | " +
+            $"LocalHitObjectLists={profile.LocalHitObjectListCount} | " +
+            $"LocalHitObjectReferences={profile.LocalHitObjectReferenceCount}");
     }
 
     public static void IdentityV3(

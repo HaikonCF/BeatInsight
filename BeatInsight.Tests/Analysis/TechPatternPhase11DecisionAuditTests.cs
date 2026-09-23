@@ -1,0 +1,1 @@
+using Xunit;using Xunit.Abstractions;namespace BeatInsight.Tests.Analysis;public sealed class TechPatternPhase11DecisionAuditTests(ITestOutputHelper o){[Fact]public void Run(){var r=TechPatternPhase11DecisionAudit.Run();o.WriteLine(r);Assert.Contains("PHASE 11",r);}}

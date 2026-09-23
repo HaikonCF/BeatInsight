@@ -7,6 +7,7 @@ using BeatInsight.Analysis.TechPatterns;
 using BeatInsight.Diagnostics;
 using BeatInsight.Models;
 using BeatInsight.Models.Fusion;
+using BeatInsight.Models.JumpPatterns;
 using BeatInsight.Models.Sections;
 using BeatInsight.Models.SkillPressure;
 using BeatInsight.Models.TechPatterns;
@@ -19,45 +20,81 @@ namespace BeatInsight.Analysis.Sections;
 /// </summary>
 public static class SectionAnalysisV2Analyzer
 {
+    internal static SectionAnalysisV2PerformanceProfile? LastPerformanceProfile { get; private set; }
+
     public static SectionAnalysisResult Analyze(
         Beatmap beatmap,
+        SectionAnalysisV2Options? options = null) =>
+        AnalyzeCore(beatmap, null, options);
+
+    internal static SectionAnalysisResult AnalyzePrepared(
+        Beatmap beatmap,
+        GameplayProfile globalProfile,
         SectionAnalysisV2Options? options = null)
+    {
+        ArgumentNullException.ThrowIfNull(globalProfile);
+        return AnalyzeCore(beatmap, globalProfile, options);
+    }
+
+    private static SectionAnalysisResult AnalyzeCore(
+        Beatmap beatmap,
+        GameplayProfile? preparedGlobalProfile,
+        SectionAnalysisV2Options? options)
     {
         ArgumentNullException.ThrowIfNull(beatmap);
         options ??= new SectionAnalysisV2Options();
         Validate(options);
         var stopwatch = Stopwatch.StartNew();
+        PerformanceCollector? performance = GameplayDebug.SectionAnalysisV2PerformanceEnabled
+            ? new PerformanceCollector()
+            : null;
+        LastPerformanceProfile = null;
 
         IReadOnlyList<HitObject> objects = beatmap.HitObjects;
         if (objects.Count == 0)
         {
             stopwatch.Stop();
             SectionAnalysisResult empty = SectionAnalysisResult.Empty(stopwatch.Elapsed);
+            CompletePerformanceProfile(performance, 0);
             GameplayDebug.SectionAnalysisV2(empty);
             return empty;
         }
 
-        IReadOnlyList<GameplaySectionAnalysis> partition = Segment(objects, options);
-        GameplayProfile globalProfile = GameplayAnalyzer.Analyze(beatmap);
+        IReadOnlyList<GameplaySectionAnalysis> partition = Measure(
+            performance, "Segmentation", () => Segment(objects, options));
+        GameplayProfile globalProfile = preparedGlobalProfile ?? Measure(
+            performance, "GameplayAnalyzer.Global", () => GameplayAnalyzer.Analyze(beatmap));
 
-        IReadOnlyList<GameplaySectionAnalysis> jumpProjected = SectionJumpPatternAggregator.Aggregate(
-            partition,
-            JumpPatternAnalyzer.Analyze(objects, globalProfile));
+        IReadOnlyList<JumpPatternMatch> jumpPatterns = Measure(
+            performance, "Jump.PatternAnalysis", () => JumpPatternAnalyzer.Analyze(objects, globalProfile));
+        IReadOnlyList<GameplaySectionAnalysis> jumpProjected = Measure(
+            performance, "Jump.Projection", () => SectionJumpPatternAggregator.Aggregate(
+                partition,
+                jumpPatterns));
 
-        SectionStreamPatternAnalysisResults streamResults = AnalyzeStreamPatterns(objects);
-        IReadOnlyList<GameplaySectionAnalysis> projected = SectionStreamPatternAggregator.Aggregate(
-            jumpProjected,
-            streamResults);
-        IReadOnlyList<SectionPatternFamilyV2> techFamilies = ProjectTechPatterns(beatmap, projected);
+        SectionStreamPatternAnalysisResults streamResults = AnalyzeStreamPatterns(objects, performance);
+        IReadOnlyList<GameplaySectionAnalysis> projected = Measure(
+            performance, "Stream.Projection", () => SectionStreamPatternAggregator.Aggregate(
+                jumpProjected,
+                streamResults));
+        IReadOnlyList<SectionPatternFamilyV2> techFamilies = ProjectTechPatterns(
+            beatmap, projected, performance);
 
         var candidates = new List<SectionCandidate>(projected.Count);
         for (int index = 0; index < projected.Count; index++)
         {
+            long sectionStart = performance?.StartTimestamp() ?? 0;
+            long sectionAllocationStart = performance?.CurrentAllocatedBytes() ?? 0;
             GameplaySectionAnalysis cell = projected[index];
-            Beatmap localMap = CreateLocalBeatmap(beatmap, cell.ObjectIndices);
-            GameplayProfile localProfile = GameplayAnalyzer.Analyze(localMap);
-            SectionPatternFamilyV2 jumpFamily = BuildJumpFamily(cell.JumpPatterns);
-            SectionPatternFamilyV2 streamFamily = BuildStreamFamily(cell.StreamPatterns);
+            Beatmap localMap = Measure(
+                performance, "LocalBeatmapBuild", () => CreateLocalBeatmap(beatmap, cell.ObjectIndices));
+            performance?.RecordLocalBeatmap(cell.ObjectIndices.Count);
+            GameplayProfile localProfile = Measure(
+                performance, "GameplayAnalyzer.Local", () => GameplayAnalyzer.Analyze(localMap));
+            SectionPatternFamilyV2 jumpFamily = Measure(
+                performance, "Jump.FamilyBuild", () => BuildJumpFamily(cell.JumpPatterns));
+            SectionPatternFamilyV2 streamFamily = Measure(
+                performance, "Stream.FamilyBuild", () => BuildStreamFamily(cell.StreamPatterns));
             SectionPatternFamilyV2 techFamily = techFamilies[index];
 
             StructureDecision structure = DecideStructure(
@@ -69,27 +106,30 @@ public static class SectionAnalysisV2Analyzer
                 Score(localProfile.SpeedScore),
                 Score(localProfile.ReadScore),
                 Score(localProfile.TechScore));
-            SkillPressureProfile pressure = BuildLocalSkillPressure(
-                cell,
-                localProfile,
-                jumpFamily,
-                streamFamily,
-                techFamily);
+            SkillPressureProfile pressure = Measure(
+                performance, "LocalSkillPressure", () => BuildLocalSkillPressure(
+                    cell,
+                    localProfile,
+                    jumpFamily,
+                    streamFamily,
+                    techFamily));
 
             double durationSeconds = Math.Max(0.001, cell.Duration / 1000.0);
             double density = cell.ObjectCount / durationSeconds;
-            DifficultyCalculation difficulty = CalculateLocalDifficulty(
-                baseSkills,
-                pressure,
-                jumpFamily.Support,
-                streamFamily.Support,
-                techFamily.Support,
-                density,
-                cell.ObjectCount,
-                cell.Duration,
-                options.SectionDurationMilliseconds);
+            DifficultyCalculation difficulty = Measure(
+                performance, "LocalDifficultyScore", () => CalculateLocalDifficulty(
+                    baseSkills,
+                    pressure,
+                    jumpFamily.Support,
+                    streamFamily.Support,
+                    techFamily.Support,
+                    density,
+                    cell.ObjectCount,
+                    cell.Duration,
+                    options.SectionDurationMilliseconds));
 
-            var section = new GameplaySectionV2Analysis(
+            GameplaySectionV2Analysis section = Measure(
+                performance, "SectionModelBuild", () => new GameplaySectionV2Analysis(
                 cell.Index,
                 cell.StartTime,
                 cell.EndTime,
@@ -114,22 +154,29 @@ public static class SectionAnalysisV2Analyzer
                 difficulty.Confidence,
                 SectionDifficultySpike.None,
                 SectionGameplayTransition.First(structure.Dominant),
-                string.Empty);
+                string.Empty));
 
             candidates.Add(new SectionCandidate(section, difficulty.Contributors));
+            performance?.RecordSection(sectionStart, sectionAllocationStart);
         }
 
-        ApplySpikes(candidates, options);
-        ApplyTransitions(candidates, options);
+        ApplySpikes(candidates, options, performance);
+        ApplyTransitions(candidates, options, performance);
         for (int index = 0; index < candidates.Count; index++)
         {
             GameplaySectionV2Analysis section = candidates[index].Section;
-            candidates[index] = candidates[index] with { Section = section with { Summary = BuildSummary(section) } };
+            candidates[index] = Measure(
+                performance, "SummaryBuild", () => candidates[index] with
+                {
+                    Section = section with { Summary = BuildSummary(section) }
+                });
         }
 
-        GameplaySectionV2Analysis[] sections = candidates.Select(candidate => candidate.Section).ToArray();
+        GameplaySectionV2Analysis[] sections = Measure(
+            performance, "ResultMaterialization", () => candidates.Select(candidate => candidate.Section).ToArray());
         stopwatch.Stop();
         SectionAnalysisResult result = BuildResult(sections, stopwatch.Elapsed);
+        CompletePerformanceProfile(performance, sections.Length);
         GameplayDebug.SectionAnalysisV2(result);
         return result;
     }
@@ -267,58 +314,78 @@ public static class SectionAnalysisV2Analyzer
             + Math.Pow((left.StreamScore - right.StreamScore) / 100, 2)
             + Math.Pow((left.TechScore - right.TechScore) / 100, 2)) / Math.Sqrt(3));
 
-    private static void ApplySpikes(List<SectionCandidate> sections, SectionAnalysisV2Options options)
+    private static void ApplySpikes(
+        List<SectionCandidate> sections,
+        SectionAnalysisV2Options options,
+        PerformanceCollector? performance)
     {
         for (int index = 0; index < sections.Count; index++)
         {
-            var neighbors = new List<double>();
-            int start = Math.Max(0, index - options.SpikeNeighborRadius);
-            int end = Math.Min(sections.Count - 1, index + options.SpikeNeighborRadius);
-            for (int other = start; other <= end; other++)
-                if (other != index) neighbors.Add(sections[other].Section.LocalDifficultyScore);
-            SectionDifficultySpike spike = CalculateSpike(
-                sections[index].Section.LocalDifficultyScore,
-                neighbors,
-                sections[index].Contributors,
-                options);
-            sections[index] = sections[index] with { Section = sections[index].Section with { Spike = spike } };
+            int currentIndex = index;
+            Measure(performance, "SpikeDetection", () =>
+            {
+                var neighbors = new List<double>();
+                int start = Math.Max(0, currentIndex - options.SpikeNeighborRadius);
+                int end = Math.Min(sections.Count - 1, currentIndex + options.SpikeNeighborRadius);
+                for (int other = start; other <= end; other++)
+                    if (other != currentIndex) neighbors.Add(sections[other].Section.LocalDifficultyScore);
+                SectionDifficultySpike spike = CalculateSpike(
+                    sections[currentIndex].Section.LocalDifficultyScore,
+                    neighbors,
+                    sections[currentIndex].Contributors,
+                    options);
+                sections[currentIndex] = sections[currentIndex] with
+                {
+                    Section = sections[currentIndex].Section with { Spike = spike }
+                };
+            });
         }
     }
 
-    private static void ApplyTransitions(List<SectionCandidate> sections, SectionAnalysisV2Options options)
+    private static void ApplyTransitions(
+        List<SectionCandidate> sections,
+        SectionAnalysisV2Options options,
+        PerformanceCollector? performance)
     {
         for (int index = 1; index < sections.Count; index++)
         {
-            GameplaySectionV2Analysis previous = sections[index - 1].Section;
-            GameplaySectionV2Analysis current = sections[index].Section;
-            double structureDelta = StructureVectorDistance(previous, current);
-            double skillDelta = SkillDistance(previous.SkillPressure, current.SkillPressure);
-            double patternDelta = new[]
+            int currentIndex = index;
+            Measure(performance, "TransitionDetection", () =>
             {
-                Math.Abs(previous.JumpPatterns.Support - current.JumpPatterns.Support),
-                Math.Abs(previous.StreamPatterns.Support - current.StreamPatterns.Support),
-                Math.Abs(previous.TechPatterns.Support - current.TechPatterns.Support)
-            }.Average();
-            bool dominantChanged = previous.DominantStructure != current.DominantStructure;
-            bool flicker = index + 1 < sections.Count
-                && sections[index + 1].Section.DominantStructure == previous.DominantStructure
-                && structureDelta < options.FlickerProtectionVectorDistance
-                && StructureVectorDistance(current, sections[index + 1].Section) < options.FlickerProtectionVectorDistance;
-            bool qualified = dominantChanged
-                && structureDelta >= options.MinimumTransitionVectorDistance
-                && !flicker;
-            double strength = qualified
-                ? Signal((1 + structureDelta + skillDelta + patternDelta) / 4)
-                : 0;
-            var transition = new SectionGameplayTransition(
-                qualified,
-                previous.DominantStructure,
-                current.DominantStructure,
-                structureDelta,
-                skillDelta,
-                patternDelta,
-                strength);
-            sections[index] = sections[index] with { Section = current with { Transition = transition } };
+                GameplaySectionV2Analysis previous = sections[currentIndex - 1].Section;
+                GameplaySectionV2Analysis current = sections[currentIndex].Section;
+                double structureDelta = StructureVectorDistance(previous, current);
+                double skillDelta = SkillDistance(previous.SkillPressure, current.SkillPressure);
+                double patternDelta = new[]
+                {
+                    Math.Abs(previous.JumpPatterns.Support - current.JumpPatterns.Support),
+                    Math.Abs(previous.StreamPatterns.Support - current.StreamPatterns.Support),
+                    Math.Abs(previous.TechPatterns.Support - current.TechPatterns.Support)
+                }.Average();
+                bool dominantChanged = previous.DominantStructure != current.DominantStructure;
+                bool flicker = currentIndex + 1 < sections.Count
+                    && sections[currentIndex + 1].Section.DominantStructure == previous.DominantStructure
+                    && structureDelta < options.FlickerProtectionVectorDistance
+                    && StructureVectorDistance(current, sections[currentIndex + 1].Section) < options.FlickerProtectionVectorDistance;
+                bool qualified = dominantChanged
+                    && structureDelta >= options.MinimumTransitionVectorDistance
+                    && !flicker;
+                double strength = qualified
+                    ? Signal((1 + structureDelta + skillDelta + patternDelta) / 4)
+                    : 0;
+                var transition = new SectionGameplayTransition(
+                    qualified,
+                    previous.DominantStructure,
+                    current.DominantStructure,
+                    structureDelta,
+                    skillDelta,
+                    patternDelta,
+                    strength);
+                sections[currentIndex] = sections[currentIndex] with
+                {
+                    Section = current with { Transition = transition }
+                };
+            });
         }
     }
 
@@ -412,16 +479,18 @@ public static class SectionAnalysisV2Analyzer
         };
     }
 
-    private static SectionStreamPatternAnalysisResults AnalyzeStreamPatterns(IReadOnlyList<HitObject> objects) => new(
-        StreamPatternAnalyzer.AnalyzeBurst(objects),
-        StreamPatternAnalyzer.AnalyzeShortStream(objects),
-        StreamPatternAnalyzer.AnalyzeLongStream(objects),
-        StreamPatternAnalyzer.AnalyzeDeathstream(objects),
-        StreamPatternAnalyzer.AnalyzeStaminaStream(objects),
-        StreamPatternAnalyzer.AnalyzeIrregularStream(objects),
-        StreamPatternAnalyzer.AnalyzeSpeedStream(objects),
-        StreamPatternAnalyzer.AnalyzeFlowStream(objects),
-        StreamPatternAnalyzer.AnalyzeAlternatingStream(objects));
+    private static SectionStreamPatternAnalysisResults AnalyzeStreamPatterns(
+        IReadOnlyList<HitObject> objects,
+        PerformanceCollector? performance) => new(
+        Measure(performance, "Stream.Burst", () => StreamPatternAnalyzer.AnalyzeBurst(objects)),
+        Measure(performance, "Stream.Short", () => StreamPatternAnalyzer.AnalyzeShortStream(objects)),
+        Measure(performance, "Stream.Long", () => StreamPatternAnalyzer.AnalyzeLongStream(objects)),
+        Measure(performance, "Stream.Deathstream", () => StreamPatternAnalyzer.AnalyzeDeathstream(objects)),
+        Measure(performance, "Stream.Stamina", () => StreamPatternAnalyzer.AnalyzeStaminaStream(objects)),
+        Measure(performance, "Stream.Irregular", () => StreamPatternAnalyzer.AnalyzeIrregularStream(objects)),
+        Measure(performance, "Stream.Speed", () => StreamPatternAnalyzer.AnalyzeSpeedStream(objects)),
+        Measure(performance, "Stream.Flow", () => StreamPatternAnalyzer.AnalyzeFlowStream(objects)),
+        Measure(performance, "Stream.Alternating", () => StreamPatternAnalyzer.AnalyzeAlternatingStream(objects)));
 
     private static SectionPatternFamilyV2 BuildJumpFamily(SectionJumpPatternProfile profile) => BuildFamily(
     [
@@ -465,28 +534,31 @@ public static class SectionAnalysisV2Analyzer
 
     private static IReadOnlyList<SectionPatternFamilyV2> ProjectTechPatterns(
         Beatmap beatmap,
-        IReadOnlyList<GameplaySectionAnalysis> sections)
+        IReadOnlyList<GameplaySectionAnalysis> sections,
+        PerformanceCollector? performance)
     {
         IReadOnlyList<HitObject> objects = beatmap.HitObjects;
         var occurrences = new List<TechOccurrence>();
-        var chain = TechPatternAnalyzer.AnalyzeSliderChain(objects);
+        var chain = Measure(performance, "Tech.SliderChain", () => TechPatternAnalyzer.AnalyzeSliderChain(objects));
         occurrences.AddRange(chain.Sequences.Select(run => Occurrence("SliderChain", run.StartIndex, run.StartIndex, run.EndIndex, chain.Confidence, run.SliderRatio)));
-        var complex = TechPatternAnalyzer.AnalyzeComplexSlider(beatmap);
+        var complex = Measure(performance, "Tech.ComplexSlider", () => TechPatternAnalyzer.AnalyzeComplexSlider(beatmap));
         occurrences.AddRange(complex.ComplexSliders.Select(item => new TechOccurrence("ComplexSlider", item.ObjectIndex, [item.ObjectIndex], complex.Confidence, item.SliderComplexityScore)));
-        var direction = TechPatternAnalyzer.AnalyzeSliderDirectionChange(beatmap);
+        var direction = Measure(performance, "Tech.SliderDirectionChange", () => TechPatternAnalyzer.AnalyzeSliderDirectionChange(beatmap));
         occurrences.AddRange(direction.QualifiedOccurrences.Select(item => new TechOccurrence(
             "SliderDirectionChange", item.SliderIndex,
             new[] { item.PreviousObjectIndex, item.SliderIndex, item.NextObjectIndex }.Where(value => value.HasValue).Select(value => value!.Value).Distinct().Order().ToArray(),
             direction.Confidence, item.DirectionChangeScore)));
-        var circleSlider = TechPatternAnalyzer.AnalyzeCircleSliderTransition(objects);
+        var circleSlider = Measure(performance, "Tech.CircleSliderTransition", () => TechPatternAnalyzer.AnalyzeCircleSliderTransition(objects));
         occurrences.AddRange(circleSlider.Sequences.Select(run => Occurrence("CircleSliderTransition", run.StartIndex, run.StartIndex, run.EndIndex, circleSlider.Confidence, run.TransitionScore)));
-        var rhythm = TechPatternAnalyzer.AnalyzeRhythmTransition(objects);
+        var rhythm = Measure(performance, "Tech.RhythmTransition", () => TechPatternAnalyzer.AnalyzeRhythmTransition(objects));
         occurrences.AddRange(rhythm.Transitions.Select(item => Occurrence("RhythmTransition", item.PivotIndex, item.StartIndex, item.EndIndex, rhythm.Confidence, item.RhythmTransitionScore)));
-        var spatial = TechPatternAnalyzer.AnalyzeSpatialAwkwardTransition(objects);
+        var spatial = Measure(performance, "Tech.SpatialAwkward", () => TechPatternAnalyzer.AnalyzeSpatialAwkwardTransition(objects));
         occurrences.AddRange(spatial.Transitions.Select(item => Occurrence("SpatialAwkward", item.PivotIndex, item.StartIndex, item.EndIndex, spatial.Confidence, item.SpatialAwkwardScore)));
-        var overlap = TechPatternAnalyzer.AnalyzeOverlap(objects);
+        var overlap = Measure(performance, "Tech.Overlap", () => TechPatternAnalyzer.AnalyzeOverlap(objects));
         occurrences.AddRange(overlap.Sequences.Select(run => Occurrence("Overlap", run.StartIndex, run.StartIndex, run.EndIndex, overlap.Confidence, run.OverlapSequenceScore)));
 
+        long projectionStart = performance?.StartTimestamp() ?? 0;
+        long projectionAllocationStart = performance?.CurrentAllocatedBytes() ?? 0;
         string[] names = ["SliderChain", "ComplexSlider", "SliderDirectionChange", "CircleSliderTransition", "RhythmTransition", "SpatialAwkward", "Overlap"];
         Dictionary<int, int> objectToSection = sections.SelectMany((section, sectionIndex) => section.ObjectIndices.Select(objectIndex => (objectIndex, sectionIndex))).ToDictionary(item => item.objectIndex, item => item.sectionIndex);
         var states = Enumerable.Range(0, sections.Count).Select(_ => names.ToDictionary(name => name, _ => new TechState())).ToArray();
@@ -518,7 +590,30 @@ public static class SectionAnalysisV2Analyzer
             }
             result[sectionIndex] = BuildFamily(metrics);
         }
-        return Array.AsReadOnly(result);
+        IReadOnlyList<SectionPatternFamilyV2> projected = Array.AsReadOnly(result);
+        performance?.Record("Tech.Projection", projectionStart, projectionAllocationStart);
+        return projected;
+    }
+
+    private static T Measure<T>(PerformanceCollector? performance, string name, Func<T> action) =>
+        performance is null ? action() : performance.Measure(name, action);
+
+    private static void Measure(PerformanceCollector? performance, string name, Action action)
+    {
+        if (performance is null)
+            action();
+        else
+            performance.Measure(name, action);
+    }
+
+    private static void CompletePerformanceProfile(PerformanceCollector? performance, int sectionCount)
+    {
+        if (performance is null)
+            return;
+
+        SectionAnalysisV2PerformanceProfile profile = performance.Complete(sectionCount);
+        LastPerformanceProfile = profile;
+        GameplayDebug.SectionAnalysisV2Performance(profile);
     }
 
     private static TechOccurrence Occurrence(string name, int representative, int start, int end, double confidence, double intensity) =>
@@ -600,4 +695,110 @@ public static class SectionAnalysisV2Analyzer
     private sealed record SectionCandidate(GameplaySectionV2Analysis Section, IReadOnlyDictionary<string, double> Contributors);
     private sealed record TechOccurrence(string Name, int RepresentativeIndex, IReadOnlyList<int> ObjectIndices, double Confidence, double Intensity);
     private sealed class TechState { public int Count; public double Confidence; public double Intensity; public HashSet<int> ObjectIndices { get; } = []; }
+
+    private sealed class PerformanceCollector
+    {
+        private readonly Stopwatch total = Stopwatch.StartNew();
+        private readonly long totalAllocationStart = GC.GetAllocatedBytesForCurrentThread();
+        private readonly Dictionary<string, MutableTiming> components = new(StringComparer.Ordinal);
+        private readonly List<TimeSpan> sectionDurations = [];
+        private readonly List<long> sectionAllocations = [];
+
+        internal int LocalBeatmapCount { get; private set; }
+        internal int LocalHitObjectListCount { get; private set; }
+        internal int LocalHitObjectReferenceCount { get; private set; }
+
+        internal long StartTimestamp() => Stopwatch.GetTimestamp();
+        internal long CurrentAllocatedBytes() => GC.GetAllocatedBytesForCurrentThread();
+
+        internal T Measure<T>(string name, Func<T> action)
+        {
+            long start = StartTimestamp();
+            long allocationStart = CurrentAllocatedBytes();
+            T result = action();
+            Record(name, start, allocationStart);
+            return result;
+        }
+
+        internal void Measure(string name, Action action)
+        {
+            long start = StartTimestamp();
+            long allocationStart = CurrentAllocatedBytes();
+            action();
+            Record(name, start, allocationStart);
+        }
+
+        internal void Record(string name, long start, long allocationStart)
+        {
+            TimeSpan elapsed = Stopwatch.GetElapsedTime(start);
+            long allocated = Math.Max(0, CurrentAllocatedBytes() - allocationStart);
+            if (!components.TryGetValue(name, out MutableTiming? timing))
+            {
+                timing = new MutableTiming();
+                components.Add(name, timing);
+            }
+            timing.Add(elapsed, allocated);
+        }
+
+        internal void RecordLocalBeatmap(int objectReferenceCount)
+        {
+            LocalBeatmapCount++;
+            LocalHitObjectListCount++;
+            LocalHitObjectReferenceCount += objectReferenceCount;
+        }
+
+        internal void RecordSection(long start, long allocationStart)
+        {
+            sectionDurations.Add(Stopwatch.GetElapsedTime(start));
+            sectionAllocations.Add(Math.Max(0, CurrentAllocatedBytes() - allocationStart));
+        }
+
+        internal SectionAnalysisV2PerformanceProfile Complete(int sectionCount)
+        {
+            total.Stop();
+            long totalAllocated = Math.Max(0, CurrentAllocatedBytes() - totalAllocationStart);
+            return new SectionAnalysisV2PerformanceProfile(
+                total.Elapsed,
+                sectionCount,
+                sectionDurations.Count == 0 ? TimeSpan.Zero : TimeSpan.FromTicks((long)sectionDurations.Average(duration => duration.Ticks)),
+                sectionDurations.Count == 0 ? TimeSpan.Zero : sectionDurations.Min(),
+                sectionDurations.Count == 0 ? TimeSpan.Zero : sectionDurations.Max(),
+                totalAllocated,
+                sectionAllocations.Count == 0 ? 0 : (long)sectionAllocations.Average(),
+                sectionAllocations.Count == 0 ? 0 : sectionAllocations.Min(),
+                sectionAllocations.Count == 0 ? 0 : sectionAllocations.Max(),
+                LocalBeatmapCount,
+                LocalHitObjectListCount,
+                LocalHitObjectReferenceCount,
+                components.Select(entry => entry.Value.ToRecord(entry.Key))
+                    .OrderByDescending(component => component.TotalDuration)
+                    .ToArray());
+        }
+    }
+
+    private sealed class MutableTiming
+    {
+        private TimeSpan minimum = TimeSpan.MaxValue;
+        private TimeSpan maximum = TimeSpan.Zero;
+        private TimeSpan total;
+        private long allocatedBytes;
+        private int callCount;
+
+        internal void Add(TimeSpan elapsed, long allocated)
+        {
+            callCount++;
+            total += elapsed;
+            allocatedBytes += allocated;
+            if (elapsed < minimum) minimum = elapsed;
+            if (elapsed > maximum) maximum = elapsed;
+        }
+
+        internal SectionAnalysisV2ComponentTiming ToRecord(string name) => new(
+            name,
+            callCount,
+            total,
+            minimum == TimeSpan.MaxValue ? TimeSpan.Zero : minimum,
+            maximum,
+            allocatedBytes);
+    }
 }

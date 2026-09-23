@@ -1,0 +1,16 @@
+using BeatInsight.Analysis.TechPatterns;
+using BeatInsight.Models.TechPatterns;
+using BeatInsight.Parser;
+using System.Globalization;
+using System.Text;
+using System.IO;
+
+namespace BeatInsight.Tests.Analysis;
+internal static class TechPatternPhase8CompoundMotifAudit
+{
+    private static readonly (string Name,string Cat,string? Fixture)[] Maps=[("Silhouette","HARD_NEGATIVE",null),("GLORIOUS DAYS","EXPECTED_TECH",null),("Kira Killer","EXPECTED_TECH","Kira Killer [Mocaotic's Insane].osu"),("The World Ends Now","EXPECTED_TECH",null),("Frozen","EXPECTED_TECH","Frozen [Collab Insane].osu"),("Move That Body","MIXED / LIGHT_TECH",null),("Premonition","MIXED / LIGHT_TECH",null),("Tower of Heaven","HARD_NEGATIVE","Tower Of Heaven [Extra].osu"),("(can you) understand me?","HARD_NEGATIVE","(can you) understand me [uhh].osu")];
+    internal static string Run(){var sb=new StringBuilder("TECH PATTERN PHASE 8 COMPOUND MOTIF AUDIT (TEST-ONLY)\n"); var rows=new List<(string Cat,int Obj,int Comp,int Multi,int PS,int PR,int PSR,int IsoS,int IsoR)>(); foreach(var m in Maps){var p=Resolve(m.Name,m.Fixture);if(p is null){sb.AppendLine($"{m.Name} | MAP_UNAVAILABLE");continue;}var map=BeatmapParser.Load(p);var matches=TechPatternRecognitionEngine.FindMatches(map.HitObjects);var groups=matches.GroupBy(x=>$"{x.StartIndex}-{x.EndIndex}").Select(g=>g.ToArray()).ToArray();int comp=0,multi=0,ps=0,pr=0,psr=0,isoS=0,isoR=0;foreach(var g in groups){bool primary=g.Any(x=>IsPrimary(x.Type));bool sharp=g.Any(x=>x.Type==TechPatternType.SharpDirectionChange),rh=g.Any(x=>x.Type==TechPatternType.IrregularRhythmTransition);if(!primary){if(sharp)isoS++;if(rh)isoR++;continue;}comp++;if(g.Count(x=>IsPrimary(x.Type))>1)multi++;if(sharp&&rh)psr++;else if(sharp)ps++;else if(rh)pr++;}rows.Add((m.Cat,map.HitObjects.Count,comp,multi,ps,pr,psr,isoS,isoR));sb.AppendLine($"{m.Name} | compound={comp} | /100={comp*100.0/map.HitObjects.Count:F2} | multi-primary={multi} | primary+sharp={ps} | primary+rhythm={pr} | primary+both={psr} | isolated sharp={isoS} | isolated rhythm={isoR}");}sb.AppendLine("CATEGORY AVERAGES /100");foreach(var c in new[]{"EXPECTED_TECH","MIXED / LIGHT_TECH","HARD_NEGATIVE"}){var q=rows.Where(x=>x.Cat==c).ToArray();sb.AppendLine($"{c} | compound={Avg(q,x=>x.Comp)} multi={Avg(q,x=>x.Multi)} P+S={Avg(q,x=>x.PS)} P+R={Avg(q,x=>x.PR)} P+S+R={Avg(q,x=>x.PSR)} isoS={Avg(q,x=>x.IsoS)} isoR={Avg(q,x=>x.IsoR)}");}return sb.ToString();}
+    private static bool IsPrimary(TechPatternType t)=>t is TechPatternType.TechnicalSliderEntry or TechPatternType.TechnicalSliderExit or TechPatternType.SliderToSliderTransition or TechPatternType.DirectionReversal;
+    private static string Avg((string Cat,int Obj,int Comp,int Multi,int PS,int PR,int PSR,int IsoS,int IsoR)[] q,Func<(string Cat,int Obj,int Comp,int Multi,int PS,int PR,int PSR,int IsoS,int IsoR),int> f)=>q.Length==0?"0.00":q.Average(x=>f(x)*100.0/x.Obj).ToString("F2",CultureInfo.InvariantCulture);
+    private static string? Resolve(string n,string? f){if(f is not null){var p=Path.Combine(AppContext.BaseDirectory,"Fixtures","Maps",f);if(File.Exists(p))return p;}var k=TechV2SliderDensityCalibrationAudit.Corpus.FirstOrDefault(x=>x.Name.Contains(n,StringComparison.OrdinalIgnoreCase));return !string.IsNullOrEmpty(k.Path)&&File.Exists(k.Path)?k.Path:null;}
+}

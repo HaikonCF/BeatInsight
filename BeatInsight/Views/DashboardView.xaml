@@ -31,16 +31,118 @@
             <Setter Property="FontSize" Value="15"/>
             <Setter Property="FontWeight" Value="Bold"/>
         </Style>
+        <Style x:Key="SectionSummaryStyle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="Margin" Value="0,5,0,0"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Overview.HasSections}" Value="False">
+                    <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+                    <Setter Property="FontStyle" Value="Italic"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Overview.HasSpikes}" Value="True">
+                    <Setter Property="Foreground" Value="#F29AC5"/>
+                    <Setter Property="FontWeight" Value="SemiBold"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="DashboardNavigationButtonStyle" TargetType="Button">
+            <Setter Property="Margin" Value="4,0"/>
+            <Setter Property="Padding" Value="14,8"/>
+            <Setter Property="Foreground" Value="#C8CAD3"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderBrush" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Style.Triggers>
+                <Trigger Property="Tag" Value="True">
+                    <Setter Property="Foreground" Value="White"/>
+                    <Setter Property="Background" Value="#35111D"/>
+                    <Setter Property="BorderBrush" Value="#FF2E93"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="WindowControlButtonStyle" TargetType="Button">
+            <Setter Property="Width" Value="42"/>
+            <Setter Property="Height" Value="28"/>
+            <Setter Property="Margin" Value="1,0"/>
+            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                CornerRadius="4">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#282A34"/>
+                    <Setter Property="Foreground" Value="White"/>
+                </Trigger>
+                <MultiTrigger>
+                    <MultiTrigger.Conditions>
+                        <Condition Property="Tag" Value="Close"/>
+                        <Condition Property="IsMouseOver" Value="True"/>
+                    </MultiTrigger.Conditions>
+                    <Setter Property="Background" Value="#C42B1C"/>
+                    <Setter Property="Foreground" Value="White"/>
+                </MultiTrigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Opacity" Value="0.78"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        <DataTemplate x:Key="PatternAnalysisItemTemplate">
+            <Border Background="#181A22"
+                    BorderBrush="#302C2E3A"
+                    BorderThickness="1"
+                    CornerRadius="10"
+                    Padding="12,10"
+                    Margin="0,0,0,8">
+                <StackPanel>
+                    <TextBlock Text="{Binding Name}"
+                               Foreground="{StaticResource TextPrimaryBrush}"
+                               FontSize="13"
+                               FontWeight="SemiBold"/>
+                    <TextBlock Text="{Binding CoverageDisplay}"
+                               Foreground="{StaticResource AccentMagentaBrush}"
+                               FontSize="10.5"
+                               Margin="0,5,0,0"
+                               Visibility="{Binding HasCoverage, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                    <TextBlock Text="{Binding ConfidenceDisplay}"
+                               Foreground="{StaticResource TextSecondaryBrush}"
+                               FontSize="10"
+                               Margin="0,2,0,0"
+                               Visibility="{Binding HasConfidence, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                    <TextBlock Text="{Binding IntensityDisplay}"
+                               Foreground="{StaticResource TextMutedBrush}"
+                               FontSize="9.5"
+                               Margin="0,2,0,0"
+                               Visibility="{Binding HasIntensity, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                </StackPanel>
+            </Border>
+        </DataTemplate>
     </UserControl.Resources>
 
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="104"/>
+            <RowDefinition Height="124"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <Border Grid.Row="0"
-                Margin="18,14,18,8"
+        <Border x:Name="DashboardHeader"
+                Grid.Row="0"
+                Margin="18,34,18,8"
                 Background="#F0121318"
                 BorderBrush="#44FF2E93"
                 BorderThickness="1"
@@ -76,21 +178,41 @@
                             Orientation="Horizontal"
                             HorizontalAlignment="Center"
                             VerticalAlignment="Center">
-                    <Button Content="Overview" Margin="4,0" Padding="14,8" MinWidth="76"
-                            Foreground="White" Background="#35111D" BorderBrush="#FF2E93"
-                            BorderThickness="1" FontSize="12" Cursor="Hand"/>
-                    <Button Content="Skills" Margin="4,0" Padding="14,8" MinWidth="64"
-                            Foreground="#C8CAD3" Background="Transparent" BorderBrush="Transparent"
-                            BorderThickness="1" FontSize="12" Cursor="Hand"/>
-                    <Button Content="Sections" Margin="4,0" Padding="14,8" MinWidth="72"
-                            Foreground="#C8CAD3" Background="Transparent" BorderBrush="Transparent"
-                            BorderThickness="1" FontSize="12" Cursor="Hand"/>
-                    <Button Content="Identity" Margin="4,0" Padding="14,8" MinWidth="68"
-                            Foreground="#C8CAD3" Background="Transparent" BorderBrush="Transparent"
-                            BorderThickness="1" FontSize="12" Cursor="Hand"/>
-                    <Button Content="Difficulty" Margin="4,0" Padding="14,8" MinWidth="78"
-                            Foreground="#C8CAD3" Background="Transparent" BorderBrush="Transparent"
-                            BorderThickness="1" FontSize="12" Cursor="Hand"/>
+                    <Button Content="Overview"
+        Style="{StaticResource DashboardNavigationButtonStyle}"
+        Tag="{Binding IsOverviewTabActive}"
+        MinWidth="76"
+        Click="OverviewTabButton_Click"/>
+
+                    <Button Content="Skills"
+        Style="{StaticResource DashboardNavigationButtonStyle}"
+        Tag="{Binding IsSkillsTabActive}"
+        MinWidth="64"
+        Click="SkillsTabButton_Click"/>
+
+                    <Button Content="Sections"
+        Style="{StaticResource DashboardNavigationButtonStyle}"
+        Tag="{Binding IsSectionsTabActive}"
+        MinWidth="72"
+        Click="SectionsTabButton_Click"/>
+
+                    <Button Content="Patterns"
+        Style="{StaticResource DashboardNavigationButtonStyle}"
+        Tag="{Binding IsPatternsTabActive}"
+        MinWidth="72"
+        Click="PatternsTabButton_Click"/>
+
+                    <Button Content="Identity"
+        Style="{StaticResource DashboardNavigationButtonStyle}"
+        Tag="{Binding IsIdentityTabActive}"
+        MinWidth="70"
+        Click="IdentityTabButton_Click"/>
+
+                    <Button Content="Difficulty"
+        Style="{StaticResource DashboardNavigationButtonStyle}"
+        Tag="{Binding IsDifficultyTabActive}"
+        MinWidth="76"
+        Click="DifficultyTabButton_Click"/>
                 </StackPanel>
 
                 <StackPanel Grid.Column="2"
@@ -99,18 +221,9 @@
                             HorizontalAlignment="Right"
                             Margin="8,0">
                     <Button x:Name="SettingsButton"
-                            Width="34" Height="34" Margin="0,0,8,0" Background="Transparent"
+                            Width="34" Height="34" Background="Transparent"
                             BorderThickness="0" Foreground="White" FontSize="18" Cursor="Hand" Content="⚙"
                             Click="SettingsButton_Click"/>
-                    <Button Width="30" Height="30" Background="Transparent" BorderThickness="0"
-                            Foreground="#C8CAD3" FontSize="15" Cursor="Hand" Content="—"
-                            Click="MinimizeButton_Click"/>
-                    <Button Width="30" Height="30" Background="Transparent" BorderThickness="0"
-                            Foreground="#C8CAD3" FontSize="13" Cursor="Hand" Content="□"
-                            Click="MaximizeButton_Click"/>
-                    <Button Width="30" Height="30" Background="Transparent" BorderThickness="0"
-                            Foreground="#C8CAD3" FontSize="17" Cursor="Hand" Content="×"
-                            Click="CloseButton_Click"/>
                 </StackPanel>
 
                 <Border Grid.Column="3"
@@ -151,11 +264,46 @@
             </Grid>
         </Border>
 
+        <StackPanel x:Name="WindowControlsPanel"
+                    Grid.Row="0"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Top"
+                    Panel.ZIndex="1000"
+                    Margin="0,2,8,0">
+            <Button Content="—"
+                    Style="{StaticResource WindowControlButtonStyle}"
+                    Click="MinimizeButton_Click"/>
+            <Button Content="□"
+                    Style="{StaticResource WindowControlButtonStyle}"
+                    Click="MaximizeButton_Click"/>
+            <Button Content="×"
+                    Tag="Close"
+                    FontSize="15"
+                    Style="{StaticResource WindowControlButtonStyle}"
+                    Click="CloseButton_Click"/>
+        </StackPanel>
+
         <Grid Grid.Row="1" Margin="18,8,18,18">
             <Border Background="#0E0F14" BorderBrush="#221F2230" BorderThickness="1" CornerRadius="16"/>
 
             <Grid Margin="10">
-                <Grid Visibility="{Binding Overview.HasBeatmap, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <Grid>
+                    <Grid.Style>
+                        <Style TargetType="Grid">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding Overview.HasBeatmap}" Value="True"/>
+                                        <Condition Binding="{Binding IsOverviewTabActive}" Value="True"/>
+                                    </MultiDataTrigger.Conditions>
+
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </MultiDataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Grid.Style>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="3*"/>
                         <RowDefinition Height="2*"/>
@@ -240,15 +388,106 @@
                                         <RowDefinition Height="Auto"/>
                                         <RowDefinition Height="Auto"/>
                                     </Grid.RowDefinitions>
-                                    <UniformGrid Grid.Row="0" Columns="6" Margin="0,0,0,10">
-                                        <StackPanel><TextBlock Text="BPM" Style="{StaticResource MetadataLabelStyle}"/><TextBlock Text="{Binding Overview.Bpm}" Style="{StaticResource MetadataValueStyle}"/></StackPanel>
-                                        <StackPanel><TextBlock Text="LENGTH" Style="{StaticResource MetadataLabelStyle}"/><TextBlock Text="{Binding Overview.LengthDisplay}" Style="{StaticResource MetadataValueStyle}"/></StackPanel>
-                                        <StackPanel><TextBlock Text="AR" Style="{StaticResource MetadataLabelStyle}"/><TextBlock Text="{Binding Overview.Ar, StringFormat={}{0:F1}}" Style="{StaticResource MetadataValueStyle}"/></StackPanel>
-                                        <StackPanel><TextBlock Text="OD" Style="{StaticResource MetadataLabelStyle}"/><TextBlock Text="{Binding Overview.Od, StringFormat={}{0:F1}}" Style="{StaticResource MetadataValueStyle}"/></StackPanel>
-                                        <StackPanel><TextBlock Text="CS" Style="{StaticResource MetadataLabelStyle}"/><TextBlock Text="{Binding Overview.Cs, StringFormat={}{0:F1}}" Style="{StaticResource MetadataValueStyle}"/></StackPanel>
-                                        <StackPanel><TextBlock Text="HP" Style="{StaticResource MetadataLabelStyle}"/><TextBlock Text="{Binding Overview.Hp, StringFormat={}{0:F1}}" Style="{StaticResource MetadataValueStyle}"/></StackPanel>
-                                    </UniformGrid>
+                                    <Grid Grid.Row="0"
+      Margin="0,0,0,10">
 
+                                        <Grid.ColumnDefinitions>
+                                            <!-- BPM : plus large pour les plages type 164–166 -->
+                                            <ColumnDefinition Width="1.25*"/>
+
+                                            <!-- Length -->
+                                            <ColumnDefinition Width="1.05*"/>
+
+                                            <!-- Max Combo -->
+                                            <ColumnDefinition Width="1.20*"/>
+
+                                            <!-- AR / OD / CS / HP -->
+                                            <ColumnDefinition Width="0.80*"/>
+                                            <ColumnDefinition Width="0.80*"/>
+                                            <ColumnDefinition Width="0.80*"/>
+                                            <ColumnDefinition Width="0.80*"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <!-- BPM -->
+                                        <StackPanel Grid.Column="0"
+                Margin="0,0,14,0">
+                                            <TextBlock Text="BPM"
+                   Style="{StaticResource MetadataLabelStyle}"/>
+
+                                            <TextBlock Text="{Binding Overview.BpmDisplay}"
+                   Style="{StaticResource MetadataValueStyle}"
+                   Margin="0,2,0,0"
+                   TextTrimming="CharacterEllipsis"/>
+                                        </StackPanel>
+
+                                        <!-- LENGTH -->
+                                        <StackPanel Grid.Column="1"
+                Margin="0,0,14,0">
+                                            <TextBlock Text="LENGTH"
+                   Style="{StaticResource MetadataLabelStyle}"/>
+
+                                            <TextBlock Text="{Binding Overview.LengthDisplay}"
+                   Style="{StaticResource MetadataValueStyle}"
+                   Margin="0,2,0,0"
+                   TextTrimming="CharacterEllipsis"/>
+                                        </StackPanel>
+
+                                        <!-- MAX COMBO -->
+                                        <StackPanel Grid.Column="2"
+                Margin="0,0,14,0">
+                                            <TextBlock Text="MAX COMBO"
+                   Style="{StaticResource MetadataLabelStyle}"/>
+
+                                            <TextBlock Text="{Binding Overview.MaxComboDisplay}"
+                   Style="{StaticResource MetadataValueStyle}"
+                   Margin="0,2,0,0"
+                   TextTrimming="CharacterEllipsis"/>
+                                        </StackPanel>
+
+                                        <!-- AR -->
+                                        <StackPanel Grid.Column="3"
+                Margin="0,0,10,0">
+                                            <TextBlock Text="AR"
+                   Style="{StaticResource MetadataLabelStyle}"/>
+
+                                            <TextBlock Text="{Binding Overview.Ar, StringFormat={}{0:F1}}"
+                   Style="{StaticResource MetadataValueStyle}"
+                   Margin="0,2,0,0"/>
+                                        </StackPanel>
+
+                                        <!-- OD -->
+                                        <StackPanel Grid.Column="4"
+                Margin="0,0,10,0">
+                                            <TextBlock Text="OD"
+                   Style="{StaticResource MetadataLabelStyle}"/>
+
+                                            <TextBlock Text="{Binding Overview.Od, StringFormat={}{0:F1}}"
+                   Style="{StaticResource MetadataValueStyle}"
+                   Margin="0,2,0,0"/>
+                                        </StackPanel>
+
+                                        <!-- CS -->
+                                        <StackPanel Grid.Column="5"
+                Margin="0,0,10,0">
+                                            <TextBlock Text="CS"
+                   Style="{StaticResource MetadataLabelStyle}"/>
+
+                                            <TextBlock Text="{Binding Overview.Cs, StringFormat={}{0:F1}}"
+                   Style="{StaticResource MetadataValueStyle}"
+                   Margin="0,2,0,0"/>
+                                        </StackPanel>
+
+                                        <!-- HP -->
+                                        <StackPanel Grid.Column="6">
+                                            <TextBlock Text="HP"
+                   Style="{StaticResource MetadataLabelStyle}"/>
+
+                                            <TextBlock Text="{Binding Overview.Hp, StringFormat={}{0:F1}}"
+                   Style="{StaticResource MetadataValueStyle}"
+                   Margin="0,2,0,0"/>
+                                        </StackPanel>
+
+                                    </Grid>
                                     <Grid Grid.Row="1">
                                         <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                                         <Border Grid.Column="0" Background="#36141821" BorderBrush="#3AFFFFFF"
@@ -281,27 +520,18 @@
                             <Grid>
                                 <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
                                 <TextBlock Text="SKILL ANALYSIS" Style="{StaticResource SectionHeadingStyle}"/>
-                                <Grid Grid.Row="1" Margin="0,12,0,0">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="28"/>
-                                        <ColumnDefinition Width="*"/>
-                                    </Grid.ColumnDefinitions>
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="Auto"/>
-                                    </Grid.RowDefinitions>
-                                    <controls:SkillBarControl Grid.Row="0" Grid.Column="0" Margin="0,0,0,11" DataContext="{Binding Overview.SkillMetrics[0]}"/>
-                                    <controls:SkillBarControl Grid.Row="0" Grid.Column="2" Margin="0,0,0,11" DataContext="{Binding Overview.SkillMetrics[1]}"/>
-                                    <controls:SkillBarControl Grid.Row="1" Grid.Column="0" Margin="0,0,0,11" DataContext="{Binding Overview.SkillMetrics[2]}"/>
-                                    <controls:SkillBarControl Grid.Row="1" Grid.Column="2" Margin="0,0,0,11" DataContext="{Binding Overview.SkillMetrics[3]}"/>
-                                    <controls:SkillBarControl Grid.Row="2" Grid.Column="0" Margin="0,0,0,11" DataContext="{Binding Overview.SkillMetrics[4]}"/>
-                                    <controls:SkillBarControl Grid.Row="2" Grid.Column="2" Margin="0,0,0,11" DataContext="{Binding Overview.SkillMetrics[5]}"/>
-                                    <controls:SkillBarControl Grid.Row="3" Grid.Column="0" DataContext="{Binding Overview.SkillMetrics[6]}"/>
-                                    <controls:SkillBarControl Grid.Row="3" Grid.Column="2" DataContext="{Binding Overview.SkillMetrics[7]}"/>
-                                </Grid>
+                                <ItemsControl Grid.Row="1"
+                                              ItemsSource="{Binding Overview.SkillMetrics}"
+                                              Margin="0,7,0,0">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate><UniformGrid Columns="2"/></ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <controls:SkillBarControl Margin="0,5,14,5"/>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
                             </Grid>
                         </Border>
 
@@ -342,18 +572,30 @@
                                             </ItemsControl.ItemTemplate>
                                         </ItemsControl>
                                     </ScrollViewer>
-                                    <ScrollViewer Grid.Row="1" Margin="0,5,0,0" HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled">
-                                        <ItemsControl ItemsSource="{Binding Overview.Identity.MainPatterns}">
-                                            <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
-                                            <ItemsControl.ItemTemplate>
-                                                <DataTemplate>
-                                                    <Border Background="#181A22" BorderBrush="#2B2E3A" BorderThickness="1" CornerRadius="6" Padding="7,3" Margin="0,0,5,0">
-                                                        <TextBlock Text="{Binding Name}" Foreground="{StaticResource TextSecondaryBrush}" FontSize="9.5"/>
-                                                    </Border>
-                                                </DataTemplate>
-                                            </ItemsControl.ItemTemplate>
-                                        </ItemsControl>
-                                    </ScrollViewer>
+                                    <StackPanel Grid.Row="1" Margin="0,5,0,0">
+                                        <TextBlock Text="DOMINANT PATTERNS"
+                                                   Foreground="{StaticResource TextMutedBrush}"
+                                                   FontSize="8.5"
+                                                   FontWeight="SemiBold"
+                                                   Margin="0,0,0,4"
+                                                   Visibility="{Binding Overview.Patterns.DominantPatterns, Converter={StaticResource NullOrEmptyToVisibilityConverter}}"/>
+                                        <ScrollViewer HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled">
+                                            <ItemsControl ItemsSource="{Binding Overview.Patterns.DominantPatterns}">
+                                                <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Border Background="#181A22" BorderBrush="#2B2E3A" BorderThickness="1" CornerRadius="6" Padding="7,3" Margin="0,0,5,0">
+                                                            <TextBlock FontSize="9.5" Foreground="{StaticResource TextSecondaryBrush}">
+                                                                <Run Text="{Binding Name, Mode=OneWay}"/>
+                                                                <Run Text=" "/>
+                                                                <Run Text="{Binding DominantValueDisplay, Mode=OneWay}" Foreground="{StaticResource AccentMagentaBrush}"/>
+                                                            </TextBlock>
+                                                        </Border>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </ScrollViewer>
+                                    </StackPanel>
                                 </Grid>
                             </Grid>
                         </Border>
@@ -393,63 +635,1136 @@
                             Style="{StaticResource DashboardCardStyle}" Margin="0,0,10,0">
                         <Grid>
                             <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-                            <Grid>
+                            <StackPanel>
                                 <TextBlock Text="SECTION ANALYSIS V2" Style="{StaticResource SectionHeadingStyle}"/>
-                                <TextBlock Text="{Binding Overview.SpikesSummaryText}" HorizontalAlignment="Right"
-                                           Foreground="{StaticResource TextMutedBrush}" FontSize="10"/>
-                            </Grid>
+                                <TextBlock Text="{Binding Overview.SpikesSummaryText}" Style="{StaticResource SectionSummaryStyle}"/>
+                            </StackPanel>
                             <Grid Grid.Row="1" Margin="0,12,0,0">
                                 <TextBlock Text="No section data available" Foreground="{StaticResource TextMutedBrush}" FontSize="12"
                                            HorizontalAlignment="Center" VerticalAlignment="Center"
-                                           Visibility="{Binding Overview.Sections, Converter={StaticResource InvertedNullOrEmptyToVisibilityConverter}}"/>
-                                <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"
-                                              Visibility="{Binding Overview.Sections, Converter={StaticResource NullOrEmptyToVisibilityConverter}}">
-                                    <ItemsControl ItemsSource="{Binding Overview.Sections}">
-                                        <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate>
-                                                <Border Width="74" MinHeight="92" Background="#15171E"
-                                                        BorderBrush="{Binding Structure, Converter={StaticResource StructureToBrushConverter}}"
-                                                        BorderThickness="1,3,1,1" CornerRadius="8" Padding="8" Margin="0,0,7,0"
-                                                        ToolTip="{Binding TooltipText}">
-                                                    <Grid>
-                                                        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-                                                        <TextBlock Text="{Binding TimeRangeDisplay}" Foreground="{StaticResource TextMutedBrush}" FontSize="8.5" TextAlignment="Center"/>
-                                                        <TextBlock Grid.Row="1" Text="{Binding Structure}"
-                                                                   Foreground="{Binding Structure, Converter={StaticResource StructureToBrushConverter}}"
-                                                                   FontSize="10" FontWeight="Bold" TextAlignment="Center" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
-                                                        <TextBlock Grid.Row="2" Text="{Binding LocalDifficultyDisplay}" Foreground="White"
-                                                                   FontSize="16" FontWeight="Bold" TextAlignment="Center"/>
-                                                    </Grid>
-                                                </Border>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
-                                </ScrollViewer>
+                                           Visibility="{Binding Overview.HasSections, Converter={StaticResource InvertedBoolToVisibilityConverter}}"/>
+                                <controls:SectionTimelineGraphControl
+    Sections="{Binding Overview.Sections}"
+    MinHeight="130"
+    Visibility="{Binding Overview.HasSections, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                             </Grid>
                         </Grid>
                     </Border>
 
-                    <Border Grid.Row="1" Grid.Column="2" Style="{StaticResource DashboardCardStyle}">
+                                       <Border Grid.Row="1" Grid.Column="2" Style="{StaticResource DashboardCardStyle}">
                         <Grid>
-                            <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-                            <TextBlock Text="DIFFICULTY SPIKES" Style="{StaticResource SectionHeadingStyle}"/>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Text="DIFFICULTY SPIKES"
+                                       Style="{StaticResource SectionHeadingStyle}"/>
+
                             <Grid Grid.Row="1" Margin="0,10,0,6" MinHeight="90">
-                                <controls:SpikeGraphControl Points="{Binding Overview.DifficultyPoints}"
-                                                            Visibility="{Binding Overview.DifficultyPoints, Converter={StaticResource NullOrEmptyToVisibilityConverter}}"/>
+                                <controls:SpikeGraphControl
+                                    Points="{Binding Overview.DifficultyPoints}"
+                                    Visibility="{Binding Overview.HasDifficultyData, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+
                                 <TextBlock Text="No difficulty data available"
                                            Foreground="{StaticResource TextMutedBrush}"
                                            FontSize="11"
                                            HorizontalAlignment="Center"
                                            VerticalAlignment="Center"
-                                           Visibility="{Binding Overview.DifficultyPoints, Converter={StaticResource InvertedNullOrEmptyToVisibilityConverter}}"/>
+                                           Visibility="{Binding Overview.HasDifficultyData, Converter={StaticResource InvertedBoolToVisibilityConverter}}"/>
                             </Grid>
-                            <TextBlock Grid.Row="2" Text="{Binding Overview.SpikesSummaryText}"
-                                       Foreground="{StaticResource TextSecondaryBrush}" FontSize="9.5"
-                                       TextWrapping="Wrap" TextAlignment="Center"/>
+
+                            <TextBlock Grid.Row="2"
+                                       Text="{Binding Overview.SpikesSummaryText}"
+                                       Style="{StaticResource SectionSummaryStyle}"
+                                       FontSize="9.5"
+                                       TextAlignment="Center"/>
                         </Grid>
                     </Border>
+
                 </Grid>
+
+                <!-- ===================================================== -->
+                <!-- SKILLS TAB                                            -->
+                <!-- ===================================================== -->
+
+                <Grid Visibility="{Binding IsSkillsTabActive, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="1.15*"/>
+                        <RowDefinition Height="0.85*"/>
+                    </Grid.RowDefinitions>
+
+                    <Border Grid.Row="0"
+                            Style="{StaticResource DashboardCardStyle}"
+                            Margin="0,0,0,10">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+
+                            <StackPanel>
+                                <TextBlock Text="SKILL OVERVIEW"
+                                           Style="{StaticResource SectionHeadingStyle}"/>
+                                <TextBlock Text="Global gameplay demands from the current analysis snapshot"
+                                           Foreground="{StaticResource TextMutedBrush}"
+                                           FontSize="10.5"
+                                           Margin="0,4,0,0"/>
+                            </StackPanel>
+
+                            <ItemsControl Grid.Row="1"
+                                          ItemsSource="{Binding Overview.SkillMetrics}"
+                                          Margin="0,14,0,0">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <UniformGrid Columns="4"/>
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Background="#181A22"
+                                                BorderBrush="#302C2E3A"
+                                                BorderThickness="1"
+                                                CornerRadius="11"
+                                                Padding="14,12"
+                                                Margin="5"
+                                                MinHeight="78">
+                                            <controls:SkillBarControl VerticalAlignment="Center"/>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </Grid>
+                    </Border>
+
+                    <Grid Grid.Row="1">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="0.78*"/>
+                            <ColumnDefinition Width="1.22*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <Border Grid.Column="0"
+                                Style="{StaticResource DashboardCardStyle}"
+                                Margin="0,0,10,0">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+
+                                <StackPanel>
+                                    <TextBlock Text="STRONGEST SKILLS"
+                                               Style="{StaticResource SectionHeadingStyle}"/>
+                                    <TextBlock Text="Profile selected by Gameplay Identity V3"
+                                               Foreground="{StaticResource TextMutedBrush}"
+                                               FontSize="10"
+                                               Margin="0,4,0,0"/>
+                                </StackPanel>
+
+                                <Grid Grid.Row="1" Margin="0,14,0,0">
+                                    <TextBlock Text="No strongest skill available"
+                                               Foreground="{StaticResource TextMutedBrush}"
+                                               FontSize="11"
+                                               FontStyle="Italic"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"
+                                               Visibility="{Binding Overview.Identity.MainSkills, Converter={StaticResource InvertedNullOrEmptyToVisibilityConverter}}"/>
+
+                                    <ItemsControl ItemsSource="{Binding Overview.Identity.MainSkills}"
+                                                  Visibility="{Binding Overview.Identity.MainSkills, Converter={StaticResource NullOrEmptyToVisibilityConverter}}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Background="#21151D"
+                                                        BorderBrush="#45FF2E93"
+                                                        BorderThickness="1"
+                                                        CornerRadius="10"
+                                                        Padding="13,10"
+                                                        Margin="0,0,0,8">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <StackPanel>
+                                                            <TextBlock Text="{Binding Name}"
+                                                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                                                       FontSize="13"
+                                                                       FontWeight="SemiBold"/>
+                                                            <TextBlock Foreground="{StaticResource TextMutedBrush}"
+                                                                       FontSize="9.5"
+                                                                       Margin="0,3,0,0">
+                                                                <Run Text="Identity V3 · "/>
+                                                                <Run Text="{Binding Reliability}"/>
+                                                            </TextBlock>
+                                                        </StackPanel>
+                                                        <TextBlock Grid.Column="1"
+                                                                   Text="{Binding ScoreDisplay}"
+                                                                   Foreground="{StaticResource AccentMagentaBrush}"
+                                                                   FontSize="22"
+                                                                   FontWeight="Bold"
+                                                                   VerticalAlignment="Center"/>
+                                                    </Grid>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </Grid>
+                            </Grid>
+                        </Border>
+
+                        <Border Grid.Column="1"
+                                Style="{StaticResource DashboardCardStyle}">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+
+                                <StackPanel>
+                                    <TextBlock Text="SKILL PRESSURE"
+                                               Style="{StaticResource SectionHeadingStyle}"/>
+                                    <TextBlock Text="Skill Pressure V2 · unavailable metrics remain explicit"
+                                               Foreground="{StaticResource TextMutedBrush}"
+                                               FontSize="10"
+                                               Margin="0,4,0,0"/>
+                                </StackPanel>
+
+                                <ItemsControl Grid.Row="1"
+                                              ItemsSource="{Binding Overview.SkillPressureMetrics}"
+                                              Margin="0,9,0,0">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <UniformGrid Columns="2"/>
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Background="#181A22"
+                                                    BorderBrush="#302C2E3A"
+                                                    BorderThickness="1"
+                                                    CornerRadius="9"
+                                                    Padding="11,8"
+                                                    Margin="4">
+                                                <controls:SkillBarControl/>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </Grid>
+                        </Border>
+                    </Grid>
+                </Grid>
+
+                <!-- ===================================================== -->
+                <!-- PATTERNS TAB                                          -->
+                <!-- ===================================================== -->
+
+                <Grid Visibility="{Binding IsPatternsTabActive, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Margin="2,0,0,12">
+                        <TextBlock Text="PATTERN ANALYSIS"
+                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                   FontSize="20"
+                                   FontWeight="Bold"/>
+                        <TextBlock Text="Detected pattern evidence supplied by the current analysis snapshot"
+                                   Foreground="{StaticResource TextMutedBrush}"
+                                   FontSize="10.5"
+                                   Margin="0,4,0,0"/>
+                    </StackPanel>
+
+                    <Grid Grid.Row="1">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <Border Grid.Column="0" Style="{StaticResource DashboardCardStyle}" Margin="0,0,7,0">
+                            <Grid>
+                                <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="JUMP PATTERNS" Style="{StaticResource SectionHeadingStyle}"/>
+                                    <TextBlock Text="Spatial jump structures" Foreground="{StaticResource TextMutedBrush}" FontSize="9.5" Margin="0,4,0,0"/>
+                                </StackPanel>
+                                <Grid Grid.Row="1" Margin="0,12,0,0">
+                                    <TextBlock Text="No jump pattern detected" Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="{Binding Overview.Patterns.HasJumpPatterns, Converter={StaticResource InvertedBoolToVisibilityConverter}}"/>
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Visibility="{Binding Overview.Patterns.HasJumpPatterns, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                        <ItemsControl ItemsSource="{Binding Overview.Patterns.JumpPatterns}" ItemTemplate="{StaticResource PatternAnalysisItemTemplate}"/>
+                                    </ScrollViewer>
+                                </Grid>
+                            </Grid>
+                        </Border>
+
+                        <Border Grid.Column="1" Style="{StaticResource DashboardCardStyle}" Margin="7,0">
+                            <Grid>
+                                <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="STREAM PATTERNS" Style="{StaticResource SectionHeadingStyle}"/>
+                                    <TextBlock Text="Temporal and flow structures" Foreground="{StaticResource TextMutedBrush}" FontSize="9.5" Margin="0,4,0,0"/>
+                                </StackPanel>
+                                <Grid Grid.Row="1" Margin="0,12,0,0">
+                                    <TextBlock Text="No stream pattern detected" Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="{Binding Overview.Patterns.HasStreamPatterns, Converter={StaticResource InvertedBoolToVisibilityConverter}}"/>
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Visibility="{Binding Overview.Patterns.HasStreamPatterns, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                        <ItemsControl ItemsSource="{Binding Overview.Patterns.StreamPatterns}" ItemTemplate="{StaticResource PatternAnalysisItemTemplate}"/>
+                                    </ScrollViewer>
+                                </Grid>
+                            </Grid>
+                        </Border>
+
+                        <Border Grid.Column="2" Style="{StaticResource DashboardCardStyle}" Margin="7,0,0,0">
+                            <Grid>
+                                <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="TECH PATTERNS" Style="{StaticResource SectionHeadingStyle}"/>
+                                    <TextBlock Text="Slider, rhythm and awkward transitions" Foreground="{StaticResource TextMutedBrush}" FontSize="9.5" Margin="0,4,0,0"/>
+                                </StackPanel>
+                                <Grid Grid.Row="1" Margin="0,12,0,0">
+                                    <TextBlock Text="No tech pattern detected" Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="{Binding Overview.Patterns.HasTechPatterns, Converter={StaticResource InvertedBoolToVisibilityConverter}}"/>
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Visibility="{Binding Overview.Patterns.HasTechPatterns, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                        <ItemsControl ItemsSource="{Binding Overview.Patterns.TechPatterns}" ItemTemplate="{StaticResource PatternAnalysisItemTemplate}"/>
+                                    </ScrollViewer>
+                                </Grid>
+                            </Grid>
+                        </Border>
+
+                        <Border Grid.ColumnSpan="3"
+                                Background="#E80E0F14"
+                                CornerRadius="14"
+                                Visibility="{Binding Overview.Patterns.HasPatterns, Converter={StaticResource InvertedBoolToVisibilityConverter}}">
+                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <TextBlock Text="No pattern detected"
+                                           Foreground="{StaticResource TextPrimaryBrush}"
+                                           FontSize="16"
+                                           FontWeight="SemiBold"
+                                           HorizontalAlignment="Center"/>
+                                <TextBlock Text="The current snapshot does not expose positive pattern evidence."
+                                           Foreground="{StaticResource TextMutedBrush}"
+                                           FontSize="10.5"
+                                           Margin="0,5,0,0"
+                                           HorizontalAlignment="Center"/>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                </Grid>
+
+                <!-- ===================================================== -->
+                <!-- IDENTITY TAB                                          -->
+                <!-- ===================================================== -->
+
+                <Grid Visibility="{Binding IsIdentityTabActive, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="0.9*"/>
+                        <RowDefinition Height="1.1*"/>
+                    </Grid.RowDefinitions>
+
+                    <Border Grid.Row="0"
+                            Style="{StaticResource DashboardCardStyle}"
+                            Margin="0,0,0,10"
+                            BorderBrush="#55FF2E93">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+
+                            <StackPanel>
+                                <TextBlock Text="GAMEPLAY IDENTITY V3"
+                                           Style="{StaticResource SectionHeadingStyle}"/>
+                                <TextBlock Text="Structural profile supplied by the current analysis snapshot"
+                                           Foreground="{StaticResource TextMutedBrush}"
+                                           FontSize="10.5"
+                                           Margin="0,4,0,0"/>
+                            </StackPanel>
+
+                            <Grid Grid.Row="1" Margin="0,16,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="1.25*"/>
+                                    <ColumnDefinition Width="1.05*"/>
+                                    <ColumnDefinition Width="0.7*"/>
+                                </Grid.ColumnDefinitions>
+
+                                <Border Grid.Column="0"
+                                        Background="#25131B"
+                                        BorderBrush="{Binding Overview.Identity.PrimaryStructure, Converter={StaticResource StructureToBrushConverter}}"
+                                        BorderThickness="1"
+                                        CornerRadius="13"
+                                        Padding="18">
+                                    <StackPanel VerticalAlignment="Center">
+                                        <TextBlock Text="PRIMARY STRUCTURE"
+                                                   Foreground="{StaticResource TextMutedBrush}"
+                                                   FontSize="9.5"
+                                                   FontWeight="SemiBold"/>
+                                        <TextBlock x:Name="IdentityPrimaryStructureText"
+                                                   Text="{Binding Overview.Identity.PrimaryStructure}"
+                                                   Foreground="{Binding Overview.Identity.PrimaryStructure, Converter={StaticResource StructureToBrushConverter}}"
+                                                   FontSize="30"
+                                                   FontWeight="Bold"
+                                                   Margin="0,7,0,0"/>
+                                    </StackPanel>
+                                </Border>
+
+                                <Border x:Name="IdentitySecondaryStructureCard"
+                                        Grid.Column="1"
+                                        Background="#1D171D"
+                                        BorderBrush="{Binding Overview.Identity.SecondaryStructure, Converter={StaticResource StructureToBrushConverter}}"
+                                        BorderThickness="1"
+                                        CornerRadius="13"
+                                        Padding="18"
+                                        Margin="10,0,0,0"
+                                        Visibility="{Binding Overview.Identity.HasSecondary, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <StackPanel VerticalAlignment="Center">
+                                        <TextBlock Text="SECONDARY STRUCTURE"
+                                                   Foreground="{StaticResource TextMutedBrush}"
+                                                   FontSize="9.5"
+                                                   FontWeight="SemiBold"/>
+                                        <TextBlock x:Name="IdentitySecondaryStructureText"
+                                                   Text="{Binding Overview.Identity.SecondaryStructure}"
+                                                   Foreground="{Binding Overview.Identity.SecondaryStructure, Converter={StaticResource StructureToBrushConverter}}"
+                                                   FontSize="24"
+                                                   FontWeight="Bold"
+                                                   Margin="0,7,0,0"/>
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Grid.Column="2"
+                                        Background="#181A22"
+                                        BorderBrush="#302C2E3A"
+                                        BorderThickness="1"
+                                        CornerRadius="13"
+                                        Padding="16"
+                                        Margin="10,0,0,0">
+                                    <StackPanel VerticalAlignment="Center">
+                                        <TextBlock Text="GLOBAL CONFIDENCE"
+                                                   Foreground="{StaticResource TextMutedBrush}"
+                                                   FontSize="9.5"
+                                                   FontWeight="SemiBold"
+                                                   HorizontalAlignment="Center"/>
+                                        <TextBlock x:Name="IdentityConfidenceText"
+                                                   Text="{Binding Overview.Identity.GlobalConfidenceDisplay}"
+                                                   Foreground="{StaticResource AccentMagentaBrush}"
+                                                   FontSize="30"
+                                                   FontWeight="Bold"
+                                                   HorizontalAlignment="Center"
+                                                   Margin="0,7,0,0"/>
+                                    </StackPanel>
+                                </Border>
+                            </Grid>
+                        </Grid>
+                    </Border>
+
+                    <Grid Grid.Row="1">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="1.05*"/>
+                            <ColumnDefinition Width="0.95*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <Border Grid.Column="0"
+                                Style="{StaticResource DashboardCardStyle}"
+                                Margin="0,0,10,0">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+
+                                <StackPanel>
+                                    <TextBlock Text="MAIN SKILLS"
+                                               Style="{StaticResource SectionHeadingStyle}"/>
+                                    <TextBlock Text="Skills exposed directly by Gameplay Identity V3"
+                                               Foreground="{StaticResource TextMutedBrush}"
+                                               FontSize="10"
+                                               Margin="0,4,0,0"/>
+                                </StackPanel>
+
+                                <Grid Grid.Row="1" Margin="0,12,0,0">
+                                    <TextBlock Text="No main skill available"
+                                               Foreground="{StaticResource TextMutedBrush}"
+                                               FontSize="11"
+                                               FontStyle="Italic"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"
+                                               Visibility="{Binding Overview.Identity.MainSkills, Converter={StaticResource InvertedNullOrEmptyToVisibilityConverter}}"/>
+
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                                  HorizontalScrollBarVisibility="Disabled"
+                                                  Visibility="{Binding Overview.Identity.MainSkills, Converter={StaticResource NullOrEmptyToVisibilityConverter}}">
+                                        <ItemsControl ItemsSource="{Binding Overview.Identity.MainSkills}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <UniformGrid Columns="2"/>
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border Background="#21151D"
+                                                            BorderBrush="#45FF2E93"
+                                                            BorderThickness="1"
+                                                            CornerRadius="10"
+                                                            Padding="13,11"
+                                                            Margin="4">
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                            </Grid.ColumnDefinitions>
+                                                            <StackPanel>
+                                                                <TextBlock Text="{Binding Name}"
+                                                                           Foreground="{StaticResource TextPrimaryBrush}"
+                                                                           FontSize="13"
+                                                                           FontWeight="SemiBold"/>
+                                                                <TextBlock Text="{Binding Reliability}"
+                                                                           Foreground="{StaticResource TextMutedBrush}"
+                                                                           FontSize="9.5"
+                                                                           Margin="0,3,0,0"/>
+                                                            </StackPanel>
+                                                            <TextBlock Grid.Column="1"
+                                                                       Text="{Binding ScoreDisplay}"
+                                                                       Foreground="{StaticResource AccentMagentaBrush}"
+                                                                       FontSize="21"
+                                                                       FontWeight="Bold"
+                                                                       VerticalAlignment="Center"/>
+                                                        </Grid>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </ScrollViewer>
+                                </Grid>
+                            </Grid>
+                        </Border>
+
+                        <Border Grid.Column="1"
+                                Style="{StaticResource DashboardCardStyle}">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+
+                                <StackPanel>
+                                    <TextBlock Text="MAIN PATTERNS"
+                                               Style="{StaticResource SectionHeadingStyle}"/>
+                                    <TextBlock Text="Pattern evidence retained by Gameplay Identity V3"
+                                               Foreground="{StaticResource TextMutedBrush}"
+                                               FontSize="10"
+                                               Margin="0,4,0,0"/>
+                                </StackPanel>
+
+                                <Grid Grid.Row="1" Margin="0,12,0,0">
+                                    <TextBlock Text="No main pattern available"
+                                               Foreground="{StaticResource TextMutedBrush}"
+                                               FontSize="11"
+                                               FontStyle="Italic"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"
+                                               Visibility="{Binding Overview.Identity.MainPatterns, Converter={StaticResource InvertedNullOrEmptyToVisibilityConverter}}"/>
+
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                                  HorizontalScrollBarVisibility="Disabled"
+                                                  Visibility="{Binding Overview.Identity.MainPatterns, Converter={StaticResource NullOrEmptyToVisibilityConverter}}">
+                                        <ItemsControl ItemsSource="{Binding Overview.Identity.MainPatterns}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <WrapPanel/>
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border Background="#181A22"
+                                                            BorderBrush="#353846"
+                                                            BorderThickness="1"
+                                                            CornerRadius="10"
+                                                            Padding="12,9"
+                                                            Margin="4">
+                                                        <StackPanel>
+                                                            <TextBlock Text="{Binding Name}"
+                                                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                                                       FontSize="12"
+                                                                       FontWeight="SemiBold"/>
+                                                            <TextBlock Text="{Binding OccurrenceDisplay}"
+                                                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                                                       FontSize="9.5"
+                                                                       Margin="0,3,0,0"/>
+                                                        </StackPanel>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </ScrollViewer>
+                                </Grid>
+                            </Grid>
+                        </Border>
+                    </Grid>
+                </Grid>
+
+                <!-- ===================================================== -->
+                <!-- SECTIONS TAB                                          -->
+                <!-- ===================================================== -->
+
+                <Grid Visibility="{Binding IsSectionsTabActive, Converter={StaticResource BooleanToVisibilityConverter}}">
+
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="1.1*"/>
+                        <RowDefinition Height="0.9*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- ===================================================== -->
+                    <!-- SECTION TIMELINE                                      -->
+                    <!-- ===================================================== -->
+
+                    <Border Grid.Row="0"
+        Style="{StaticResource DashboardCardStyle}"
+        Margin="0,0,0,10">
+
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+
+                            <Grid>
+                                <StackPanel>
+                                    <TextBlock Text="SECTION TIMELINE"
+                           Style="{StaticResource SectionHeadingStyle}"/>
+
+                                    <TextBlock Text="Difficulty and gameplay structure across the beatmap"
+                           Foreground="{StaticResource TextMutedBrush}"
+                           FontSize="10"
+                           Margin="0,4,0,0"/>
+                                </StackPanel>
+
+                                <StackPanel HorizontalAlignment="Right"
+                        VerticalAlignment="Top">
+
+                                    <TextBlock Text="{Binding Sections.SelectedSection.SectionNumberDisplay}"
+                           Foreground="White"
+                           FontSize="11"
+                           FontWeight="SemiBold"
+                           HorizontalAlignment="Right"/>
+
+                                    <TextBlock Text="{Binding Sections.SelectedSection.TimeRangeDisplay}"
+                           Foreground="{StaticResource TextSecondaryBrush}"
+                           FontSize="10"
+                           Margin="0,2,0,0"
+                           HorizontalAlignment="Right"/>
+                                </StackPanel>
+                            </Grid>
+
+                            <Grid Grid.Row="1"
+              Margin="0,14,0,0">
+
+                                <TextBlock Text="No section data available"
+                       Foreground="{StaticResource TextMutedBrush}"
+                       FontSize="12"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       Visibility="{Binding Sections.HasSections, Converter={StaticResource InvertedBoolToVisibilityConverter}}"/>
+
+                                <controls:SectionTimelineGraphControl
+                Sections="{Binding Sections.Sections}"
+                SelectedSection="{Binding Sections.SelectedSection}"
+                MinHeight="210"
+                SectionClicked="SectionTimelineGraph_SectionClicked"
+                Visibility="{Binding Sections.HasSections, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                            </Grid>
+                        </Grid>
+                    </Border>
+
+                    <!-- ===================================================== -->
+                    <!-- DETAILS / LOCAL PRESSURE                               -->
+                    <!-- ===================================================== -->
+
+                    <Grid Grid.Row="1">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="1.15*"/>
+                            <ColumnDefinition Width="0.85*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <!-- SECTION DETAILS -->
+
+                        <Border Grid.Column="0"
+            Style="{StaticResource DashboardCardStyle}"
+            Margin="0,0,10,0">
+
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Text="SECTION DETAILS"
+                       Style="{StaticResource SectionHeadingStyle}"/>
+
+                                <Grid Grid.Row="1"
+                  Margin="0,15,0,0">
+
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="1.1*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <StackPanel Grid.Column="0">
+
+                                        <TextBlock Text="{Binding Sections.SelectedSection.SectionNumberDisplay}"
+                               Foreground="White"
+                               FontSize="24"
+                               FontWeight="Bold"/>
+
+                                        <TextBlock Text="{Binding Sections.SelectedSection.TimeRangeDisplay}"
+                               Foreground="{StaticResource TextSecondaryBrush}"
+                               FontSize="12"
+                               Margin="0,3,0,0"/>
+
+                                        <Border Margin="0,15,0,0"
+                            HorizontalAlignment="Left"
+                            Padding="11,6"
+                            Background="#25131B"
+                            BorderBrush="{Binding Sections.SelectedSection.Structure, Converter={StaticResource StructureToBrushConverter}}"
+                            BorderThickness="1"
+                            CornerRadius="7">
+
+                                            <TextBlock Text="{Binding Sections.SelectedSection.Structure}"
+                                   Foreground="{Binding Sections.SelectedSection.Structure, Converter={StaticResource StructureToBrushConverter}}"
+                                   FontSize="12"
+                                   FontWeight="Bold"/>
+                                        </Border>
+
+                                        <TextBlock Margin="0,16,0,0"
+                               Foreground="{StaticResource TextMutedBrush}"
+                               FontSize="9"
+                               FontWeight="SemiBold"
+                               Text="DOMINANT SIGNAL"/>
+
+                                        <TextBlock Text="{Binding Sections.SelectedSection.DominantSignal}"
+                               Foreground="White"
+                               FontSize="15"
+                               FontWeight="SemiBold"
+                               Margin="0,3,0,0"/>
+                                    </StackPanel>
+
+                                    <Border Grid.Column="1"
+                        Background="#181A22"
+                        BorderBrush="#302C2E3A"
+                        BorderThickness="1"
+                        CornerRadius="12"
+                        Padding="14"
+                        Margin="14,0,0,0">
+
+                                        <StackPanel VerticalAlignment="Center">
+
+                                            <TextBlock Text="LOCAL DIFFICULTY"
+                                   Foreground="{StaticResource TextMutedBrush}"
+                                   FontSize="9"
+                                   FontWeight="SemiBold"
+                                   HorizontalAlignment="Center"/>
+
+                                            <TextBlock Text="{Binding Sections.SelectedSection.LocalDifficultyDisplay}"
+                                   Foreground="{StaticResource AccentMagentaBrush}"
+                                   FontSize="34"
+                                   FontWeight="Bold"
+                                   HorizontalAlignment="Center"
+                                   Margin="0,7,0,0"/>
+
+                                            <TextBlock Text="/ 100"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   FontSize="10"
+                                   HorizontalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
+
+                                <Grid Grid.Row="2"
+                  Margin="0,14,0,0">
+
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <Button Grid.Column="0"
+                        Content="‹ Previous"
+                        Style="{StaticResource ActionPillButtonStyle}"
+                        IsEnabled="{Binding Sections.CanGoPrevious}"
+                        Click="PreviousSectionButton_Click"/>
+
+                                    <Button Grid.Column="2"
+                        Content="Next ›"
+                        Style="{StaticResource ActionPillButtonStyle}"
+                        IsEnabled="{Binding Sections.CanGoNext}"
+                        Click="NextSectionButton_Click"/>
+                                </Grid>
+                            </Grid>
+                        </Border>
+
+                        <!-- LOCAL PRESSURE -->
+
+                        <Border Grid.Column="1"
+            Style="{StaticResource DashboardCardStyle}">
+
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Text="LOCAL PRESSURE"
+                       Style="{StaticResource SectionHeadingStyle}"/>
+
+                                <StackPanel Grid.Row="1"
+                        Margin="0,15,0,0">
+
+                                    <Grid Margin="0,0,0,13">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <TextBlock Text="Jump"
+                               Foreground="{StaticResource TextSecondaryBrush}"
+                               FontSize="11"/>
+
+                                        <TextBlock Grid.Column="1"
+                               Text="{Binding Sections.SelectedSection.JumpScore, StringFormat={}{0:F1} / 100}"
+                               Foreground="White"
+                               FontSize="11"
+                               FontWeight="Bold"/>
+                                    </Grid>
+
+                                    <Grid Margin="0,0,0,13">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <TextBlock Text="Stream"
+                               Foreground="{StaticResource TextSecondaryBrush}"
+                               FontSize="11"/>
+
+                                        <TextBlock Grid.Column="1"
+                               Text="{Binding Sections.SelectedSection.StreamScore, StringFormat={}{0:F1} / 100}"
+                               Foreground="White"
+                               FontSize="11"
+                               FontWeight="Bold"/>
+                                    </Grid>
+
+                                    <Grid Margin="0,0,0,13">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <TextBlock Text="Tech"
+                               Foreground="{StaticResource TextSecondaryBrush}"
+                               FontSize="11"/>
+
+                                        <TextBlock Grid.Column="1"
+                               Text="{Binding Sections.SelectedSection.TechScore, StringFormat={}{0:F1} / 100}"
+                               Foreground="White"
+                               FontSize="11"
+                               FontWeight="Bold"/>
+                                    </Grid>
+
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <TextBlock Text="Burst"
+                               Foreground="{StaticResource TextSecondaryBrush}"
+                               FontSize="11"/>
+
+                                        <TextBlock Grid.Column="1"
+                               Text="{Binding Sections.SelectedSection.BurstScore, StringFormat={}{0:F1} / 100}"
+                               Foreground="White"
+                               FontSize="11"
+                               FontWeight="Bold"/>
+                                    </Grid>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                    </Grid>
+
+                </Grid>
+
+                <!-- ===================================================== -->
+                <!-- DIFFICULTY TAB                                        -->
+                <!-- ===================================================== -->
+
+                <Grid Visibility="{Binding IsDifficultyTabActive, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="0.85*"/>
+                        <RowDefinition Height="1.15*"/>
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Margin="2,0,0,12">
+                        <TextBlock Text="DIFFICULTY ANALYSIS"
+                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                   FontSize="20"
+                                   FontWeight="Bold"/>
+                        <TextBlock Text="Global rating, snapshot components and section difficulty distribution"
+                                   Foreground="{StaticResource TextMutedBrush}"
+                                   FontSize="10.5"
+                                   Margin="0,4,0,0"/>
+                    </StackPanel>
+
+                    <Grid Grid.Row="1">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="0.8*"/>
+                            <ColumnDefinition Width="1.6*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <Border Grid.Column="0"
+                                Style="{StaticResource DashboardCardStyle}"
+                                BorderBrush="#55FF2E93"
+                                Margin="0,0,8,0">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+                                <TextBlock Text="GLOBAL DIFFICULTY" Style="{StaticResource SectionHeadingStyle}"/>
+                                <Grid Grid.Row="1" Margin="0,10,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel VerticalAlignment="Center">
+                                        <TextBlock Text="BEATINSIGHT RATING V2"
+                                                   Foreground="{StaticResource TextMutedBrush}"
+                                                   FontSize="9"
+                                                   FontWeight="SemiBold"/>
+                                        <TextBlock x:Name="DifficultyRatingV2Text"
+                                                   Text="{Binding Overview.BeatInsightRatingDisplay}"
+                                                   Foreground="{StaticResource AccentMagentaBrush}"
+                                                   FontSize="38"
+                                                   FontWeight="Bold"
+                                                   Margin="0,2,0,0"/>
+                                        <TextBlock Text="{Binding Overview.BeatInsightRatingConfidenceDisplay, StringFormat=Confidence {0}}"
+                                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                                   FontSize="10"
+                                                   Margin="0,2,0,0"/>
+                                    </StackPanel>
+                                    <Border Grid.Column="1"
+                                            Background="#181A22"
+                                            BorderBrush="#302C2E3A"
+                                            BorderThickness="1"
+                                            CornerRadius="10"
+                                            Padding="12"
+                                            Margin="10,0,0,0">
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock Text="osu! STAR RATING"
+                                                       Foreground="{StaticResource TextMutedBrush}"
+                                                       FontSize="9"
+                                                       FontWeight="SemiBold"
+                                                       HorizontalAlignment="Center"/>
+                                            <TextBlock x:Name="DifficultyOsuStarRatingText"
+                                                       Text="{Binding Overview.OsuStarRatingDisplay}"
+                                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                                       FontSize="23"
+                                                       FontWeight="Bold"
+                                                       HorizontalAlignment="Center"
+                                                       Margin="0,7,0,0"/>
+                                            <TextBlock Text="Official osu! difficulty reference"
+                                                       Foreground="{StaticResource TextMutedBrush}"
+                                                       FontSize="8.5"
+                                                       HorizontalAlignment="Center"
+                                                       Margin="0,3,0,0"/>
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
+                            </Grid>
+                        </Border>
+
+                        <Border Grid.Column="1"
+                                Style="{StaticResource DashboardCardStyle}"
+                                Margin="8,0,0,0">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="RATING BREAKDOWN" Style="{StaticResource SectionHeadingStyle}"/>
+                                    <TextBlock Text="Values copied directly from Rating V2 in the snapshot"
+                                               Foreground="{StaticResource TextMutedBrush}"
+                                               FontSize="9.5"
+                                               Margin="0,3,0,0"/>
+                                </StackPanel>
+                                <Grid Grid.Row="1" Margin="0,8,0,0">
+                                    <TextBlock Text="Rating V2 breakdown unavailable"
+                                               Foreground="{StaticResource TextMutedBrush}"
+                                               FontStyle="Italic"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"
+                                               Visibility="{Binding Overview.Difficulty.HasRatingBreakdown, Converter={StaticResource InvertedBoolToVisibilityConverter}}"/>
+                                    <ItemsControl ItemsSource="{Binding Overview.Difficulty.RatingBreakdown}"
+                                                  Visibility="{Binding Overview.Difficulty.HasRatingBreakdown, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate><UniformGrid Columns="4"/></ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Background="#181A22"
+                                                        BorderBrush="#302C2E3A"
+                                                        BorderThickness="1"
+                                                        CornerRadius="8"
+                                                        Padding="9,7"
+                                                        Margin="3">
+                                                    <StackPanel>
+                                                        <TextBlock Text="{Binding Name}"
+                                                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                                                   FontSize="9.5"
+                                                                   TextWrapping="Wrap"/>
+                                                        <TextBlock Text="{Binding ValueDisplay}"
+                                                                   Foreground="{StaticResource AccentMagentaBrush}"
+                                                                   FontSize="13"
+                                                                   FontWeight="Bold"
+                                                                   Margin="0,4,0,0"/>
+                                                    </StackPanel>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </Grid>
+                            </Grid>
+                        </Border>
+                    </Grid>
+
+                    <Grid Grid.Row="2" Margin="0,10,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="1.45*"/>
+                            <ColumnDefinition Width="0.95*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <Border Grid.Column="0"
+                                Style="{StaticResource DashboardCardStyle}"
+                                Margin="0,0,8,0">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <StackPanel>
+                                    <TextBlock Text="DIFFICULTY DISTRIBUTION / SPIKES" Style="{StaticResource SectionHeadingStyle}"/>
+                                    <TextBlock Text="LocalDifficultyScore across Section Analysis V2"
+                                           Foreground="{StaticResource TextMutedBrush}"
+                                               FontSize="9.5"
+                                           Margin="0,4,0,0"/>
+                            </StackPanel>
+                                <Grid Grid.Row="1" Margin="0,10,0,7">
+                                <controls:SpikeGraphControl Points="{Binding Overview.DifficultyPoints}"
+                                                            Visibility="{Binding Overview.HasDifficultyData, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                <TextBlock Text="No difficulty data available"
+                                           Foreground="{StaticResource TextMutedBrush}"
+                                           FontSize="11"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"
+                                           Visibility="{Binding Overview.HasDifficultyData, Converter={StaticResource InvertedBoolToVisibilityConverter}}"/>
+                            </Grid>
+                            <TextBlock Grid.Row="2"
+                                       Text="{Binding Overview.SpikesSummaryText}"
+                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                       FontSize="10.5"
+                                       TextAlignment="Center"/>
+                        </Grid>
+                    </Border>
+
+                        <Border Grid.Column="1"
+                                Style="{StaticResource DashboardCardStyle}"
+                                Margin="8,0,0,0">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="TOP DIFFICULT SECTIONS" Style="{StaticResource SectionHeadingStyle}"/>
+                                    <TextBlock Text="Highest existing LocalDifficultyScore values"
+                                               Foreground="{StaticResource TextMutedBrush}"
+                                               FontSize="9.5"
+                                               Margin="0,3,0,0"/>
+                                </StackPanel>
+                                <Grid Grid.Row="1" Margin="0,8,0,0">
+                                    <TextBlock Text="No section difficulty available"
+                                               Foreground="{StaticResource TextMutedBrush}"
+                                               FontStyle="Italic"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"
+                                               Visibility="{Binding Overview.Difficulty.HasTopSections, Converter={StaticResource InvertedBoolToVisibilityConverter}}"/>
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                                  HorizontalScrollBarVisibility="Disabled"
+                                                  Visibility="{Binding Overview.Difficulty.HasTopSections, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                        <ItemsControl ItemsSource="{Binding Overview.Difficulty.TopSections}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border Background="#181A22"
+                                                            BorderBrush="#302C2E3A"
+                                                            BorderThickness="1"
+                                                            CornerRadius="8"
+                                                            Padding="9,6"
+                                                            Margin="0,0,0,6">
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                            </Grid.ColumnDefinitions>
+                                                            <StackPanel>
+                                                                <StackPanel Orientation="Horizontal">
+                                                                    <TextBlock Text="{Binding SectionNumberDisplay}"
+                                                                               Foreground="{StaticResource TextPrimaryBrush}"
+                                                                               FontSize="10.5"
+                                                                               FontWeight="SemiBold"/>
+                                                                    <Border Background="#35111D"
+                                                                            CornerRadius="5"
+                                                                            Padding="5,1"
+                                                                            Margin="6,0,0,0"
+                                                                            Visibility="{Binding IsSpike, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                                        <TextBlock Text="SPIKE"
+                                                                                   Foreground="{StaticResource AccentMagentaBrush}"
+                                                                                   FontSize="8"
+                                                                                   FontWeight="Bold"/>
+                                                                    </Border>
+                                                                </StackPanel>
+                                                                <TextBlock Text="{Binding TimeRangeDisplay}"
+                                                                           Foreground="{StaticResource TextMutedBrush}"
+                                                                           FontSize="8.5"
+                                                                           Margin="0,2,0,0"/>
+                                                                <TextBlock Text="{Binding Structure}"
+                                                                           Foreground="{Binding Structure, Converter={StaticResource StructureToBrushConverter}}"
+                                                                           FontSize="9"
+                                                                           Margin="0,2,0,0"/>
+                                                            </StackPanel>
+                                                            <TextBlock Grid.Column="1"
+                                                                       Text="{Binding LocalDifficultyDisplay, StringFormat={}{0} / 100}"
+                                                                       Foreground="{StaticResource AccentMagentaBrush}"
+                                                                       FontSize="13"
+                                                                       FontWeight="Bold"
+                                                                       VerticalAlignment="Center"/>
+                                                        </Grid>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </ScrollViewer>
+                                </Grid>
+                            </Grid>
+                        </Border>
+                    </Grid>
+                </Grid>
+
+                <!-- ===================================================== -->
+                <!-- NO BEATMAP OVERLAY                                    -->
+                <!-- ===================================================== -->
 
                 <Border Background="#E80E0F14" CornerRadius="14">
                     <Border.Style>
@@ -477,7 +1792,7 @@
                     </StackPanel>
                 </Border>
 
-                <Border Background="#F20E0F14" CornerRadius="14"
+                <Border x:Name="OverviewLoadingOverlay" Background="#F20E0F14" CornerRadius="14"
                         Visibility="{Binding Overview.IsLoading, Converter={StaticResource BooleanToVisibilityConverter}}">
                     <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
                         <ProgressBar Width="220" Height="4" IsIndeterminate="True"
