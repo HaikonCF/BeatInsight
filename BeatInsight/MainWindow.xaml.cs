@@ -32,7 +32,6 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
-using static BeatInsight.OsuApiService;
 
 // Cette classe représente la fenêtre principale de BeatInsight et contient la logique qui surveille la map actuellement sélectionnée.
 
@@ -52,7 +51,6 @@ namespace BeatInsight
         private string? currentMapPath;
         private bool isUpdating;
         private bool tosuConnected;
-        private string? currentBeatmapUrl;
         private long lastMapTimerTickTimestamp;
         private long mapTimerTickSequence;
         private string? pendingTosuMapPath;
@@ -203,39 +201,10 @@ namespace BeatInsight
         // pipeline d'analyse, les queues ML et leurs états restent partagés.
         private enum ActiveWorkspace { Analyzer, MlLab }
 
-        private ActiveWorkspace activeWorkspace = ActiveWorkspace.Analyzer;
-
         private bool IsBackgroundLibraryWorkRunning =>
             isLibraryScanRunning
                 || isDatasetBuildRunning
                 || isBeatmapIdBackfillRunning;
-
-        private async Task TestOsuApi(int beatmapId)
-        {
-            try
-            {
-                string json = await osuApi.GetBeatmap(beatmapId);
-
-                DebugLogger.Log(
-                    $"OSU BEATMAP API OK | BeatmapId={beatmapId}");
-
-                DebugLogger.Detailed(
-                    $"OSU BEATMAP API RESPONSE | BeatmapId={beatmapId}");
-
-                DebugLogger.Detailed(json);
-            }
-            catch (Exception ex)
-            {
-                DebugLogger.Log(
-                    $"OSU BEATMAP API ERROR | " +
-                    $"BeatmapId={beatmapId} | " +
-                    $"{ex.Message}");
-
-                DebugLogger.Detailed(
-                    ex.ToString());
-            }
-        }
-
 
         public MainWindow()
         // On crée le timer qui servira à vérifier régulièrement l'état actuel d'osu!.
@@ -295,20 +264,8 @@ namespace BeatInsight
 
         public string AppVersion => $"BeatInsight v{Assembly.GetExecutingAssembly().GetName().Version?.ToString(3)}";
 
-        private void AnalyzerWorkspace_Click(object sender, RoutedEventArgs e)
-        {
-            SetActiveWorkspace(ActiveWorkspace.Analyzer);
-        }
-
-        private void MlLabWorkspace_Click(object sender, RoutedEventArgs e)
-        {
-            SetActiveWorkspace(ActiveWorkspace.MlLab);
-        }
-
         private void SetActiveWorkspace(ActiveWorkspace workspace)
         {
-            activeWorkspace = workspace;
-
             bool isAnalyzer = workspace == ActiveWorkspace.Analyzer;
 
             AnalyzerHeaderPanel.Visibility =
@@ -523,18 +480,6 @@ namespace BeatInsight
             // ============================================================
 
             Clipboard.SetText(text.ToString());
-        }
-
-        private void OpenBeatmap_Click(object sender, RoutedEventArgs e)
-        {
-            if (string.IsNullOrWhiteSpace(currentBeatmapUrl))
-                return;
-
-            Process.Start(new ProcessStartInfo
-            {
-                FileName = currentBeatmapUrl,
-                UseShellExecute = true
-            });
         }
 
         // ============================================================
@@ -1082,8 +1027,6 @@ namespace BeatInsight
                 }
 
                 currentMapPath = target.SourceFilePath;
-                currentBeatmapUrl =
-                    $"https://osu.ppy.sh/b/{candidate.BeatmapId}";
                 BackgroundImage.Source = null;
                 currentBeatmap = beatmap;
                 await UpdateOverviewFromSourceAsync(target.SourceFilePath);
@@ -1541,9 +1484,6 @@ namespace BeatInsight
                 }
 
                 currentMapPath = candidate.Sample.SourceFilePath;
-                currentBeatmapUrl = candidate.Sample.BeatmapId is int beatmapId
-                    ? $"https://osu.ppy.sh/b/{beatmapId}"
-                    : null;
                 BackgroundImage.Source = null;
                 currentBeatmap = beatmap;
                 await UpdateOverviewFromSourceAsync(candidate.Sample.SourceFilePath);
@@ -1618,9 +1558,6 @@ namespace BeatInsight
                     return;
 
                 currentMapPath = sample.SourceFilePath;
-                currentBeatmapUrl = sample.BeatmapId is int beatmapId
-                    ? $"https://osu.ppy.sh/b/{beatmapId}"
-                    : null;
                 BackgroundImage.Source = null;
 
                 currentBeatmap = beatmap;
@@ -1835,9 +1772,6 @@ namespace BeatInsight
                     return;
 
                 currentMapPath = sample.SourceFilePath;
-                currentBeatmapUrl = sample.BeatmapId is int beatmapId
-                    ? $"https://osu.ppy.sh/b/{beatmapId}"
-                    : null;
                 BackgroundImage.Source = null;
 
                 currentBeatmap = beatmap;
@@ -2852,162 +2786,6 @@ namespace BeatInsight
             BeatmapIdBackfillCurrentFileText.ToolTip = exception.ToString();
         }
 
-        private async Task<List<CommunityTag>> GetCommunityTags(int beatmapId)
-        {
-            try
-            {
-                List<OsuApiService.OsuTagVote> tags =
-                    await osuApi.GetBeatmapCommunityTags(beatmapId);
-
-                return tags
-                    .Select(tag => new CommunityTag
-                    {
-                        Name = tag.Name,
-                        Votes = tag.Votes
-                    })
-                    .ToList();
-            }
-            catch (Exception ex)
-            {
-                DebugLogger.Log(
-                    $"COMMUNITY TAGS ERROR | " +
-                    $"BeatmapId={beatmapId} | " +
-                    $"{ex.Message}");
-
-                DebugLogger.Detailed(
-                    ex.ToString());
-
-                return new List<CommunityTag>();
-            }
-        }
-
-        private async Task TestTagsApi()
-        {
-            try
-            {
-                string token = await GetOsuAccessToken();
-
-                using HttpRequestMessage request = new(
-                    HttpMethod.Get,
-                    "https://osu.ppy.sh/api/v2/tags"
-                );
-
-                request.Headers.Authorization =
-                    new System.Net.Http.Headers.AuthenticationHeaderValue(
-                        "Bearer",
-                        token
-                    );
-
-                request.Headers.Add("Accept", "application/json");
-
-                using HttpResponseMessage response =
-                    await client.SendAsync(request);
-
-                string body =
-                    await response.Content.ReadAsStringAsync();
-
-                DebugLogger.Log(
-                    $"OSU TAGS API | " +
-                    $"HTTP={(int)response.StatusCode} ({response.StatusCode})");
-
-                DebugLogger.Detailed(
-                    "OSU TAGS API RESPONSE:");
-
-                DebugLogger.Detailed(
-                    body);
-            }
-            catch (Exception ex)
-            {
-                DebugLogger.Log(
-                    $"OSU TAGS API ERROR | {ex.Message}");
-
-                DebugLogger.Detailed(
-                    ex.ToString());
-            }
-        }
-
-        private string? osuAccessToken;
-        private DateTime osuTokenExpiration;
-
-        private async Task<string> GetOsuAccessToken()
-        {
-            if (!string.IsNullOrWhiteSpace(osuAccessToken) &&
-                DateTime.UtcNow < osuTokenExpiration)
-            {
-                return osuAccessToken;
-            }
-
-            string? clientSecret =
-                Environment.GetEnvironmentVariable(
-                    "BEATINSIGHT_OSU_CLIENT_SECRET");
-
-            if (string.IsNullOrWhiteSpace(clientSecret))
-            {
-                throw new Exception(
-                    "BEATINSIGHT_OSU_CLIENT_SECRET est introuvable.");
-            }
-
-            using HttpRequestMessage request =
-                new(
-                    HttpMethod.Post,
-                    "https://osu.ppy.sh/oauth/token");
-
-            request.Headers.Add(
-                "Accept",
-                "application/json");
-
-            request.Content =
-                new FormUrlEncodedContent(
-                    new Dictionary<string, string>
-                    {
-                        ["client_id"] = "66257",
-                        ["client_secret"] = OsuSecrets.ClientSecret,
-                        ["grant_type"] = "client_credentials",
-                        ["scope"] = "public"
-                    });
-
-            using HttpResponseMessage response =
-                await client.SendAsync(request);
-
-            string responseBody =
-                await response.Content.ReadAsStringAsync();
-
-            if (!response.IsSuccessStatusCode)
-            {
-                DebugLogger.Log(
-                    $"OSU API AUTH ERROR | " +
-                    $"HTTP={(int)response.StatusCode} ({response.StatusCode})");
-
-                DebugLogger.Detailed(
-                    responseBody);
-
-                throw new Exception(
-                    $"osu! API HTTP {(int)response.StatusCode} ({response.StatusCode})");
-            }
-
-            using JsonDocument document =
-                JsonDocument.Parse(responseBody);
-
-            osuAccessToken =
-                document.RootElement
-                    .GetProperty("access_token")
-                    .GetString()
-                ?? throw new Exception(
-                    "osu! API : access_token absent de la réponse.");
-
-            int expiresIn =
-                document.RootElement
-                    .GetProperty("expires_in")
-                    .GetInt32();
-
-            osuTokenExpiration =
-                DateTime.UtcNow.AddSeconds(expiresIn - 60);
-
-            DebugLogger.Detailed(
-                $"OSU API AUTH OK | ExpiresIn={expiresIn}s");
-
-            return osuAccessToken!;
-        }
         private async Task<bool> IsTosuAvailable()
         {
             try
@@ -3291,7 +3069,6 @@ namespace BeatInsight
             long overviewRequest = overviewLoadCoordinator!.Begin(
                 "Analyzing the selected beatmap...");
             currentMapPath = chemin;
-            currentBeatmapUrl = $"https://osu.ppy.sh/b/{beatmapId}";
             currentBeatmap = null;
             BackgroundImage.Source = null;
             pendingTosuMapPath = null;
@@ -3521,7 +3298,6 @@ namespace BeatInsight
                 || mainViewModel.Overview.HasError;
 
             currentMapPath = null;
-            currentBeatmapUrl = null;
             currentBeatmap = null;
             mapEnrichmentCancellation?.Cancel();
             mapEnrichmentCancellation = null;
