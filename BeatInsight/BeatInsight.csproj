@@ -7,10 +7,10 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
 
-    <BeatInsightVersion>1.0.0-beta.1</BeatInsightVersion>
+    <BeatInsightVersion>2.0.0-beta.1</BeatInsightVersion>
     <Version>$(BeatInsightVersion)</Version>
-    <AssemblyVersion>1.0.0.0</AssemblyVersion>
-    <FileVersion>1.0.0.0</FileVersion>
+    <AssemblyVersion>2.0.0.0</AssemblyVersion>
+    <FileVersion>2.0.0.0</FileVersion>
     <InformationalVersion>$(BeatInsightVersion)</InformationalVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <ApplicationIcon>Assets\Brand\BeatInsight.ico</ApplicationIcon>

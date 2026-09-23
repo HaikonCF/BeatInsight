@@ -1,4 +1,4 @@
-# BeatInsight public beta release notes
+# BeatInsight 2.0.0-beta.1 public beta release notes
 
 The public beta publish target is Windows x64, self-contained,
 `net8.0-windows`, untrimmed, and not bundled as a single file. Use the checked-in

@@ -1,5 +1,6 @@
 using BeatInsight.Diagnostics;
 using BeatInsight.Services.Library;
+using BeatInsight.ViewModels;
 using System.IO;
 using System.Reflection;
 
@@ -27,9 +28,12 @@ public sealed class ReleaseHardeningTests : IDisposable
             .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
             .InformationalVersion;
 
-        Assert.Equal("1.0.0-beta.1", informationalVersion);
-        Assert.Equal("1.0.0-beta.1", ReleaseInfo.Version);
-        Assert.Equal("BeatInsight v1.0.0-beta.1", ReleaseInfo.DisplayName);
+        Assert.Equal("2.0.0-beta.1", informationalVersion);
+        Assert.Equal("2.0.0-beta.1", ReleaseInfo.Version);
+        Assert.Equal("BeatInsight v2.0.0-beta.1", ReleaseInfo.DisplayName);
+        Assert.Equal(
+            "BeatInsight v2.0.0-beta.1",
+            new MainWindowViewModel().AppVersionText);
     }
 
     [Fact]
@@ -161,7 +165,7 @@ public sealed class ReleaseHardeningTests : IDisposable
             "test",
             isFatal: true);
 
-        Assert.Contains("Version: 1.0.0-beta.1", report, StringComparison.Ordinal);
+        Assert.Contains("Version: 2.0.0-beta.1", report, StringComparison.Ordinal);
         Assert.Contains("System.InvalidOperationException", report, StringComparison.Ordinal);
         Assert.Contains("Inner exception 1", report, StringComparison.Ordinal);
         Assert.DoesNotContain(secret, report, StringComparison.Ordinal);
