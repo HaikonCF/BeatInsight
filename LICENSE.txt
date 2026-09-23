@@ -1,0 +1,115 @@
+BeatInsight Source License
+Version 1.0
+
+Copyright (c) 2026 Gabin / BeatInsight.
+All rights reserved except as expressly granted below.
+
+1. Permission
+
+Permission is granted to any person obtaining a copy of the BeatInsight
+source code to:
+
+- view and study the source code;
+- modify the source code;
+- create derivative works and unofficial forks;
+- use modified or unmodified versions for personal, educational,
+  research, hobbyist, and other non-commercial purposes;
+- redistribute modified or unmodified versions for non-commercial
+  purposes, subject to the conditions below.
+
+2. Conditions
+
+Any redistribution or derivative work must:
+
+a. retain this license and the original copyright notice;
+
+b. clearly state that the redistributed version is unofficial and,
+   where applicable, has been modified from the original BeatInsight
+   project;
+
+c. not imply endorsement, approval, sponsorship, or support by the
+   original BeatInsight project or its author;
+
+d. not use the BeatInsight name, logo, mascot, visual identity, or other
+   branding in a way that could reasonably cause users to believe that
+   an unofficial fork is an official BeatInsight release;
+
+e. preserve attribution to the original BeatInsight project;
+
+f. comply with all licenses and notices applicable to third-party
+   software, libraries, assets, and other materials included with or
+   used by BeatInsight.
+
+3. Commercial Use
+
+Commercial use is not permitted without prior written permission from
+the copyright holder.
+
+Commercial use includes, but is not limited to:
+
+- selling BeatInsight or a derivative work;
+- charging users for access to BeatInsight or a derivative work;
+- including BeatInsight or a derivative work as part of a paid product
+  or paid service;
+- monetizing redistribution of BeatInsight or a derivative work;
+- using BeatInsight primarily as part of a commercial offering.
+
+Use of BeatInsight by an individual within a commercial organization for
+personal evaluation, research, testing, or internal non-commercial
+experimentation does not by itself grant any right to redistribute,
+resell, sublicense, or commercially exploit BeatInsight.
+
+For commercial licensing or permission, contact the copyright holder.
+
+4. Branding
+
+The BeatInsight name, logo, mascot, visual identity, and associated
+branding remain the property of their respective owner(s).
+
+This license does not grant trademark or branding rights.
+
+Unofficial forks should use a clearly distinguishable name and branding
+when redistributed publicly.
+
+References such as "fork of BeatInsight", "based on BeatInsight", or
+"compatible with BeatInsight" are permitted for attribution and
+descriptive purposes, provided they are not misleading.
+
+5. Third-Party Components
+
+This license applies only to original BeatInsight code and materials for
+which the BeatInsight copyright holder has the authority to grant these
+permissions.
+
+Third-party libraries, source code, assets, fonts, images, trademarks,
+and other materials remain subject to their respective licenses and
+terms.
+
+See THIRD-PARTY-NOTICES.md and ASSET-NOTICES.md, where applicable.
+
+6. No Warranty
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT.
+
+IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY
+CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+TORT, OR OTHERWISE, ARISING FROM, OUT OF, OR IN CONNECTION WITH THE
+SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+7. Termination
+
+Any rights granted under this license automatically terminate if the
+licensee materially violates these terms.
+
+Upon termination, the licensee must stop distributing BeatInsight or
+any derivative work covered by this license until the violation has
+been corrected and permission has been restored by the copyright
+holder where required.
+
+8. No Additional Rights
+
+No rights are granted except those expressly stated in this license.
+
+All other rights are reserved.

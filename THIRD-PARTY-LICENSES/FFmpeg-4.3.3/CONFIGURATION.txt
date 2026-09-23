@@ -1,0 +1,22 @@
+FFmpeg native binary provenance for BeatInsight win-x64
+
+FFmpeg version: 4.3.3
+Supplying package: ppy.osu.Framework.NativeLibs 2025.806.0-nativelibs
+Historical build commit: 02d0a060afa5fbae5cca987fde5cee2ad9f8771b
+Source release: https://ffmpeg.org/releases/ffmpeg-4.3.3.tar.gz
+Source tag: n4.3.3 (commit a77521cd5d27e955b16e8097eecefc779ffdcb6d)
+
+The following configuration string is embedded verbatim in each distributed
+FFmpeg DLL:
+
+--disable-static --enable-shared --disable-all --disable-autodetect --enable-lto --enable-avcodec --enable-avformat --enable-swscale --enable-demuxer='avi,flv,asf' --enable-parser=mpeg4video --enable-decoder='flv,msmpeg4v1,msmpeg4v2,msmpeg4v3,mpeg4,vp6,vp6f,wmv2' --enable-demuxer='mov,matroska' --enable-parser='h264,hevc,vp8,vp9' --enable-decoder='h264,hevc,vp8,vp9' --enable-protocol=pipe --enable-w32threads --enable-dxva2 --enable-d3d11va --enable-hwaccel='h264_dxva2,h264_d3d11va,h264_d3d11va2' --enable-hwaccel='hevc_dxva2,hevc_d3d11va,hevc_d3d11va2' --enable-hwaccel='vp9_dxva2,vp9_d3d11va,vp9_d3d11va2' --enable-cross-compile --target-os=mingw32 --arch=x86_64 --cross-prefix=x86_64-w64-mingw32- --prefix=/home/runner/work/osu-framework/osu-framework/win-x64 --shlibdir=/home/runner/work/osu-framework/osu-framework/win-x64
+
+The string contains neither --enable-gpl nor --enable-nonfree. Each DLL reports
+its library licence as "LGPL version 2.1 or later".
+
+Distributed files and SHA-256 values:
+
+avcodec-58.dll  97DE41431A1509CDF2DB7052E4619DA5CCF4248896A04E3A6C84CDB8E13EF14B
+avformat-58.dll BAE3A14051A49F9B8AA4ED97AEBFBB5DCB4DA195B4D0BA7BD18887704529C640
+avutil-56.dll   0D0FD39EAFA8D275E819813B74BE06137F8FBB65191B06A47CF3D43836E8FDFE
+swscale-5.dll   25FDCF30908227E07B1CDD7685439B7258540D89FA48A65FB9AF4383C05A7E14

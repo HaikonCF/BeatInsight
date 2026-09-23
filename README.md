@@ -1,5 +1,9 @@
 # BeatInsight
 
+BeatInsight is source-available under the BeatInsight Source License.
+You may study, modify and redistribute unofficial non-commercial forks.
+Commercial use requires permission.
+
 BeatInsight is a gameplay analysis tool for osu! beatmaps.
 
 The goal of BeatInsight is to describe the gameplay characteristics of a beatmap rather than simply giving it a difficulty rating.
@@ -11,6 +15,16 @@ Lien du Discord => https://discord.gg/DC3xZevRds
 
 > ⚠️ BeatInsight is currently in an early public testing phase.
 > The analysis and classification systems are still being calibrated.
+
+## Licensing and notices
+
+BeatInsight uses a custom source-available licence: non-commercial use and
+redistribution are permitted under its conditions, while commercial use
+requires prior written permission. This is not an OSI open-source licence.
+
+- [BeatInsight Source License](LICENSE.txt)
+- [Third-party software notices](THIRD-PARTY-NOTICES.md)
+- [Asset provenance and licence status](ASSET-NOTICES.md)
 
 ---
 

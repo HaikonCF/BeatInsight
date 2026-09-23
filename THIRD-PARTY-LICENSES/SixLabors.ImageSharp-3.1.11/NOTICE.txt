@@ -1,0 +1,6 @@
+SixLabors.ImageSharp 3.1.11
+Copyright © Six Labors
+
+Licence files included in this directory:
+- Six-Labors-Split-License.txt
+- Apache-2.0.txt
