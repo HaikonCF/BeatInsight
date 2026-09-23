@@ -5,7 +5,7 @@
         xmlns:views="clr-namespace:BeatInsight.Views"
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
 
-        Title="BeatInsight"
+        Title="{Binding AppVersionText}"
 
         Width="1360"
         Height="820"

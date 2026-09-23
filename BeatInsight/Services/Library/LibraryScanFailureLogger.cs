@@ -1,3 +1,4 @@
+using BeatInsight.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Text;
@@ -12,6 +13,7 @@ namespace BeatInsight.Services.Library;
 internal sealed class LibraryScanFailureLogger
     : ILibraryScanFailureLogger
 {
+    private const long MaximumLogBytes = 1024 * 1024;
     private readonly string logFilePath;
     private readonly object writeLock = new();
 
@@ -62,12 +64,22 @@ internal sealed class LibraryScanFailureLogger
                 Environment.NewLine +
                 $"File: {filePath}" + Environment.NewLine +
                 $"Exception: {exceptionType}" + Environment.NewLine +
-                $"Message: {exception.Message}" + Environment.NewLine +
+                $"Message: {DebugLogger.RedactSensitiveData(exception.Message)}" + Environment.NewLine +
                 Environment.NewLine;
 
             lock (writeLock)
             {
-                File.AppendAllText(logFilePath, entry, Encoding.UTF8);
+                byte[] bytes = Encoding.UTF8.GetBytes(entry);
+                using var stream = new FileStream(
+                    logFilePath,
+                    FileMode.Append,
+                    FileAccess.Write,
+                    FileShare.Read);
+
+                if (stream.Length + bytes.Length <= MaximumLogBytes)
+                {
+                    stream.Write(bytes);
+                }
             }
         }
         catch

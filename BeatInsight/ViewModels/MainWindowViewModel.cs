@@ -17,7 +17,7 @@ public sealed class MainWindowViewModel : ViewModelBase
     private bool isConnected;
     private string statusMapText = "Aucune beatmap chargée";
     private string statusAnalysisText = "Prêt";
-    private string appVersionText = "BeatInsight v0.1.0-v2";
+    private string appVersionText = BeatInsight.Diagnostics.ReleaseInfo.DisplayName;
 
     public NavigationTab SelectedTab
     {

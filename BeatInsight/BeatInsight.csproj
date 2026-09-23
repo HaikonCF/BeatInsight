@@ -7,14 +7,21 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
 
-    <Version>0.1.0</Version>
-    <AssemblyVersion>0.1.0.0</AssemblyVersion>
-    <FileVersion>0.1.0.0</FileVersion>
+    <BeatInsightVersion>1.0.0-beta.1</BeatInsightVersion>
+    <Version>$(BeatInsightVersion)</Version>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+    <InformationalVersion>$(BeatInsightVersion)</InformationalVersion>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <ApplicationIcon>Assets\Brand\BeatInsight.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
     <!-- Legacy local secret files must never enter the desktop assembly. -->
     <Compile Remove="OsuSecrets.cs" />
+    <None Include="Assets\Brand\BeatInsight.ico">
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </None>
     <None Remove="Assets\Brand\BeatInsightLogo.png" />
   </ItemGroup>
 

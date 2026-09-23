@@ -23,7 +23,6 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
-using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
@@ -284,7 +283,7 @@ namespace BeatInsight
             RefreshCalibrationQueueProgress();
         }
 
-        public string AppVersion => $"BeatInsight v{Assembly.GetExecutingAssembly().GetName().Version?.ToString(3)}";
+        public string AppVersion => ReleaseInfo.DisplayName;
 
         private void SetActiveWorkspace(ActiveWorkspace workspace)
         {
