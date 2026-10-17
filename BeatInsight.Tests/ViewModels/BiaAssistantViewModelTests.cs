@@ -1,5 +1,6 @@
 using BeatInsight.ViewModels;
 using System.Windows;
+using System.Windows.Media;
 using System.Windows.Media.Imaging;
 
 namespace BeatInsight.Tests.ViewModels;
@@ -68,6 +69,10 @@ public sealed class BiaAssistantViewModelTests
         var overview = new OverviewViewModel();
 
         Assert.Equal(BiaVisualState.Idle, overview.Assistant.State);
+        Assert.False(overview.Assistant.VisualAssetsEnabled);
+        Assert.IsType<DrawingImage>(overview.Assistant.ImageSource);
+
+        overview.Assistant.SetVisualAssetsEnabled(true);
         Assert.IsType<BitmapImage>(overview.Assistant.ImageSource);
 
         overview.SetLoading("Analyzing...");
@@ -82,5 +87,9 @@ public sealed class BiaAssistantViewModelTests
 
         overview.Clear();
         Assert.Equal(BiaVisualState.Idle, overview.Assistant.State);
+
+        overview.Assistant.SetVisualAssetsEnabled(false);
+        Assert.False(overview.Assistant.VisualAssetsEnabled);
+        Assert.IsType<DrawingImage>(overview.Assistant.ImageSource);
     }
 }

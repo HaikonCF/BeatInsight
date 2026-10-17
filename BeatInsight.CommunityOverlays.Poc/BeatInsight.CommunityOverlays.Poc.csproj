@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    POC isolé : overlays communautaires de type tosu dans BeatInsight.
+    Volontairement hors de BeatInsight.slnx et hors du dossier BeatInsight/
+    (le glob SDK de BeatInsight.csproj compilerait sinon ces fichiers et
+    imposerait une référence WebView2 au projet principal).
+  -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <!-- WebView2CompositionControl dépend de Microsoft.Windows.SDK.NET (CsWinRT) : TFM Windows versionné requis. -->
+    <TargetFramework>net8.0-windows10.0.17763.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>BeatInsight.CommunityOverlays.Poc</RootNamespace>
+    <PublishDir Condition="'$(BeatInsightPackagingPublishDir)' != ''">$(BeatInsightPackagingPublishDir)</PublishDir>
+    <!-- Tests/ est un projet séparé (xUnit) : ne pas compiler ses fichiers ici. -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);Tests\**</DefaultItemExcludes>
+  </PropertyGroup>
+
+  <!--
+    V3.14-COM-10 : contrat du Named Pipe partagé avec BeatInsight par lien de fichiers
+    (aucune référence au projet principal, aucune dépendance de ces fichiers vers BeatInsight).
+  -->
+  <ItemGroup>
+    <Compile Include="..\BeatInsight\Integration\CommunityOverlays\Pipe\*.cs" LinkBase="Shared\Pipe" />
+    <!-- FEAT-003 : contrat stdin/stdout du mode géré (option managed-by), partagé de la même façon. -->
+    <Compile Include="..\BeatInsight\Integration\CommunityOverlays\Managed\*.cs" LinkBase="Shared\Managed" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4129.50" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Bridge\tosu-bridge-shim.js" LogicalName="BeatInsight.CommunityOverlays.Poc.tosu-bridge-shim.js" />
+    <EmbeddedResource Include="Bridge\frame-limiter.js" LogicalName="BeatInsight.CommunityOverlays.Poc.frame-limiter.js" />
+    <Content Include="SampleOverlay\**\*" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="SelfTest\**\*" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Beatmaps synthétiques pour /files/beatmap/* : jamais le dossier Songs réel. -->
+    <Content Include="TestAssets\**\*" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

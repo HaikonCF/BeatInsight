@@ -114,7 +114,7 @@ internal sealed class MlDatasetBuilder
                                     CapturedAtUtc: DateTime.UtcNow,
                                     // Un BeatmapId déjà connu est toujours
                                     // préservé. Sinon, une lecture légère de
-                                    // [Metadata] (aucune dépendance tosu/API)
+                                    // [Metadata] (aucune dépendance provider/API)
                                     // tente de le renseigner sans changer
                                     // FeatureSchemaVersion : c'est une
                                     // métadonnée de persistance, pas une

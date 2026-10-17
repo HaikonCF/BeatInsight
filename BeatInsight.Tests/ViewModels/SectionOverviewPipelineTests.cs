@@ -40,19 +40,13 @@ public sealed class SectionOverviewPipelineTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public async Task LastLoadedMapExistingV2CacheContainsAllSectionsWithoutReanalysis()
+    public async Task LastLoadedMapPreviousSchemaCacheIsInvalidatedForLocalSpeedPressure()
     {
         // Read-only: does not invoke the service or alter the user's installed cache.
         var lookup = await new JsonBeatmapAnalysisCache().TryLoadAsync(LastLoadedMap);
-        Assert.Equal(AnalysisCacheResultKind.Hit, lookup.Result);
-        var snapshot = lookup.Entry!.Analysis;
-        var vm = new OverviewViewModel();
-        vm.LoadSnapshot(snapshot, isCacheHit: true);
-        Assert.Equal(26, snapshot.SectionAnalysisV2.Sections.Count);
-        Assert.Equal(26, vm.Sections.Count);
-        Assert.Equal(26, vm.DifficultyPoints.Count);
-        Assert.Equal(4, snapshot.SectionAnalysisV2.GameplayTransitionCount);
-        output.WriteLine($"Installed cached snapshot: {snapshot.Metadata.Title}; sections={vm.Sections.Count}; points={vm.DifficultyPoints.Count}; spikes={snapshot.SectionAnalysisV2.DifficultySpikeCount}; transitions={snapshot.SectionAnalysisV2.GameplayTransitionCount}");
+        Assert.Equal(AnalysisCacheResultKind.Invalid, lookup.Result);
+        Assert.Equal(AnalysisCacheMissReason.SchemaVersionMismatch, lookup.Reason);
+        output.WriteLine($"Installed previous-schema snapshot is invalidated read-only: {lookup.Reason}");
     }
 
     [Fact]

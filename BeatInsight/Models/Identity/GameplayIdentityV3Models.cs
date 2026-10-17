@@ -48,8 +48,8 @@ public sealed record GameplayIdentityV3SectionContext(
     IReadOnlyList<GameplayStructureKind> CompressedStructureTimeline);
 
 /// <summary>
-/// Analytical Identity V3. It is parallel to the historical GameplayIdentity and is
-/// not consumed by Rating, persistence, UI, cache, ML, or Fusion V1.
+/// Analytical Identity V3. It remains parallel to the historical GameplayIdentity;
+/// MainPatterns keeps its identity/rating semantics while AllPatterns is presentation data.
 /// </summary>
 public sealed record GameplayIdentityV3Profile(
     double JumpStructureScore,
@@ -65,7 +65,15 @@ public sealed record GameplayIdentityV3Profile(
     double SkillConfidence,
     double PatternConfidence,
     double GlobalIdentityConfidence,
-    IReadOnlyList<GameplayIdentityV3DiagnosticFlag> Flags);
+    IReadOnlyList<GameplayIdentityV3DiagnosticFlag> Flags)
+{
+    /// <summary>
+    /// Complete positive pattern summaries produced for this analysis. This presentation
+    /// dataset is intentionally separate from the filtered MainPatterns identity signal.
+    /// </summary>
+    public IReadOnlyList<GameplayIdentityV3Pattern> AllPatterns { get; init; }
+        = Array.Empty<GameplayIdentityV3Pattern>();
+}
 
 public sealed record GameplayIdentityV3PatternInput(
     string Name,

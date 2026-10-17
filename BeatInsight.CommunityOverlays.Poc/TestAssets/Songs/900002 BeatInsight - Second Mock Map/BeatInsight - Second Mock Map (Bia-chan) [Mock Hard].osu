@@ -1,0 +1,18 @@
+osu file format v14
+
+[General]
+AudioFilename: audio.wav
+Mode: 0
+
+[Metadata]
+Title:Second Mock Map
+Artist:BeatInsight
+Creator:Bia-chan
+Version:Mock Hard
+
+[Events]
+//Background and Video events
+0,0,"bg2.png",0,0
+
+[HitObjects]
+256,192,1200,1,0,0:0:0:0:

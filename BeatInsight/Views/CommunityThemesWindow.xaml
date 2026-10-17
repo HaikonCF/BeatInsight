@@ -1,0 +1,217 @@
+<Window x:Class="BeatInsight.Views.CommunityThemesWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Community Themes"
+        Width="980" Height="720" MinWidth="820" MinHeight="620"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource AppBackgroundBrush}"
+        Foreground="{DynamicResource AppTextPrimaryBrush}">
+    <Window.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/BeatInsight;component/Theming/BeatInsightControls.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+            <Style TargetType="Button" BasedOn="{StaticResource BeatInsightSecondaryButtonStyle}"/>
+            <Style TargetType="CheckBox" BasedOn="{StaticResource BeatInsightCheckBoxStyle}"/>
+            <Style TargetType="TextBox" BasedOn="{StaticResource BeatInsightTextBoxStyle}"/>
+            <Style TargetType="ComboBox" BasedOn="{StaticResource BeatInsightComboBoxStyle}"/>
+            <Style TargetType="ScrollBar" BasedOn="{StaticResource BeatInsightScrollBarStyle}"/>
+            <Style x:Key="ThemeTokenDataGridStyle" TargetType="DataGrid">
+                <Setter Property="Background" Value="{DynamicResource AppSurfaceAltBrush}"/>
+                <Setter Property="Foreground" Value="{DynamicResource AppTextPrimaryBrush}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}"/>
+                <Setter Property="HorizontalGridLinesBrush" Value="{DynamicResource AppBorderBrush}"/>
+                <Setter Property="VerticalGridLinesBrush" Value="{DynamicResource AppBorderBrush}"/>
+                <Setter Property="RowBackground" Value="{DynamicResource AppSurfaceAltBrush}"/>
+                <Setter Property="AlternatingRowBackground" Value="{DynamicResource AppSurfaceBrush}"/>
+                <Setter Property="AlternationCount" Value="2"/>
+                <Setter Property="SelectionUnit" Value="FullRow"/>
+            </Style>
+            <Style x:Key="ThemeTokenDataGridRowStyle" TargetType="DataGridRow">
+                <Setter Property="Background" Value="{DynamicResource AppSurfaceAltBrush}"/>
+                <Setter Property="Foreground" Value="{DynamicResource AppTextPrimaryBrush}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}"/>
+                <Setter Property="BorderThickness" Value="0,0,0,1"/>
+                <Style.Triggers>
+                    <Trigger Property="AlternationIndex" Value="0">
+                        <Setter Property="Background" Value="{DynamicResource AppSurfaceAltBrush}"/>
+                    </Trigger>
+                    <Trigger Property="AlternationIndex" Value="1">
+                        <Setter Property="Background" Value="{DynamicResource AppSurfaceBrush}"/>
+                    </Trigger>
+                    <Trigger Property="IsMouseOver" Value="True">
+                        <Setter Property="Background" Value="{DynamicResource AppAccentSoftBrush}"/>
+                        <Setter Property="Foreground" Value="{DynamicResource AppTextPrimaryBrush}"/>
+                    </Trigger>
+                    <Trigger Property="IsSelected" Value="True">
+                        <Setter Property="Background" Value="{DynamicResource AppAccentSoftBrush}"/>
+                        <Setter Property="Foreground" Value="{DynamicResource AppTextPrimaryBrush}"/>
+                        <Setter Property="BorderBrush" Value="{DynamicResource AppBorderAccentBrush}"/>
+                    </Trigger>
+                </Style.Triggers>
+            </Style>
+            <Style x:Key="ThemeTokenDataGridCellStyle" TargetType="DataGridCell">
+                <Setter Property="Background" Value="Transparent"/>
+                <Setter Property="Foreground" Value="{DynamicResource AppTextPrimaryBrush}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}"/>
+                <Setter Property="BorderThickness" Value="0"/>
+                <Setter Property="Padding" Value="8,5"/>
+                <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+                <Style.Triggers>
+                    <Trigger Property="IsSelected" Value="True">
+                        <Setter Property="Background" Value="Transparent"/>
+                        <Setter Property="Foreground" Value="{DynamicResource AppTextPrimaryBrush}"/>
+                    </Trigger>
+                </Style.Triggers>
+            </Style>
+            <Style x:Key="ThemeTokenDataGridHeaderStyle" TargetType="DataGridColumnHeader">
+                <Setter Property="Background" Value="{DynamicResource AppSurfaceBrush}"/>
+                <Setter Property="Foreground" Value="{DynamicResource AppTextSecondaryBrush}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}"/>
+                <Setter Property="BorderThickness" Value="0,0,1,1"/>
+                <Setter Property="Padding" Value="8,7"/>
+                <Setter Property="FontWeight" Value="SemiBold"/>
+                <Style.Triggers>
+                    <Trigger Property="IsMouseOver" Value="True">
+                        <Setter Property="Background" Value="{DynamicResource AppAccentSoftBrush}"/>
+                        <Setter Property="Foreground" Value="{DynamicResource AppTextPrimaryBrush}"/>
+                    </Trigger>
+                </Style.Triggers>
+            </Style>
+        </ResourceDictionary>
+    </Window.Resources>
+    <Grid Margin="16">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="250"/>
+            <ColumnDefinition Width="14"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <Border Grid.Column="0" Background="{DynamicResource AppSurfaceBrush}"
+                BorderBrush="{DynamicResource AppBorderBrush}" BorderThickness="1"
+                CornerRadius="10" Padding="10">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <TextBlock Text="INSTALLED THEMES" FontWeight="Bold" Margin="4,2,4,10"/>
+                <ListBox Grid.Row="1" ItemsSource="{Binding Themes}"
+                         SelectedItem="{Binding SelectedTheme, Mode=TwoWay}"
+                         DisplayMemberPath="Name"
+                         Background="{DynamicResource AppSurfaceAltBrush}"
+                         Foreground="{DynamicResource AppTextPrimaryBrush}"
+                         BorderBrush="{DynamicResource AppBorderBrush}"/>
+                <WrapPanel Grid.Row="2" Margin="0,10,0,0">
+                    <Button Content="New Default" Margin="2" Padding="7,4" Click="NewDefault_Click"/>
+                    <Button Content="New Bia" Margin="2" Padding="7,4" Click="NewBia_Click"/>
+                    <Button Content="Duplicate" Margin="2" Padding="7,4" Click="Duplicate_Click"/>
+                    <Button Content="Import ZIP" Margin="2" Padding="7,4" Click="ImportZip_Click"/>
+                    <Button Content="Import Folder" Margin="2" Padding="7,4" Click="ImportFolder_Click"/>
+                </WrapPanel>
+            </Grid>
+        </Border>
+
+        <Border Grid.Column="2" Background="{DynamicResource AppSurfaceBrush}"
+                BorderBrush="{DynamicResource AppBorderBrush}" BorderThickness="1"
+                CornerRadius="10" Padding="14">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Margin="0,0,8,0">
+                        <TextBlock Text="Name" Foreground="{DynamicResource AppTextMutedBrush}"/>
+                        <TextBox Text="{Binding EditName, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,8"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                        <TextBlock Text="Author" Foreground="{DynamicResource AppTextMutedBrush}"/>
+                        <TextBox Text="{Binding EditAuthor, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,8"/>
+                    </StackPanel>
+                </Grid>
+
+                <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,4,0,10">
+                    <CheckBox Content="App theme" IsChecked="{Binding AppEnabled}" Margin="0,0,18,0"/>
+                    <CheckBox Content="Overlay theme" IsChecked="{Binding OverlayEnabled}" Margin="0,0,18,0"/>
+                    <TextBlock Text="{Binding ThemeIdentityText}" Foreground="{DynamicResource AppTextMutedBrush}"/>
+                </StackPanel>
+
+                <DataGrid Grid.Row="2" ItemsSource="{Binding Colors}" AutoGenerateColumns="False"
+                          CanUserAddRows="False" CanUserDeleteRows="False"
+                          HeadersVisibility="Column" GridLinesVisibility="Horizontal"
+                          Style="{StaticResource ThemeTokenDataGridStyle}"
+                          RowStyle="{StaticResource ThemeTokenDataGridRowStyle}"
+                          CellStyle="{StaticResource ThemeTokenDataGridCellStyle}"
+                          ColumnHeaderStyle="{StaticResource ThemeTokenDataGridHeaderStyle}">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Token" Binding="{Binding Token}" IsReadOnly="True" Width="2*"/>
+                        <DataGridTextColumn Header="Hex" Binding="{Binding Hex, UpdateSourceTrigger=PropertyChanged}" Width="*"/>
+                        <DataGridTemplateColumn Header="Color" Width="86">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <Button Tag="{Binding}" Click="PickColor_Click" Padding="3" Margin="3">
+                                        <Border Width="46" Height="15" Background="{Binding Swatch}" BorderBrush="#66FFFFFF" BorderThickness="1"/>
+                                    </Button>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                    </DataGrid.Columns>
+                </DataGrid>
+
+                <Grid Grid.Row="3" Margin="0,12,0,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <Border Background="{Binding PreviewBackground}" BorderBrush="{Binding PreviewBorder}"
+                            BorderThickness="2" CornerRadius="8" Padding="12" Margin="0,0,6,0">
+                        <StackPanel>
+                            <TextBlock Text="App preview" Foreground="{Binding PreviewPrimary}" FontWeight="Bold"/>
+                            <TextBlock Text="Secondary text" Foreground="{Binding PreviewSecondary}" Margin="0,4,0,8"/>
+                            <Button Content="Accent button" Background="{Binding PreviewAccent}" Foreground="{Binding PreviewPrimary}" Padding="7,4"/>
+                        </StackPanel>
+                    </Border>
+                    <Border Grid.Column="1" Background="{Binding OverlayPreviewBackground}"
+                            BorderBrush="{Binding OverlayPreviewBorder}" BorderThickness="2"
+                            CornerRadius="8" Padding="12" Margin="6,0,0,0">
+                        <StackPanel>
+                            <TextBlock Text="Overlay sample" Foreground="{Binding OverlayPreviewPrimary}" FontWeight="Bold"/>
+                            <TextBlock Text="Live stats / PP" Foreground="{Binding OverlayPreviewAccent}" Margin="0,5,0,0"/>
+                            <TextBlock Text="Warning / danger" Foreground="{Binding PreviewDanger}" Margin="0,5,0,0"/>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+
+                <Grid Grid.Row="4">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel>
+                        <TextBlock Text="{Binding StatusText}" Foreground="{DynamicResource AppTextSecondaryBrush}" TextWrapping="Wrap"/>
+                        <TextBlock Text="Low contrast detected." Foreground="#FFFACC15"
+                                   Visibility="{Binding LowContrastVisibility}"/>
+                    </StackPanel>
+                    <WrapPanel Grid.Column="1" HorizontalAlignment="Right">
+                        <Button Content="Apply App" Margin="3" Padding="8,5" Style="{StaticResource BeatInsightPrimaryButtonStyle}" Click="ApplyApp_Click"/>
+                        <Button Content="Apply Overlay" Margin="3" Padding="8,5" Style="{StaticResource BeatInsightPrimaryButtonStyle}" Click="ApplyOverlay_Click"/>
+                        <Button Content="Save" Margin="3" Padding="8,5" Style="{StaticResource BeatInsightPrimaryButtonStyle}" Click="Save_Click"/>
+                        <Button Content="Cancel Preview" Margin="3" Padding="8,5" Click="Cancel_Click"/>
+                        <Button Content="Export" Margin="3" Padding="8,5" Click="Export_Click"/>
+                        <Button Content="Delete" Margin="3" Padding="8,5" Style="{StaticResource BeatInsightDangerButtonStyle}" Click="Delete_Click"/>
+                        <Button Content="Close" Margin="3" Padding="8,5" Click="Close_Click"/>
+                    </WrapPanel>
+                </Grid>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

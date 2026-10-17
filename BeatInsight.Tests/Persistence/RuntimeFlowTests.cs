@@ -16,7 +16,7 @@ namespace BeatInsight.Tests.Persistence;
 ///   retour map 1  -> hit, snapshot restauré
 ///
 /// Ces tests n'instancient pas la fenêtre WPF et ne dépendent pas de
-/// tosu : ils exercent le même service, avec les mêmes appels, dans le
+/// du provider runtime : ils exercent le même service, avec les mêmes appels, dans le
 /// même ordre. La vérification de l'interface réelle reste une étape
 /// manuelle distincte.
 ///

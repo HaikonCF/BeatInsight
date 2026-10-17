@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Text;
 using BeatInsight.Models.AnalysisCache;
+using BeatInsight.Models.Fusion;
 using BeatInsight.Models.Identity;
 using BeatInsight.Models.Sections;
 using BeatInsight.Models.SkillPressure;
@@ -553,6 +554,7 @@ public sealed class OverviewViewModel : ViewModelBase
         double burstVal = (snapshot.GameplayProfile?.BurstRatio ?? 0.0) * 100.0;
         // SPEED IS STRICTLY BOUND TO GlobalTripletSpeed.SpeedPercent
         double speedVal = snapshot.GlobalTripletSpeed?.SpeedPercent ?? 0.0;
+        double localSpeedPressureVal = snapshot.LocalSpeedPressure?.PressurePercent ?? 0.0;
         double staminaVal = snapshot.SkillPressureV2?.Stamina.Score ?? 0.0;
 
         SkillMetrics.Add(new SkillMetricViewModel("Aim", aimVal, $"{aimVal:F0}%", "Cursor trajectory & spatial displacement", true, "StructureJump"));
@@ -561,7 +563,8 @@ public sealed class OverviewViewModel : ViewModelBase
         SkillMetrics.Add(new SkillMetricViewModel("Jump", jumpVal, $"{jumpVal:F0}%", "Discrete wide/sharp directional jumps", true, "StructureJump"));
         SkillMetrics.Add(new SkillMetricViewModel("Tech", techVal, $"{techVal:F0}%", "Complex slider movement & rhythm awkwardness", true, "StructureTech"));
         SkillMetrics.Add(new SkillMetricViewModel("Burst", burstVal, $"{burstVal:F0}%", "Short burst acceleration bursts", true, "StructureStream"));
-        SkillMetrics.Add(new SkillMetricViewModel("Speed", speedVal, $"{speedVal:F0}%", "Global Triplet & High-BPM speed pressure", true, "AccentMagenta"));
+        SkillMetrics.Add(new SkillMetricViewModel("Speed", speedVal, $"{speedVal:F0}%", "Prevalence of fast object-start timing across the beatmap", true, "AccentMagenta"));
+        SkillMetrics.Add(new SkillMetricViewModel("Local Speed Pressure", localSpeedPressureVal, $"{localSpeedPressureVal:F0}%", "Intensity and persistence of the strongest fast timing passages", true, "AccentMagenta"));
         SkillMetrics.Add(new SkillMetricViewModel("Stamina", staminaVal, $"{staminaVal:F0}%", "Sustained physical tapping endurance", true, "AccentMagenta"));
 
         LoadSkillPressureMetrics(snapshot.SkillPressureV2);
@@ -569,7 +572,9 @@ public sealed class OverviewViewModel : ViewModelBase
         // 5. Identity V3
         Identity.MainSkills.Clear();
         Identity.MainPatterns.Clear();
-        Patterns.Load(snapshot.PatternSummaries);
+        Patterns.Load(
+            snapshot.PatternSummaries,
+            snapshot.IdentityV3?.PrimaryStructure ?? GameplayStructureKind.ClassicMixed);
         if (snapshot.IdentityV3 is not null)
         {
             Identity.PrimaryStructure = snapshot.IdentityV3.PrimaryStructure.ToString().ToUpperInvariant();
@@ -631,7 +636,6 @@ public sealed class OverviewViewModel : ViewModelBase
         Difficulty.LoadSections(Array.Empty<SectionTimelineItemViewModel>());
         HasSpikes = false;
         SpikesSummaryText = "No section data available";
-        Assistant.Name = "Bia-chan";
         Assistant.Title = "Your Analysis Assistant";
         Assistant.StatusBadge = isCacheHit ? "Cached Analysis" : "Fresh Analysis";
         Assistant.Message = "Analysis ready.";
@@ -729,11 +733,10 @@ public sealed class OverviewViewModel : ViewModelBase
 
         Difficulty.LoadSections(Sections);
 
-        // 7. Bia-chan Assistant Message Generation (Deterministic)
-        Assistant.Name = "Bia-chan";
+        // 7. Analysis assistant message generation (deterministic)
         Assistant.Title = "Your Analysis Assistant";
         Assistant.StatusBadge = isCacheHit ? "Cached Analysis" : "Fresh Analysis";
-        Assistant.Message = GenerateBiaCommentary(snapshot);
+        Assistant.Message = GenerateAssistantCommentary(snapshot);
         Assistant.State = BiaVisualState.Idle;
 
         // 8. Formatted Summary for clipboard
@@ -806,7 +809,7 @@ public sealed class OverviewViewModel : ViewModelBase
         _ => "StructureClassicMixed"
     };
 
-    private static string GenerateBiaCommentary(BeatmapAnalysisSnapshot snapshot)
+    private static string GenerateAssistantCommentary(BeatmapAnalysisSnapshot snapshot)
     {
         var sb = new StringBuilder();
         string primary = snapshot.IdentityV3?.PrimaryStructure.ToString() ?? "Mixed";
@@ -816,20 +819,20 @@ public sealed class OverviewViewModel : ViewModelBase
         double stamina = snapshot.SkillPressureV2?.Stamina.Score ?? 0.0;
         int spikeCount = snapshot.SectionAnalysisV2?.DifficultySpikeCount ?? 0;
 
-        sb.Append($"This beatmap is primarily characterized by **{primary}** gameplay");
+        sb.Append($"This beatmap is primarily characterized by {primary} gameplay");
         if (!string.IsNullOrWhiteSpace(secondary))
         {
-            sb.Append($" with **{secondary}** secondary motifs");
+            sb.Append($" with {secondary} secondary motifs");
         }
-        sb.Append($". Overall BeatInsight Rating is **{rating:F1}**.");
+        sb.Append($". Overall BeatInsight Rating is {rating.ToString("F1", CultureInfo.InvariantCulture)}.");
 
         if (speed >= 60.0)
         {
-            sb.Append($" High speed pressure is active with **{speed:F0}%** Triplet Speed demand.");
+            sb.Append($" High speed pressure is active with {speed.ToString("F0", CultureInfo.InvariantCulture)}% Triplet Speed demand.");
         }
         else if (stamina >= 50.0)
         {
-            sb.Append($" Sustained stamina endurance is required (**{stamina:F0}%** stamina score).");
+            sb.Append($" Sustained stamina endurance is required ({stamina.ToString("F0", CultureInfo.InvariantCulture)}% stamina score).");
         }
 
         if (spikeCount > 0)

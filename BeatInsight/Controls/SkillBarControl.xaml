@@ -8,7 +8,7 @@
     <Grid ToolTip="{Binding Description}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="8"/>
+            <RowDefinition Height="9"/>
         </Grid.RowDefinitions>
 
         <Grid Grid.Row="0" Margin="0,0,0,4">
@@ -18,8 +18,8 @@
             </Grid.ColumnDefinitions>
             <TextBlock Grid.Column="0"
                        Text="{Binding Name, FallbackValue='SKILL'}"
-                       FontSize="11"
-                       FontWeight="Bold"
+                       FontSize="11.5"
+                       FontWeight="SemiBold"
                        Foreground="#A0A5B5"
                        HorizontalAlignment="Left"
                        VerticalAlignment="Center"
@@ -27,7 +27,7 @@
                        Margin="0,0,8,0"/>
             <TextBlock Grid.Column="1"
                        Text="{Binding DisplayValue, FallbackValue='0%'}"
-                       FontSize="11"
+                       FontSize="12"
                        FontWeight="Bold"
                        Foreground="#FFFFFF"
                        HorizontalAlignment="Right"
@@ -46,7 +46,7 @@
                 <ProgressBar Value="{Binding Value, FallbackValue=0}"
                              Minimum="0"
                              Maximum="100"
-                             Height="6"
+                             Height="7"
                              BorderThickness="0"
                              Background="Transparent"
                              Foreground="{Binding AccentKey, Converter={StaticResource StructureToBrushConverter}}">

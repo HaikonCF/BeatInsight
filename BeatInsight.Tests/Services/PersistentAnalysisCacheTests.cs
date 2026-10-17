@@ -68,6 +68,27 @@ public sealed class PersistentAnalysisCacheTests
     }
 
     [Fact]
+    public async Task LocalSpeedPressureRoundTripsThroughJsonCache()
+    {
+        using var scope = new TempScope();
+        string source = scope.Source("map.osu", "local-speed-pressure");
+        var cache = scope.Cache();
+        var section = new LocalSpeedPressureSection(12, 15, 1000, 1210, 2, 90, 0.4, 36);
+        BeatmapAnalysisSnapshot snapshot = Snapshot("local-speed-pressure") with
+        {
+            LocalSpeedPressure = new LocalSpeedPressureAnalysis(30.6, 2, 1, [section])
+        };
+
+        AnalysisCacheLookupResult miss = await cache.TryLoadAsync(source);
+        await cache.SaveAsync(Entry(cache, source, miss.ContentHash, snapshot));
+        BeatmapAnalysisSnapshot restored = (await cache.TryLoadAsync(source)).Entry!.Analysis;
+
+        AssertJsonEquivalent(snapshot, restored);
+        Assert.Equal(30.6, restored.LocalSpeedPressure.PressurePercent);
+        Assert.Equal(section, Assert.Single(restored.LocalSpeedPressure.Sections));
+    }
+
+    [Fact]
     public void OldSnapshotJsonWithoutV2MetadataDeserializesWithUnavailableFields()
     {
         JsonNode oldSnapshot = JsonNode.Parse(JsonSerializer.Serialize(Snapshot("old")))!;
@@ -168,6 +189,26 @@ public sealed class PersistentAnalysisCacheTests
         AnalysisCacheLookupResult invalid = await scope.Cache(schemaVersion: 2).TryLoadAsync(source);
         Assert.Equal(AnalysisCacheResultKind.Invalid, invalid.Result);
         Assert.Equal(AnalysisCacheMissReason.SchemaVersionMismatch, invalid.Reason);
+    }
+
+    [Fact]
+    public async Task PreviousPatternSummarySchemaCannotBeLoadedAsCurrent()
+    {
+        using var scope = new TempScope();
+        string source = scope.Source("map.osu", "old-pattern-summaries");
+        var oldCache = scope.Cache(
+            analyzerVersion: PersistentAnalysisCacheVersion.AnalyzerVersion,
+            schemaVersion: PersistentAnalysisCacheVersion.SchemaVersion - 1);
+        AnalysisCacheLookupResult miss = await oldCache.TryLoadAsync(source);
+        await oldCache.SaveAsync(Entry(oldCache, source, miss.ContentHash, Snapshot("old")));
+
+        var currentCache = scope.Cache(
+            analyzerVersion: PersistentAnalysisCacheVersion.AnalyzerVersion,
+            schemaVersion: PersistentAnalysisCacheVersion.SchemaVersion);
+        AnalysisCacheLookupResult result = await currentCache.TryLoadAsync(source);
+
+        Assert.Equal(AnalysisCacheResultKind.Invalid, result.Result);
+        Assert.Equal(AnalysisCacheMissReason.SchemaVersionMismatch, result.Reason);
     }
 
     [Fact]
@@ -390,7 +431,8 @@ public sealed class PersistentAnalysisCacheTests
             new(null, null, "Artist", title, "Version", "Creator", 0, 120, 0, 9, 8, 4, 6, 3, 0, 0, 0, 0),
             new(10, 20, 30, 40, .1, .2, .3, .4, .5, .6, .7, "Classic", "", "", .8, Array.Empty<string>()),
             identity, pressure, SectionAnalysisResult.Empty(TimeSpan.Zero), BeatInsightRatingV2.Empty,
-            GlobalTripletSpeedAnalysis.Empty, Array.Empty<GameplayIdentityV3Pattern>());
+            GlobalTripletSpeedAnalysis.Empty, LocalSpeedPressureAnalysis.Empty,
+            Array.Empty<GameplayIdentityV3Pattern>());
     }
 
     private static void AssertJsonEquivalent(BeatmapAnalysisSnapshot expected, BeatmapAnalysisSnapshot actual) =>

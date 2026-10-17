@@ -17,25 +17,12 @@ public sealed class SectionAnalysisV2PerformanceTests(ITestOutputHelper output)
     private const string DesertTheater = @"D:\osu!\Songs\1382362 KikuoHana - Desert Theater\KikuoHana - Desert Theater (Keqing) [Mirage (#1)].osu";
 
     [Fact]
-    public async Task InstrumentedPreparedPathMatchesInstalledPreInstrumentationSnapshot()
+    public async Task InstalledPreInstrumentationSnapshotIsInvalidatedByCurrentSchema()
     {
         Assert.True(File.Exists(Kareshi), $"Missing local validation map: {Kareshi}");
         var cached = await new JsonBeatmapAnalysisCache().TryLoadAsync(Kareshi);
-        Assert.Equal(AnalysisCacheResultKind.Hit, cached.Result);
-        var map = BeatmapParser.Load(Kareshi);
-
-        try
-        {
-            GameplayDebug.SectionAnalysisV2PerformanceEnabled = true;
-            SectionAnalysisResult instrumented = SectionAnalysisV2Analyzer.AnalyzePrepared(map, map.GameplayProfile);
-            Assert.Equal(
-                AnalyticalJson(cached.Entry!.Analysis.SectionAnalysisV2),
-                AnalyticalJson(instrumented));
-        }
-        finally
-        {
-            GameplayDebug.SectionAnalysisV2PerformanceEnabled = false;
-        }
+        Assert.Equal(AnalysisCacheResultKind.Invalid, cached.Result);
+        Assert.Equal(AnalysisCacheMissReason.SchemaVersionMismatch, cached.Reason);
     }
 
     [Theory]

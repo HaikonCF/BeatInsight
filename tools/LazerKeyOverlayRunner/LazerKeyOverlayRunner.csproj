@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    V3.14-COM-LAZER-KEY-03 : processus lecteur KeyOverlay osu!lazer (.NET 10, comme osu!lazer et le helper NativeLazer).
+    Lancé par BeatInsight seulement si l'option precise v2 Lazer est activée ; écrit une ligne JSON par état (stdout).
+    Lecture mémoire seule ; racine partagée avec la découverte NativeLazer de production (aucune découverte complète).
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <PlatformTarget>x64</PlatformTarget>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <PublishDir Condition="'$(BeatInsightPackagingPublishDir)' != ''">$(BeatInsightPackagingPublishDir)</PublishDir>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\LazerKeyOverlayReader\LazerKeyOverlayReader.csproj" />
+    <Compile Include="..\..\BeatInsight\Integration\KeyOverlay\Lazer\LazerKeyWire.cs" Link="Linked\LazerKeyWire.cs" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,115 @@
+<Window x:Class="BeatInsight.Overlay.LivePatterns.LivePatternsOverlayWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:converters="clr-namespace:BeatInsight.Converters"
+        Title="BeatInsight Live Patterns"
+        WindowStyle="None"
+        ResizeMode="NoResize"
+        WindowStartupLocation="Manual"
+        AllowsTransparency="True"
+        Background="Transparent"
+        Topmost="True"
+        ShowInTaskbar="False"
+        ShowActivated="False"
+        Focusable="False">
+    <Window.Resources>
+        <converters:StructureToBrushConverter x:Key="PatternFamilyBrush"/>
+    </Window.Resources>
+
+    <Border Background="{Binding Background}"
+            CornerRadius="16"
+            Padding="4">
+        <Border Background="{Binding CardBackground}"
+                BorderBrush="{Binding Border}"
+                BorderThickness="1"
+                CornerRadius="12"
+                Padding="14,10">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <Border Grid.Row="0"
+                        Height="3"
+                        Margin="0,0,0,7"
+                        Background="{Binding Accent}"
+                        CornerRadius="2"/>
+
+                <TextBlock Grid.Row="1"
+                           Text="LIVE PATTERNS"
+                           Foreground="{Binding SecondaryForeground}"
+                           FontSize="9"
+                           FontWeight="SemiBold"/>
+
+                <Grid Grid.Row="2" Margin="0,5,0,0">
+                    <ItemsControl ItemsSource="{Binding Patterns}">
+                        <ItemsControl.Style>
+                            <Style TargetType="ItemsControl">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasDominantPatterns}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ItemsControl.Style>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Height="29">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="8"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="46"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Ellipse Width="6"
+                                             Height="6"
+                                             Fill="{Binding Family, Converter={StaticResource PatternFamilyBrush}}"/>
+                                    <TextBlock Grid.Column="1"
+                                               Margin="8,0,0,0"
+                                               Text="{Binding DisplayName}"
+                                               Foreground="{Binding DataContext.Foreground, RelativeSource={RelativeSource AncestorType=Window}}"
+                                               FontSize="12"
+                                               FontWeight="SemiBold"
+                                               VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Column="2"
+                                               Margin="8,0,9,0"
+                                               Text="{Binding Category}"
+                                               Foreground="{Binding DataContext.SecondaryForeground, RelativeSource={RelativeSource AncestorType=Window}}"
+                                               FontSize="8"
+                                               VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Column="3"
+                                               Text="{Binding CoverageText}"
+                                               Foreground="{Binding Family, Converter={StaticResource PatternFamilyBrush}}"
+                                               FontSize="12"
+                                               FontWeight="Bold"
+                                               TextAlignment="Right"
+                                               VerticalAlignment="Center"/>
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <TextBlock Text="{Binding NeutralText}"
+                               Foreground="{Binding SecondaryForeground}"
+                               FontSize="13"
+                               FontStyle="Italic"
+                               VerticalAlignment="Center">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Visibility" Value="Visible"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasDominantPatterns}" Value="True">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </Grid>
+            </Grid>
+        </Border>
+    </Border>
+</Window>

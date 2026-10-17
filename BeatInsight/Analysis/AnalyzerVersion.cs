@@ -24,5 +24,5 @@ internal static class AnalyzerVersion
     /// Ne pas l'incrémenter après une recalibration ferait servir
     /// silencieusement des résultats obsolètes depuis le cache.
     /// </summary>
-    internal const int Current = 1;
+    internal const int Current = 2;
 }

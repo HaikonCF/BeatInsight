@@ -6,6 +6,6 @@ namespace BeatInsight.Services.AnalysisCache;
 /// </summary>
 public static class PersistentAnalysisCacheVersion
 {
-    public const int SchemaVersion = 2;
-    public const string AnalyzerVersion = "analysis-v2.0.0";
+    public const int SchemaVersion = 4;
+    public const string AnalyzerVersion = "analysis-v2.1.0";
 }

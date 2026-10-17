@@ -2,7 +2,7 @@ namespace BeatInsight.Services.Ml;
 
 /// <summary>
 /// Identifie la provenance de la map affichée par les outils de labellisation.
-/// DiscoveryReview et TechCandidates gèlent tosu comme les files existantes.
+/// DiscoveryReview et TechCandidates gèlent le suivi runtime comme les files existantes.
 /// TechCandidates avance uniquement après une validation humaine réussie ;
 /// DiscoveryReview reste toujours sur la map revue.
 /// </summary>

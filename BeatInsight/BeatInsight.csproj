@@ -6,19 +6,30 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
+    <StartupObject>BeatInsight.App</StartupObject>
+    <DefaultItemExcludes>$(DefaultItemExcludes);Diagnostics\NativeLazer\**\bin\**;Diagnostics\NativeLazer\**\obj\**;Diagnostics\NativeMcOsu\**\bin\**;Diagnostics\NativeMcOsu\**\obj\**;Diagnostics\NativeStable\**\bin\**;Diagnostics\NativeStable\**\obj\**</DefaultItemExcludes>
 
-    <BeatInsightVersion>2.0.0-beta.1</BeatInsightVersion>
+    <BeatInsightVersion>3.0.0-rc.1</BeatInsightVersion>
     <Version>$(BeatInsightVersion)</Version>
-    <AssemblyVersion>2.0.0.0</AssemblyVersion>
-    <FileVersion>2.0.0.0</FileVersion>
+    <AssemblyVersion>3.0.0.0</AssemblyVersion>
+    <FileVersion>3.0.0.0</FileVersion>
     <InformationalVersion>$(BeatInsightVersion)</InformationalVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <Product>BeatInsight</Product>
+    <Title>BeatInsight</Title>
+    <Description>Beatmap analysis and live gameplay overlays for osu!</Description>
+    <Company>BeatInsight</Company>
     <ApplicationIcon>Assets\Brand\BeatInsight.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
+    <ApplicationDefinition Remove="App.xaml" />
+    <Page Include="App.xaml" />
     <!-- Legacy local secret files must never enter the desktop assembly. -->
     <Compile Remove="OsuSecrets.cs" />
+    <!-- ClrMD is isolated to the out-of-process NativeLazer helper. -->
+    <Compile Remove="Diagnostics\NativeLazer\NativeLazerClrGameRouteMethodTableResolver.cs" />
+    <Compile Remove="Diagnostics\NativeLazer\NativeLazerClrGameplayStatsMethodTableResolver.cs" />
     <None Include="Assets\Brand\BeatInsight.ico">
       <CopyToOutputDirectory>Never</CopyToOutputDirectory>
     </None>
@@ -26,6 +37,8 @@
   </ItemGroup>
 
   <ItemGroup>
+    <FrameworkReference Include="Microsoft.WindowsDesktop.App.WindowsForms" />
+    <PackageReference Include="Velopack" Version="1.2.161" />
     <PackageReference Include="ppy.osu.Game.Rulesets.Osu" Version="2026.702.1" />
 
     <!-- Référence explicite : Microsoft.Data.Sqlite arrivait déjà de
@@ -53,5 +66,124 @@
     <None Include="..\THIRD-PARTY-LICENSES\**\*" Link="THIRD-PARTY-LICENSES\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <None Include="..\THIRD-PARTY-SOURCES\**\*" Link="THIRD-PARTY-SOURCES\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
+
+  <PropertyGroup>
+    <NativeLazerHelperProject>$(MSBuildProjectDirectory)\Diagnostics\NativeLazer\NativeLazerFastRefreshRunner.csproj</NativeLazerHelperProject>
+    <NativeLazerHelperOutput>$(MSBuildProjectDirectory)\Diagnostics\NativeLazer\bin\$(Configuration)\net10.0-windows</NativeLazerHelperOutput>
+    <NativeLazerHelperPublishOutput>$(MSBuildProjectDirectory)\obj\native-lazer-helper-publish\$(Configuration)\win-x64\</NativeLazerHelperPublishOutput>
+    <LazerKeyOverlayRunnerProject>$(MSBuildProjectDirectory)\..\tools\LazerKeyOverlayRunner\LazerKeyOverlayRunner.csproj</LazerKeyOverlayRunnerProject>
+    <LazerKeyOverlayRunnerOutput>$(MSBuildProjectDirectory)\..\tools\LazerKeyOverlayRunner\bin\$(Configuration)\net10.0-windows\</LazerKeyOverlayRunnerOutput>
+    <LazerKeyOverlayRunnerPublishOutput>$(MSBuildProjectDirectory)\obj\lazer-key-overlay-runner-publish\$(Configuration)\win-x64\</LazerKeyOverlayRunnerPublishOutput>
+  </PropertyGroup>
+
+  <Target Name="ValidateProductCompanionProjects" BeforeTargets="Restore;PrepareForBuild">
+    <Error Condition="!Exists('$(NativeLazerHelperProject)')"
+           Text="Required NativeLazer helper project is missing: $(NativeLazerHelperProject)" />
+    <Error Condition="!Exists('$(LazerKeyOverlayRunnerProject)')"
+           Text="Required Lazer key overlay runner project is missing: $(LazerKeyOverlayRunnerProject)" />
+    <Error Condition="!Exists('$(CommunityOverlaysCompanionProject)')"
+           Text="Required CommunityOverlays companion project is missing: $(CommunityOverlaysCompanionProject)" />
+  </Target>
+
+  <Target Name="RestoreNativeLazerHelper" BeforeTargets="Restore">
+    <MSBuild Projects="$(NativeLazerHelperProject)" Targets="Restore"
+             RemoveProperties="TargetFramework;RuntimeIdentifier;SelfContained;UseAppHost;PublishProfile;PublishDir" />
+  </Target>
+
+  <Target Name="BuildNativeLazerHelper" BeforeTargets="BeforeBuild">
+    <MSBuild Projects="$(NativeLazerHelperProject)" Targets="Build"
+             RemoveProperties="TargetFramework;RuntimeIdentifier;SelfContained;UseAppHost;PublishProfile;PublishDir"
+             Properties="Configuration=$(Configuration)" />
+    <ItemGroup>
+      <NativeLazerHelperFiles Include="$(NativeLazerHelperOutput)\*.dll"
+                              Exclude="$(NativeLazerHelperOutput)\NativeLazerCleanRoomRunner.dll;$(NativeLazerHelperOutput)\NativeLazerGameplayClockDiscoveryRunner.dll" />
+      <NativeLazerHelperFiles Include="$(NativeLazerHelperOutput)\NativeLazerFastRefreshRunner.deps.json" />
+      <NativeLazerHelperFiles Include="$(NativeLazerHelperOutput)\NativeLazerFastRefreshRunner.runtimeconfig.json" />
+    </ItemGroup>
+    <Copy SourceFiles="@(NativeLazerHelperFiles)" DestinationFolder="$(OutDir)NativeLazer" />
+  </Target>
+
+  <Target Name="PublishNativeLazerHelper" AfterTargets="Publish">
+    <MSBuild Projects="$(NativeLazerHelperProject)" Targets="Publish"
+             RemoveProperties="TargetFramework;PublishProfile;PublishDir"
+             Properties="Configuration=$(Configuration);RuntimeIdentifier=win-x64;SelfContained=true;UseAppHost=true;PublishSingleFile=false;PublishTrimmed=false;DebugSymbols=false;DebugType=None;BeatInsightPackagingPublishDir=$(NativeLazerHelperPublishOutput)" />
+    <ItemGroup>
+      <NativeLazerPublishFiles Include="$(NativeLazerHelperPublishOutput)**\*"
+                               Exclude="$(NativeLazerHelperPublishOutput)**\*.pdb" />
+    </ItemGroup>
+    <Copy SourceFiles="@(NativeLazerPublishFiles)"
+          DestinationFiles="@(NativeLazerPublishFiles->'$(PublishDir)NativeLazer\%(RecursiveDir)%(Filename)%(Extension)')" />
+  </Target>
+
+  <Target Name="RestoreLazerKeyOverlayRunner" BeforeTargets="Restore">
+    <MSBuild Projects="$(LazerKeyOverlayRunnerProject)" Targets="Restore"
+             RemoveProperties="TargetFramework;RuntimeIdentifier;SelfContained;UseAppHost;PublishProfile;PublishDir" />
+  </Target>
+
+  <Target Name="BuildLazerKeyOverlayRunner" BeforeTargets="BeforeBuild">
+    <MSBuild Projects="$(LazerKeyOverlayRunnerProject)" Targets="Build"
+             RemoveProperties="TargetFramework;RuntimeIdentifier;SelfContained;UseAppHost;PublishProfile;PublishDir"
+             Properties="Configuration=$(Configuration)" />
+    <ItemGroup>
+      <LazerKeyOverlayRunnerFiles Include="$(LazerKeyOverlayRunnerOutput)**\*"
+                                  Exclude="$(LazerKeyOverlayRunnerOutput)**\*.pdb" />
+    </ItemGroup>
+    <Copy SourceFiles="@(LazerKeyOverlayRunnerFiles)"
+          DestinationFiles="@(LazerKeyOverlayRunnerFiles->'$(OutDir)LazerKeys\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+  </Target>
+
+  <Target Name="PublishLazerKeyOverlayRunner" AfterTargets="Publish">
+    <MSBuild Projects="$(LazerKeyOverlayRunnerProject)" Targets="Publish"
+             RemoveProperties="TargetFramework;PublishProfile;PublishDir"
+             Properties="Configuration=$(Configuration);RuntimeIdentifier=win-x64;SelfContained=true;UseAppHost=true;PublishSingleFile=false;PublishTrimmed=false;DebugSymbols=false;DebugType=None;BeatInsightPackagingPublishDir=$(LazerKeyOverlayRunnerPublishOutput)" />
+    <ItemGroup>
+      <LazerKeyOverlayRunnerPublishFiles Include="$(LazerKeyOverlayRunnerPublishOutput)**\*"
+                                         Exclude="$(LazerKeyOverlayRunnerPublishOutput)**\*.pdb" />
+    </ItemGroup>
+    <Copy SourceFiles="@(LazerKeyOverlayRunnerPublishFiles)"
+          DestinationFiles="@(LazerKeyOverlayRunnerPublishFiles->'$(PublishDir)LazerKeys\%(RecursiveDir)%(Filename)%(Extension)')" />
+  </Target>
+
+  <!--
+    FEAT-003 : compagnon CommunityOverlays (WebView2) copié dans CommunityOverlays\ à côté de BeatInsight.
+    Processus séparé : BeatInsight ne référence ni WebView2 ni le projet du compagnon.
+    Le compagnon est un composant produit obligatoire de la distribution V3.
+  -->
+  <PropertyGroup>
+    <CommunityOverlaysCompanionProject>$(MSBuildProjectDirectory)\..\BeatInsight.CommunityOverlays.Poc\BeatInsight.CommunityOverlays.Poc.csproj</CommunityOverlaysCompanionProject>
+    <CommunityOverlaysCompanionOutput>$(MSBuildProjectDirectory)\..\BeatInsight.CommunityOverlays.Poc\bin\$(Configuration)\net8.0-windows10.0.17763.0\</CommunityOverlaysCompanionOutput>
+    <CommunityOverlaysCompanionPublishOutput>$(MSBuildProjectDirectory)\obj\community-overlays-companion-publish\$(Configuration)\win-x64\</CommunityOverlaysCompanionPublishOutput>
+  </PropertyGroup>
+
+  <Target Name="RestoreCommunityOverlaysCompanion" BeforeTargets="Restore">
+    <MSBuild Projects="$(CommunityOverlaysCompanionProject)" Targets="Restore"
+             RemoveProperties="TargetFramework;RuntimeIdentifier;SelfContained;UseAppHost;PublishProfile;PublishDir" />
+  </Target>
+
+  <Target Name="BuildCommunityOverlaysCompanion" BeforeTargets="BeforeBuild">
+    <MSBuild Projects="$(CommunityOverlaysCompanionProject)" Targets="Build"
+             RemoveProperties="TargetFramework;RuntimeIdentifier;SelfContained;UseAppHost;PublishProfile;PublishDir"
+             Properties="Configuration=$(Configuration)" />
+    <ItemGroup>
+      <CommunityOverlaysCompanionFiles Include="$(CommunityOverlaysCompanionOutput)**\*"
+                                       Exclude="$(CommunityOverlaysCompanionOutput)SelfTest\**;$(CommunityOverlaysCompanionOutput)TestAssets\**;$(CommunityOverlaysCompanionOutput)**\*.pdb" />
+    </ItemGroup>
+    <Copy SourceFiles="@(CommunityOverlaysCompanionFiles)"
+          DestinationFiles="@(CommunityOverlaysCompanionFiles->'$(OutDir)CommunityOverlays\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+  </Target>
+
+  <Target Name="PublishCommunityOverlaysCompanion" AfterTargets="Publish">
+    <MSBuild Projects="$(CommunityOverlaysCompanionProject)" Targets="Publish"
+             RemoveProperties="TargetFramework;PublishProfile;PublishDir"
+             Properties="Configuration=$(Configuration);RuntimeIdentifier=win-x64;SelfContained=true;UseAppHost=true;PublishSingleFile=false;PublishTrimmed=false;DebugSymbols=false;DebugType=None;BeatInsightPackagingPublishDir=$(CommunityOverlaysCompanionPublishOutput)" />
+    <ItemGroup>
+      <CommunityOverlaysCompanionPublishFiles Include="$(CommunityOverlaysCompanionPublishOutput)**\*"
+                                              Exclude="$(CommunityOverlaysCompanionPublishOutput)**\*.pdb;$(CommunityOverlaysCompanionPublishOutput)SelfTest\**;$(CommunityOverlaysCompanionPublishOutput)TestAssets\**" />
+    </ItemGroup>
+    <Copy SourceFiles="@(CommunityOverlaysCompanionPublishFiles)"
+          DestinationFiles="@(CommunityOverlaysCompanionPublishFiles->'$(PublishDir)CommunityOverlays\%(RecursiveDir)%(Filename)%(Extension)')" />
+  </Target>
 
 </Project>

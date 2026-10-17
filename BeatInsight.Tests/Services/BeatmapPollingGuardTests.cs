@@ -3,7 +3,7 @@ using System.IO;
 
 namespace BeatInsight.Tests.Services;
 
-public sealed class TosuBeatmapPollingGuardTests
+public sealed class BeatmapPollingGuardTests
 {
     [Fact]
     public async Task DeferredResults_OnlyLatestMapCanWin()
@@ -20,7 +20,7 @@ public sealed class TosuBeatmapPollingGuardTests
         {
             await Task.Delay(delayMilliseconds);
 
-            if (TosuBeatmapPollingGuard.ShouldApplyDeferredResult(
+            if (BeatmapPollingGuard.ShouldApplyDeferredResult(
                     sourcePath,
                     mapC,
                     cancelled))
@@ -42,7 +42,7 @@ public sealed class TosuBeatmapPollingGuardTests
     {
         int loadCount = 0;
 
-        string? nullResult = await TosuBeatmapPollingGuard.TryLoadAsync<string>(
+        string? nullResult = await BeatmapPollingGuard.TryLoadAsync<string>(
             null,
             _ =>
             {
@@ -50,7 +50,7 @@ public sealed class TosuBeatmapPollingGuardTests
                 return Task.FromResult("loaded");
             });
 
-        string? missingResult = await TosuBeatmapPollingGuard.TryLoadAsync(
+        string? missingResult = await BeatmapPollingGuard.TryLoadAsync(
             Path.Combine(Path.GetTempPath(), $"missing-{Guid.NewGuid():N}.osu"),
             _ =>
             {
@@ -64,20 +64,11 @@ public sealed class TosuBeatmapPollingGuardTests
     }
 
     [Fact]
-    public void ResolveExistingPath_RejectsIncompleteOrMissingTosuData()
-    {
-        Assert.Null(TosuBeatmapPollingGuard.ResolveExistingPath(null, "folder", "map.osu"));
-        Assert.Null(TosuBeatmapPollingGuard.ResolveExistingPath("songs", "", "map.osu"));
-        Assert.Null(TosuBeatmapPollingGuard.ResolveExistingPath("songs", "folder", " "));
-        Assert.Null(TosuBeatmapPollingGuard.ResolveExistingPath("songs", "folder", "missing.osu"));
-    }
-
-    [Fact]
     public async Task FileDisappearingDuringLoad_DoesNotEscape()
     {
         string directory = Path.Combine(
             Path.GetTempPath(),
-            $"BeatInsight-TosuGuard-{Guid.NewGuid():N}");
+            $"BeatInsight-PollingGuard-{Guid.NewGuid():N}");
         string path = Path.Combine(directory, "map.osu");
 
         Directory.CreateDirectory(directory);
@@ -85,7 +76,7 @@ public sealed class TosuBeatmapPollingGuardTests
 
         try
         {
-            string? result = await TosuBeatmapPollingGuard.TryLoadAsync<string>(
+            string? result = await BeatmapPollingGuard.TryLoadAsync<string>(
                 path,
                 candidate =>
                 {
@@ -108,7 +99,7 @@ public sealed class TosuBeatmapPollingGuardTests
 
         try
         {
-            string? result = await TosuBeatmapPollingGuard.TryLoadAsync<string>(
+            string? result = await BeatmapPollingGuard.TryLoadAsync<string>(
                 path,
                 _ => throw new DirectoryNotFoundException("Songs folder disappeared."));
 
@@ -125,7 +116,7 @@ public sealed class TosuBeatmapPollingGuardTests
     {
         string directory = Path.Combine(
             Path.GetTempPath(),
-            $"BeatInsight-TosuGuard-{Guid.NewGuid():N}");
+            $"BeatInsight-PollingGuard-{Guid.NewGuid():N}");
         string validPath = Path.Combine(directory, "map.osu");
         string invalidPath = Path.Combine(directory, "stale.osu");
         string? currentMapPath = null;
@@ -135,7 +126,7 @@ public sealed class TosuBeatmapPollingGuardTests
 
         try
         {
-            string? missing = await TosuBeatmapPollingGuard.TryLoadAsync<string>(
+            string? missing = await BeatmapPollingGuard.TryLoadAsync<string>(
                 invalidPath,
                 candidate => File.ReadAllTextAsync(candidate));
 
@@ -146,7 +137,7 @@ public sealed class TosuBeatmapPollingGuardTests
 
             Assert.Null(currentMapPath);
 
-            string? loaded = await TosuBeatmapPollingGuard.TryLoadAsync<string>(
+            string? loaded = await BeatmapPollingGuard.TryLoadAsync<string>(
                 validPath,
                 candidate => File.ReadAllTextAsync(candidate));
 
@@ -172,7 +163,7 @@ public sealed class TosuBeatmapPollingGuardTests
         try
         {
             InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(
-                () => TosuBeatmapPollingGuard.TryLoadAsync<string>(
+                () => BeatmapPollingGuard.TryLoadAsync<string>(
                     path,
                     _ => throw new InvalidOperationException("Unexpected failure.")));
 

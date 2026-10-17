@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <PlatformTarget>x64</PlatformTarget>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseAppHost>false</UseAppHost>
+    <PublishDir Condition="'$(BeatInsightPackagingPublishDir)' != ''">$(BeatInsightPackagingPublishDir)</PublishDir>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="NativeLazerFastRefreshRunner.csx" />
+    <Compile Include="NativeLazerFastRefreshHarness.cs" />
+    <Compile Include="NativeLazerFastRefreshLive.cs" />
+    <Compile Include="NativeLazerGameRouteReader.cs" />
+    <Compile Include="NativeLazerClrGameRouteMethodTableResolver.cs" />
+    <Compile Include="NativeLazerClrGameplayStatsMethodTableResolver.cs" />
+    <Compile Include="NativeLazerScreenStackForensic.cs" />
+    <Compile Include="NativeLazerCurrentTimeReader.cs" />
+    <Compile Include="NativeLazerGameplayStats.cs" />
+    <Compile Include="NativeLazerGameplayClockDiscovery.cs" />
+    <Compile Include="NativeLazerFastRefresh.cs" />
+    <Compile Include="NativeLazerPersistentRootHint.cs" />
+    <Compile Include="NativeLazerInterop.cs" />
+    <Compile Include="NativeLazerMemoryRegion.cs" />
+    <Compile Include="NativeLazerProcess.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Diagnostics.Runtime" Version="4.1.745802" />
+  </ItemGroup>
+
+</Project>

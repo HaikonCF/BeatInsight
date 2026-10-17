@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    V3.14-COM-KEY-03 : lecteur KeyCounter osu!stable isolé (prototype).
+    Hors BeatInsight.slnx. Les sources natives de BeatInsight sont liées sans modification ;
+    aucun fichier du projet principal n'est touché.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <RootNamespace>BeatInsight.Integration.KeyOverlay</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="*.cs" />
+    <!-- COM-KEY-04 : le cœur du lecteur vit désormais dans BeatInsight (source unique), lié ici. -->
+    <Compile Include="..\..\BeatInsight\Integration\KeyOverlay\*.cs" LinkBase="Linked\KeyOverlay" />
+    <Compile Include="..\..\BeatInsight\Diagnostics\NativeStable\NativeStableInterop.cs" Link="Linked\NativeStableInterop.cs" />
+    <Compile Include="..\..\BeatInsight\Diagnostics\NativeStable\NativeStableProcess.cs" Link="Linked\NativeStableProcess.cs" />
+    <Compile Include="..\..\BeatInsight\Diagnostics\NativeStable\BytePatternScanner.cs" Link="Linked\BytePatternScanner.cs" />
+    <Compile Include="..\..\BeatInsight\Integration\Game\NativeStableLiveStateReader.cs" Link="Linked\NativeStableLiveStateReader.cs" />
+    <Compile Include="..\..\BeatInsight\Integration\Game\NativeStableGameplayStatsReader.cs" Link="Linked\NativeStableGameplayStatsReader.cs" />
+    <Compile Include="..\..\BeatInsight\Integration\Game\LiveGameplayStatsSnapshot.cs" Link="Linked\LiveGameplayStatsSnapshot.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="StableKeyOverlayReader.Tests" />
+    <InternalsVisibleTo Include="StableKeyCounterForensic" />
+  </ItemGroup>
+</Project>

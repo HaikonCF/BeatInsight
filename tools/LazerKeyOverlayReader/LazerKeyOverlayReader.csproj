@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    V3.14-COM-LAZER-KEY-02 : lecteur KeyOverlay osu!lazer isolé (prototype, option A).
+    Hors BeatInsight.slnx. Les sources NativeLazer de BeatInsight sont liées sans modification
+    (même liste que le helper NativeLazerFastRefreshRunner) ; aucun fichier du projet principal n'est touché.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <PlatformTarget>x64</PlatformTarget>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <RootNamespace>BeatInsight.Diagnostics.NativeLazer</RootNamespace>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="*.cs" />
+    <Compile Include="..\..\BeatInsight\Diagnostics\NativeLazer\NativeLazerFastRefreshLive.cs" Link="Linked\NativeLazerFastRefreshLive.cs" />
+    <Compile Include="..\..\BeatInsight\Diagnostics\NativeLazer\NativeLazerFastRefreshHarness.cs" Link="Linked\NativeLazerFastRefreshHarness.cs" />
+    <Compile Include="..\..\BeatInsight\Diagnostics\NativeLazer\NativeLazerGameRouteReader.cs" Link="Linked\NativeLazerGameRouteReader.cs" />
+    <Compile Include="..\..\BeatInsight\Diagnostics\NativeLazer\NativeLazerClrGameRouteMethodTableResolver.cs" Link="Linked\NativeLazerClrGameRouteMethodTableResolver.cs" />
+    <Compile Include="..\..\BeatInsight\Diagnostics\NativeLazer\NativeLazerClrGameplayStatsMethodTableResolver.cs" Link="Linked\NativeLazerClrGameplayStatsMethodTableResolver.cs" />
+    <Compile Include="..\..\BeatInsight\Diagnostics\NativeLazer\NativeLazerScreenStackForensic.cs" Link="Linked\NativeLazerScreenStackForensic.cs" />
+    <Compile Include="..\..\BeatInsight\Diagnostics\NativeLazer\NativeLazerCurrentTimeReader.cs" Link="Linked\NativeLazerCurrentTimeReader.cs" />
+    <Compile Include="..\..\BeatInsight\Diagnostics\NativeLazer\NativeLazerGameplayStats.cs" Link="Linked\NativeLazerGameplayStats.cs" />
+    <Compile Include="..\..\BeatInsight\Diagnostics\NativeLazer\NativeLazerGameplayClockDiscovery.cs" Link="Linked\NativeLazerGameplayClockDiscovery.cs" />
+    <Compile Include="..\..\BeatInsight\Diagnostics\NativeLazer\NativeLazerFastRefresh.cs" Link="Linked\NativeLazerFastRefresh.cs" />
+    <Compile Include="..\..\BeatInsight\Diagnostics\NativeLazer\NativeLazerPersistentRootHint.cs" Link="Linked\NativeLazerPersistentRootHint.cs" />
+    <Compile Include="..\..\BeatInsight\Diagnostics\NativeLazer\NativeLazerInterop.cs" Link="Linked\NativeLazerInterop.cs" />
+    <Compile Include="..\..\BeatInsight\Diagnostics\NativeLazer\NativeLazerMemoryRegion.cs" Link="Linked\NativeLazerMemoryRegion.cs" />
+    <Compile Include="..\..\BeatInsight\Diagnostics\NativeLazer\NativeLazerProcess.cs" Link="Linked\NativeLazerProcess.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Diagnostics.Runtime" Version="4.1.745802" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="LazerKeyOverlayReader.Tests" />
+    <InternalsVisibleTo Include="LazerKeyOverlayHarness" />
+    <InternalsVisibleTo Include="LazerKeyOverlayRunner" />
+  </ItemGroup>
+</Project>

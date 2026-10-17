@@ -1,0 +1,201 @@
+<Window x:Class="BeatInsight.Overlay.GameplayHud.GameplayHudWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:converters="clr-namespace:BeatInsight.Converters"
+        xmlns:timeline="clr-namespace:BeatInsight.Overlay.DifficultyTimeline"
+        xmlns:primitives="clr-namespace:System.Windows.Controls.Primitives;assembly=PresentationFramework"
+        Title="BeatInsight Gameplay HUD"
+        WindowStyle="None"
+        ResizeMode="NoResize"
+        WindowStartupLocation="Manual"
+        SizeToContent="Height"
+        AllowsTransparency="True"
+        Background="Transparent"
+        Topmost="True"
+        ShowInTaskbar="False"
+        ShowActivated="False"
+        Focusable="False">
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolVisibility"/>
+        <converters:NullOrEmptyToVisibilityConverter x:Key="TextVisibility"/>
+        <converters:StructureToBrushConverter x:Key="PatternFamilyBrush"/>
+    </Window.Resources>
+
+    <Grid>
+    <Border Background="{Binding CurrentSection.Background}"
+            CornerRadius="16"
+            Padding="4">
+        <Border Background="{Binding CurrentSection.CardBackground}"
+                BorderBrush="{Binding CurrentSection.Border}"
+                BorderThickness="1"
+                CornerRadius="12"
+                Padding="14,10">
+            <StackPanel>
+                <Grid x:Name="LiveStatsBlock"
+                      DataContext="{Binding LiveStats}">
+                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                    <TextBlock Text="LIVE" Foreground="{Binding DataContext.CurrentSection.SecondaryForeground, RelativeSource={RelativeSource AncestorType=Window}}" FontSize="9" FontWeight="SemiBold"/>
+                    <Grid Grid.Row="1" Margin="0,5,0,0">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                        <StackPanel><TextBlock Text="MISS" Foreground="{Binding DataContext.CurrentSection.SecondaryForeground, RelativeSource={RelativeSource AncestorType=Window}}" FontSize="8"/><TextBlock Text="{Binding Miss}" Foreground="{Binding DataContext.Danger, RelativeSource={RelativeSource AncestorType=Window}}" FontSize="16" FontWeight="Bold"/></StackPanel>
+                        <StackPanel Grid.Column="1"><TextBlock Text="100" Foreground="{Binding DataContext.CurrentSection.SecondaryForeground, RelativeSource={RelativeSource AncestorType=Window}}" FontSize="8"/><TextBlock Text="{Binding Count100}" Foreground="{Binding DataContext.Warning, RelativeSource={RelativeSource AncestorType=Window}}" FontSize="16" FontWeight="Bold"/></StackPanel>
+                        <StackPanel Grid.Column="2"><TextBlock Text="50" Foreground="{Binding DataContext.CurrentSection.SecondaryForeground, RelativeSource={RelativeSource AncestorType=Window}}" FontSize="8"/><TextBlock Text="{Binding Count50}" Foreground="{Binding DataContext.LiveStatsAccent, RelativeSource={RelativeSource AncestorType=Window}}" FontSize="16" FontWeight="Bold"/></StackPanel>
+                    </Grid>
+                    <Grid Grid.Row="2" Margin="0,5,0,0">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                        <TextBlock Text="{Binding Combo}" Foreground="{Binding DataContext.CurrentSection.Foreground, RelativeSource={RelativeSource AncestorType=Window}}" FontSize="12" FontWeight="SemiBold"/>
+                        <TextBlock Grid.Column="1" Text="{Binding Accuracy}" Foreground="{Binding DataContext.CurrentSection.Foreground, RelativeSource={RelativeSource AncestorType=Window}}" FontSize="12" FontWeight="SemiBold"/>
+                        <TextBlock Grid.Column="2" Text="{Binding Mods}" Foreground="{Binding DataContext.CurrentSection.Accent, RelativeSource={RelativeSource AncestorType=Window}}" FontSize="12" FontWeight="Bold"/>
+                    </Grid>
+                </Grid>
+
+                <Grid x:Name="PerformanceBlock"
+                      Margin="0,11,0,0"
+                      DataContext="{Binding Performance}">
+                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                    <Border Height="1" Margin="0,0,0,10" Background="{Binding DataContext.CurrentSection.Border, RelativeSource={RelativeSource AncestorType=Window}}"/>
+                    <TextBlock Grid.Row="1" Text="PP" Foreground="{Binding DataContext.CurrentSection.SecondaryForeground, RelativeSource={RelativeSource AncestorType=Window}}" FontSize="9" FontWeight="SemiBold"/>
+                    <Grid Grid.Row="2" Margin="0,5,0,0">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                        <StackPanel><TextBlock Text="CURRENT" Foreground="{Binding DataContext.CurrentSection.SecondaryForeground, RelativeSource={RelativeSource AncestorType=Window}}" FontSize="8"/><TextBlock Text="{Binding Current}" Foreground="{Binding DataContext.CurrentSection.Foreground, RelativeSource={RelativeSource AncestorType=Window}}" FontSize="13" FontWeight="Bold"/></StackPanel>
+                        <StackPanel Grid.Column="1"><TextBlock Text="FC" Foreground="{Binding DataContext.CurrentSection.SecondaryForeground, RelativeSource={RelativeSource AncestorType=Window}}" FontSize="8"/><TextBlock Text="{Binding Fc}" Foreground="{Binding DataContext.CurrentSection.Accent, RelativeSource={RelativeSource AncestorType=Window}}" FontSize="13" FontWeight="Bold"/></StackPanel>
+                        <StackPanel Grid.Column="2"><TextBlock Text="95% FC" Foreground="{Binding DataContext.CurrentSection.SecondaryForeground, RelativeSource={RelativeSource AncestorType=Window}}" FontSize="8"/><TextBlock Text="{Binding Accuracy95Fc}" Foreground="{Binding DataContext.PerformanceAccent, RelativeSource={RelativeSource AncestorType=Window}}" FontSize="13" FontWeight="Bold"/></StackPanel>
+                        <StackPanel Grid.Column="3"><TextBlock Text="SS" Foreground="{Binding DataContext.CurrentSection.SecondaryForeground, RelativeSource={RelativeSource AncestorType=Window}}" FontSize="8"/><TextBlock Text="{Binding Ss}" Foreground="{Binding DataContext.Warning, RelativeSource={RelativeSource AncestorType=Window}}" FontSize="13" FontWeight="Bold"/></StackPanel>
+                    </Grid>
+                </Grid>
+
+                <Grid x:Name="CurrentSectionBlock"
+                      Margin="0,11,0,0"
+                      DataContext="{Binding CurrentSection}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Border Height="3" Margin="0,0,0,9" Background="{Binding Accent}" CornerRadius="2"/>
+                    <TextBlock Grid.Row="1" Text="CURRENT SECTION" Foreground="{Binding SecondaryForeground}" FontSize="9" FontWeight="SemiBold"/>
+                    <StackPanel Grid.Row="2" Margin="0,3,0,0" Orientation="Horizontal">
+                        <TextBlock Text="{Binding DominantStructure}" Foreground="{Binding Foreground}" FontSize="19" FontWeight="Bold"/>
+                        <TextBlock Text="  /  " Foreground="{Binding SecondaryForeground}" FontSize="14" VerticalAlignment="Center"
+                                   Visibility="{Binding SecondaryStructure, Converter={StaticResource TextVisibility}}"/>
+                        <TextBlock Text="{Binding SecondaryStructure}" Foreground="{Binding Accent}" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center"
+                                   Visibility="{Binding SecondaryStructure, Converter={StaticResource TextVisibility}}"/>
+                    </StackPanel>
+                    <Grid Grid.Row="3" Margin="0,8,0,0">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
+                        <ProgressBar Height="7" Margin="0,0,9,0" Minimum="0" Maximum="100" Value="{Binding ProgressValue, Mode=OneWay}"
+                                     Background="{Binding Border}" Foreground="{Binding Accent}" BorderThickness="0" VerticalAlignment="Center"/>
+                        <TextBlock Grid.Column="1" Text="{Binding ProgressText}" Foreground="{Binding Foreground}" FontSize="11" FontWeight="SemiBold" TextAlignment="Right"/>
+                    </Grid>
+                    <Grid Grid.Row="4" Margin="0,7,0,0">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                        <TextBlock Text="{Binding RemainingText}" Foreground="{Binding Accent}" FontSize="11" FontWeight="SemiBold"/>
+                        <TextBlock Grid.Column="1" Margin="12,0,0,0" Text="{Binding Summary}" Foreground="{Binding SecondaryForeground}" FontSize="10"
+                                   TextAlignment="Right" TextTrimming="CharacterEllipsis" Visibility="{Binding Summary, Converter={StaticResource TextVisibility}}"/>
+                    </Grid>
+                </Grid>
+
+                <Grid x:Name="UpNextBlock"
+                      Margin="0,11,0,0"
+                      DataContext="{Binding UpNext}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Border Height="1" Margin="0,0,0,10" Background="{Binding Border}"/>
+                    <Grid Grid.Row="1">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                        <TextBlock Text="UP NEXT" Foreground="{Binding SecondaryForeground}" FontSize="9" FontWeight="SemiBold"/>
+                        <TextBlock Grid.Column="1" Text="{Binding CountdownText, Mode=OneWay}" Foreground="{Binding Accent}" FontSize="11" FontWeight="SemiBold"/>
+                    </Grid>
+                    <StackPanel Grid.Row="2" Margin="0,3,0,0" Orientation="Horizontal">
+                        <TextBlock Text="{Binding DominantStructure}" Foreground="{Binding Foreground}" FontSize="18" FontWeight="Bold"/>
+                        <TextBlock Text="  +  " Foreground="{Binding SecondaryForeground}" FontSize="13" VerticalAlignment="Center"
+                                   Visibility="{Binding SecondaryStructure, Converter={StaticResource TextVisibility}}"/>
+                        <TextBlock Text="{Binding SecondaryStructure}" Foreground="{Binding Accent}" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center"
+                                   Visibility="{Binding SecondaryStructure, Converter={StaticResource TextVisibility}}"/>
+                    </StackPanel>
+                    <TextBlock Grid.Row="3" Margin="0,5,0,0" Text="{Binding Summary}" Foreground="{Binding SecondaryForeground}" FontSize="10"
+                               TextTrimming="CharacterEllipsis" Visibility="{Binding Summary, Converter={StaticResource TextVisibility}}"/>
+                </Grid>
+
+                <Grid x:Name="DifficultyTimelineBlock"
+                      Margin="0,11,0,0"
+                      DataContext="{Binding DifficultyTimeline}">
+                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                    <Border Height="1" Margin="0,0,0,10" Background="{Binding Border}"/>
+                    <TextBlock Grid.Row="1" Text="DIFFICULTY TIMELINE" Foreground="{Binding SecondaryForeground}" FontSize="9" FontWeight="SemiBold"/>
+                    <timeline:DifficultyTimelineBarControl Grid.Row="2" Height="48" Margin="0,5,0,0"
+                                                           Model="{Binding Model, Mode=OneWay}"
+                                                           MarkerRatio="{Binding MarkerRatio, Mode=OneWay}"
+                                                           CurrentSectionIndex="{Binding CurrentSectionIndex, Mode=OneWay}"
+                                                           MarkerBrush="{Binding Accent, Mode=OneWay}"
+                                                           HighlightBrush="{Binding Border, Mode=OneWay}"/>
+                </Grid>
+
+                <Grid x:Name="LivePatternsBlock"
+                      Margin="0,11,0,0"
+                      DataContext="{Binding LivePatterns}">
+                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                    <Border Height="1" Margin="0,0,0,10" Background="{Binding Border}"/>
+                    <TextBlock Grid.Row="1" Text="LIVE PATTERNS" Foreground="{Binding SecondaryForeground}" FontSize="9" FontWeight="SemiBold"/>
+                    <Grid Grid.Row="2" Margin="0,5,0,0">
+                        <ItemsControl ItemsSource="{Binding Patterns}">
+                            <ItemsControl.Style>
+                                <Style TargetType="ItemsControl">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers><DataTrigger Binding="{Binding HasDominantPatterns}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers>
+                                </Style>
+                            </ItemsControl.Style>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Height="29">
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="8"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="46"/></Grid.ColumnDefinitions>
+                                        <Ellipse Width="6" Height="6" Fill="{Binding Family, Converter={StaticResource PatternFamilyBrush}}"/>
+                                        <TextBlock Grid.Column="1" Margin="8,0,0,0" Text="{Binding DisplayName}"
+                                                   Foreground="{Binding DataContext.LivePatterns.Foreground, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                   FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="2" Margin="8,0,9,0" Text="{Binding Category}"
+                                                   Foreground="{Binding DataContext.LivePatterns.SecondaryForeground, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                   FontSize="8" VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="3" Text="{Binding CoverageText}" Foreground="{Binding Family, Converter={StaticResource PatternFamilyBrush}}"
+                                                   FontSize="12" FontWeight="Bold" TextAlignment="Right" VerticalAlignment="Center"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock Text="{Binding NeutralText}" Foreground="{Binding SecondaryForeground}" FontSize="13" FontStyle="Italic" VerticalAlignment="Center">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                    <Style.Triggers><DataTrigger Binding="{Binding HasDominantPatterns}" Value="True"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </Grid>
+                </Grid>
+            </StackPanel>
+        </Border>
+    </Border>
+    <Grid x:Name="EditChrome" Visibility="Collapsed" Background="Transparent">
+        <Border BorderBrush="{Binding CurrentSection.EditBorder}" BorderThickness="2" CornerRadius="16"/>
+        <Border Height="26" VerticalAlignment="Top" Background="{Binding CurrentSection.CardBackground}"
+                BorderBrush="{Binding CurrentSection.EditBorder}" BorderThickness="0,0,0,1"
+                MouseLeftButtonDown="DragArea_MouseLeftButtonDown">
+            <DockPanel Margin="8,0">
+                <TextBlock Text="GAMEPLAY HUD" Foreground="{Binding DataContext.CurrentSection.Foreground, RelativeSource={RelativeSource AncestorType=Window}}" FontSize="10" FontWeight="Bold" VerticalAlignment="Center"/>
+                <TextBlock Text="Drag" Foreground="{Binding DataContext.CurrentSection.SecondaryForeground, RelativeSource={RelativeSource AncestorType=Window}}" FontSize="9" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+            </DockPanel>
+        </Border>
+        <primitives:Thumb Width="18" Height="18" HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                          Cursor="SizeNWSE" DragDelta="ResizeThumb_DragDelta">
+            <primitives:Thumb.Template>
+                <ControlTemplate TargetType="primitives:Thumb">
+                    <Border Background="{Binding DataContext.CurrentSection.EditHandle, RelativeSource={RelativeSource AncestorType=Window}}" CornerRadius="3" Margin="2"/>
+                </ControlTemplate>
+            </primitives:Thumb.Template>
+        </primitives:Thumb>
+    </Grid>
+    </Grid>
+</Window>

@@ -6,13 +6,13 @@ namespace BeatInsight.Analysis.JumpPatterns;
 
 public static partial class JumpPatternAnalyzer
 {
-    // A 1-2 template is an alternating chain, not a generic high-angle Jump.
+    // A 1-2 template repeats locally alternating pivot pairs. Adjacent blocks may
+    // be separated by one non-alternating relation acting only as a geometric reset.
     private const double MinimumOneTwoJumpDistance = 60;
     private const double MinimumOneTwoTurnDegrees = 35;
     private const double NearReversalTurnDegrees = 170;
-    // Three observed pivots (five objects) avoids promoting a short Sharp zigzag
-    // before the alternating motif has had an opportunity to repeat.
-    private const int MinimumOneTwoPoints = 3;
+    private const int MinimumOneTwoBlocks = 2;
+    private const int MaximumOneTwoResetRelations = 1;
     private const double MinimumOneTwoDistanceConsistency = .55;
     private const double MinimumOneTwoIntervalConsistency = .55;
     private const int OneTwoConfidenceFullLength = 8;
@@ -54,43 +54,91 @@ public static partial class JumpPatternAnalyzer
         var distanceConsistencies = new List<double>();
         var intervalConsistencies = new List<double>();
         var alternationConsistencies = new List<double>();
+        var resetObjectIndices = new HashSet<int>();
+        int candidateBlockCount = 0;
+        int acceptedBlockCount = 0;
+        int rejectedIsolatedBlockCount = 0;
+        int rejectedInconsistentBlockGroupCount = 0;
         int longest = 0;
         int start = 0;
         while (start < candidates.Count)
         {
             int end = start;
             while (end + 1 < candidates.Count
-                && candidates[end + 1].Point.ObjectIndex == candidates[end].Point.ObjectIndex + 1
-                && AreAlternating(candidates[end], candidates[end + 1]))
+                && candidates[end + 1].Point.ObjectIndex == candidates[end].Point.ObjectIndex + 1)
                 end++;
 
-            int pointCount = end - start + 1;
-            if (pointCount >= MinimumOneTwoPoints)
+            int[] blockEdges = Enumerable.Range(start, end - start)
+                .Where(index => AreAlternating(candidates[index], candidates[index + 1]))
+                .ToArray();
+            candidateBlockCount += blockEdges.Length;
+
+            int blockStart = 0;
+            while (blockStart < blockEdges.Length)
             {
-                var sequence = candidates.Skip(start).Take(pointCount).ToArray();
+                int blockEnd = blockStart;
+                int resetRelationCount = 0;
+                while (blockEnd + 1 < blockEdges.Length)
+                {
+                    int resetsBetweenBlocks =
+                        blockEdges[blockEnd + 1] - blockEdges[blockEnd] - 1;
+                    if (resetsBetweenBlocks < 0 ||
+                        resetRelationCount + resetsBetweenBlocks > MaximumOneTwoResetRelations)
+                    {
+                        break;
+                    }
+
+                    resetRelationCount += resetsBetweenBlocks;
+                    blockEnd++;
+                }
+
+                int blockCount = blockEnd - blockStart + 1;
+                if (blockCount < MinimumOneTwoBlocks)
+                {
+                    rejectedIsolatedBlockCount++;
+                    blockStart = blockEnd + 1;
+                    continue;
+                }
+
+                int sequenceStart = blockEdges[blockStart];
+                int sequenceEnd = blockEdges[blockEnd] + 1;
+                var sequence = candidates.Skip(sequenceStart).Take(sequenceEnd - sequenceStart + 1).ToArray();
+                int pointCount = sequence.Length;
                 var distances = sequence.Select(candidate => candidate.Point.NextDistance)
                     .Append(sequence[0].Point.PreviousDistance).ToArray();
                 var intervals = sequence.Select(candidate => (double)candidate.Point.NextInterval)
                     .Append(sequence[0].Point.PreviousInterval).ToArray();
                 double distanceConsistency = Consistency(distances);
                 double intervalConsistency = Consistency(intervals);
+                double blockAlternationConsistency = (double)blockCount / (pointCount - 1);
                 if (distanceConsistency >= MinimumOneTwoDistanceConsistency
                     && intervalConsistency >= MinimumOneTwoIntervalConsistency)
                 {
                     int objectCount = pointCount + 2;
                     for (int i = 0; i < sequence.Length; i++)
-                        retained.Add(sequence[i].Point with { AlternatingWithPrevious = i > 0 });
+                    {
+                        bool alternatingWithPrevious = i > 0 && AreAlternating(sequence[i - 1], sequence[i]);
+                        retained.Add(sequence[i].Point with { AlternatingWithPrevious = alternatingWithPrevious });
+                        if (i > 0 && !alternatingWithPrevious)
+                            resetObjectIndices.Add(sequence[i].Point.ObjectIndex);
+                    }
                     matches.Add(new(JumpPatternType.OneTwo, sequence[0].Point.ObjectIndex - 1,
                         sequence[^1].Point.ObjectIndex + 1, objects[sequence[0].Point.ObjectIndex - 1].Time,
                         objects[sequence[^1].Point.ObjectIndex + 1].Time,
-                        OneTwoConfidence(pointCount, objectCount, distanceConsistency, intervalConsistency, 1, objects.Count)));
+                        OneTwoConfidence(pointCount, objectCount, distanceConsistency, intervalConsistency,
+                            blockAlternationConsistency, objects.Count)));
                     for (int index = sequence[0].Point.ObjectIndex - 1; index <= sequence[^1].Point.ObjectIndex + 1; index++)
                         involved.Add(index);
                     longest = Math.Max(longest, objectCount);
+                    acceptedBlockCount += blockCount;
                     distanceConsistencies.Add(distanceConsistency);
                     intervalConsistencies.Add(intervalConsistency);
-                    alternationConsistencies.Add(1);
+                    alternationConsistencies.Add(blockAlternationConsistency);
                 }
+                else
+                    rejectedInconsistentBlockGroupCount++;
+
+                blockStart = blockEnd + 1;
             }
             start = end + 1;
         }
@@ -103,7 +151,14 @@ public static partial class JumpPatternAnalyzer
         var result = new OneTwoJumpAnalysis(objects.Count, involved.Count, longest, averageDistance,
             distanceConsistencyResult, averageInterval, intervalConsistencyResult, alternationConsistency,
             OneTwoConfidence(retained.Count, longest, distanceConsistencyResult, intervalConsistencyResult,
-                alternationConsistency, objects.Count), matches.ToArray(), retained.ToArray());
+                alternationConsistency, objects.Count), matches.ToArray(), retained.ToArray())
+        {
+            CandidateBlockCount = candidateBlockCount,
+            AcceptedBlockCount = acceptedBlockCount,
+            RejectedIsolatedBlockCount = rejectedIsolatedBlockCount,
+            RejectedInconsistentBlockGroupCount = rejectedInconsistentBlockGroupCount,
+            ResetObjectIndices = resetObjectIndices.Order().ToArray()
+        };
         GameplayDebug.OneTwoJump(result, GameplayDebug.OneTwoJumpEnabled, GameplayDebug.OneTwoJumpDetailedEnabled);
         return result;
     }

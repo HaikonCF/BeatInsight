@@ -108,7 +108,7 @@ internal sealed class BeatmapAnalysisRecord
     /// Empreinte MD5 du fichier .osu.
     ///
     /// RÉSERVÉ : non renseigné à ce stade. Le pipeline actuel ne
-    /// calcule aucune empreinte et tosu n'en fournit pas. Le champ
+    /// calcule aucune empreinte et le provider n'en fournit pas. Le champ
     /// existe pour permettre plus tard la déduplication et la
     /// stabilité au déplacement du dossier Songs, sans imposer de
     /// changement de schéma.

@@ -18,7 +18,9 @@ public sealed class PatternsViewModel : ViewModelBase
     public bool HasStreamPatterns => StreamPatterns.Count > 0;
     public bool HasTechPatterns => TechPatterns.Count > 0;
 
-    public void Load(IReadOnlyList<GameplayIdentityV3Pattern>? patterns)
+    public void Load(
+        IReadOnlyList<GameplayIdentityV3Pattern>? patterns,
+        GameplayStructureKind primaryStructure = GameplayStructureKind.ClassicMixed)
     {
         Clear();
 
@@ -39,14 +41,36 @@ public sealed class PatternsViewModel : ViewModelBase
             CollectionFor(pattern.Family).Add(pattern);
         }
 
-        foreach (PatternDisplayItemViewModel pattern in detected
-                     .Where(pattern => pattern.HasCoverage)
+        PatternDisplayItemViewModel[] overviewCandidates = SelectOverviewCandidates(
+            detected.Where(pattern => pattern.HasCoverage).ToArray(),
+            primaryStructure);
+        foreach (PatternDisplayItemViewModel pattern in overviewCandidates
                      .Take(MaximumDominantPatternCount))
         {
             DominantPatterns.Add(pattern);
         }
 
         RaiseAvailabilityProperties();
+    }
+
+    private static PatternDisplayItemViewModel[] SelectOverviewCandidates(
+        PatternDisplayItemViewModel[] detected,
+        GameplayStructureKind primaryStructure)
+    {
+        if (primaryStructure == GameplayStructureKind.ClassicMixed)
+            return detected;
+
+        FusionPatternFamily primaryFamily = primaryStructure switch
+        {
+            GameplayStructureKind.Jump => FusionPatternFamily.Jump,
+            GameplayStructureKind.Stream => FusionPatternFamily.Stream,
+            GameplayStructureKind.Tech => FusionPatternFamily.Tech,
+            _ => throw new ArgumentOutOfRangeException(nameof(primaryStructure), primaryStructure, null)
+        };
+        PatternDisplayItemViewModel[] primaryPatterns = detected
+            .Where(pattern => pattern.Family == primaryFamily)
+            .ToArray();
+        return primaryPatterns.Length > 0 ? primaryPatterns : detected;
     }
 
     public void Clear()

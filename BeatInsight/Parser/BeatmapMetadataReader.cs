@@ -10,7 +10,7 @@ namespace BeatInsight.Parser;
 /// analyse de gameplay, aucun calcul de Star Rating, aucun HitObject.
 ///
 /// Utilisée pour peupler <see cref="Models.Persistence.MlDatasetSample.BeatmapId"/>
-/// à un coût quasi nul, sans dépendre de tosu ni d'un appel API.
+/// à un coût quasi nul, sans dépendre du provider runtime ni d'un appel API.
 /// </summary>
 internal static class BeatmapMetadataReader
 {

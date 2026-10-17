@@ -860,6 +860,11 @@ public static class GameplayDebug
         DebugLogger.Log($"1-2 Points = {result.OneTwoPointCount}");
         DebugLogger.Log($"1-2 Objects = {result.OneTwoObjectCount}");
         DebugLogger.Log($"Sequences = {result.SequenceCount}");
+        DebugLogger.Log($"Candidate Blocks = {result.CandidateBlockCount}");
+        DebugLogger.Log($"Accepted Blocks = {result.AcceptedBlockCount}");
+        DebugLogger.Log($"Rejected Isolated Blocks = {result.RejectedIsolatedBlockCount}");
+        DebugLogger.Log($"Rejected Inconsistent Groups = {result.RejectedInconsistentBlockGroupCount}");
+        DebugLogger.Log($"Reset Objects = [{string.Join(",", result.ResetObjectIndices)}]");
         DebugLogger.Log($"Coverage = {result.Coverage:P2}");
         DebugLogger.Log($"Longest Sequence = {result.LongestSequence}");
         DebugLogger.Log($"Average Distance = {result.AverageJumpDistance:F2}");

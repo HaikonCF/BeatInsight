@@ -1,0 +1,38 @@
+<Window x:Class="BeatInsight.CommunityOverlays.Poc.CommunityOverlayWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
+        Title="BeatInsight — Community Overlay POC"
+        Width="640" Height="360"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ResizeMode="CanResizeWithGrip"
+        Topmost="True"
+        ShowInTaskbar="True">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition x:Name="HandleRow" Height="18" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- Poignée minimale : déplacement + fermeture. Pas de settings UI dans ce POC. -->
+        <!-- FEAT-003 : en mode géré, visible seulement pendant l'édition demandée par BeatInsight. -->
+        <Border x:Name="HandleBar" Grid.Row="0" Background="#66000000" MouseLeftButtonDown="OnHandleMouseDown">
+            <DockPanel LastChildFill="True">
+                <Button DockPanel.Dock="Right" Content="✕" Width="22" Padding="0"
+                        Foreground="White" Background="Transparent" BorderThickness="0"
+                        Click="OnCloseClick" ToolTip="Fermer le POC" />
+                <TextBlock x:Name="StatusText" Margin="6,0" VerticalAlignment="Center"
+                           Foreground="#CCFFFFFF" FontSize="11" Text="BeatInsight · overlay POC" />
+            </DockPanel>
+        </Border>
+
+        <!--
+            WebView2CompositionControl (et non WebView2) : le contrôle HWND classique
+            ne s'affiche pas dans une fenêtre WPF AllowsTransparency="True".
+        -->
+        <wv2:WebView2CompositionControl x:Name="OverlayView" Grid.Row="1"
+                                        DefaultBackgroundColor="Transparent" />
+    </Grid>
+</Window>

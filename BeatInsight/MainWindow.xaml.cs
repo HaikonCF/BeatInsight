@@ -1,5 +1,6 @@
 ﻿using AutoMapper;
 using BeatInsight.Diagnostics;
+using BeatInsight.Integration.Game;
 using BeatInsight.Models;
 using BeatInsight.Models.AnalysisCache;
 using BeatInsight.Models.Discovery;
@@ -12,6 +13,7 @@ using BeatInsight.Services.AnalysisCache;
 using BeatInsight.Services.CommunityDiscovery;
 using BeatInsight.Services.Download;
 using BeatInsight.Services.Library;
+using BeatInsight.Services.Lifecycle;
 using BeatInsight.Services.Ml;
 using BeatInsight.Services.Persistence;
 using BeatInsight.Services.Settings;
@@ -37,15 +39,17 @@ using System.Windows.Threading;
 // Cette classe représente la fenêtre principale de BeatInsight et contient la logique qui surveille la map actuellement sélectionnée.
 
 namespace BeatInsight
-// On garde un HttpClient réutilisable pour demander régulièrement les données JSON d'osu! via l'API locale.
 {
     // Le DispatcherTimer permet de vérifier périodiquement si la map sélectionnée a changé.
     public partial class MainWindow : Window
     {
         // Chemin complet de la dernière map traitée. Il sert à éviter de recharger la même map en boucle.
-        private readonly HttpClient client = new HttpClient();
+        private readonly GameStateService gameStateService =
+            GameStateComposition.CreateDefault();
+        private GameStateSnapshot? currentGameState;
         // Indique qu'une mise à jour est déjà en cours pour éviter que deux appels UpdateMap() se chevauchent.
         private readonly DispatcherTimer mapTimer;
+        private readonly ShutdownCoordinator shutdownCoordinator;
         private readonly IOsuApiCredentialStore osuApiCredentialStore;
         private readonly OsuApiCredentialResolver osuApiCredentialResolver;
         private readonly OsuApiService osuApi;
@@ -53,13 +57,10 @@ namespace BeatInsight
         // Le constructeur prépare la fenêtre et démarre la surveillance automatique de la map.
         private string? currentMapPath;
         private bool isUpdating;
-        private bool tosuConnected;
         private long lastMapTimerTickTimestamp;
         private long mapTimerTickSequence;
-        private string? pendingTosuMapPath;
-        private long pendingTosuMapFirstSeenTimestamp;
-        private long pendingTosuMapFileAvailableTimestamp;
         private CancellationTokenSource? mapEnrichmentCancellation;
+        private string? lastLoggedGameStateProvider;
 
         // Index persistant des analyses.
         //
@@ -105,7 +106,7 @@ namespace BeatInsight
         private readonly TechHumanLabelingCandidateSelector
             techHumanLabelingCandidateSelector;
 
-        // Résolution du dossier Songs (préférence manuelle > tosu).
+        // Résolution du dossier Songs (préférence manuelle > provider actif).
         private readonly SongsPathResolver songsPathResolver = new();
 
         // Découverte communautaire : service de lecture seul. Son backend
@@ -132,20 +133,21 @@ namespace BeatInsight
         private readonly Dictionary<int, CancellationTokenSource>
             discoveryDownloadCancellationsByBeatmapId = [];
 
-        // Dernier chemin Songs rapporté par tosu, mémorisé afin que
+        // Dernier chemin Songs rapporté ou dérivé par le provider actif,
+        // mémorisé afin que
         // les actions de la bibliothèque puissent résoudre un chemin
         // même entre deux mises à jour de MapTimer_Tick.
-        private string? lastTosuSongsPath;
+        private string? lastGameSongsPath;
 
         // État du scan manuel de la bibliothèque. Un seul scan peut
         // utiliser le cache à la fois afin de préserver un traitement
-        // strictement séquentiel et d'éviter toute course avec Tosu.
+        // strictement séquentiel et d'éviter toute course avec le polling jeu.
         private CancellationTokenSource? libraryScanCancellation;
         private bool isLibraryScanRunning;
         private bool acceptsLibraryScanProgress;
 
         // État autonome du backfill ML. Il bloque les actions concurrentes
-        // de bibliothèque et la boucle Tosu, mais ne modifie jamais le scan
+        // de bibliothèque et la boucle game-state, mais ne modifie jamais le scan
         // runtime ni son cache.
         private CancellationTokenSource? datasetBuildCancellation;
         private bool isDatasetBuildRunning;
@@ -172,13 +174,13 @@ namespace BeatInsight
         private long? currentTechCandidateSampleId;
         private bool isNavigatingTechCandidates;
 
-        // Tant que ce mode est actif, UpdateMap() ignore le polling tosu
+        // Tant que ce mode est actif, UpdateMap() ignore le polling game-state
         // afin qu'il ne remplace jamais la map chargée manuellement pour
         // la labellisation. Le timer continue de tourner : seule la
-        // beatmap affichée est gelée, pas la connexion tosu elle-même.
+        // beatmap affichée est gelée, pas le timer lui-même.
         // Partagé par Fast Unlabeled, Calibration et Discovery Review :
         // leurs mécanismes de sélection restent distincts, mais ils utilisent
-        // le même gel du polling tosu pour préserver la map manuelle.
+        // le même gel du polling jeu pour préserver la map manuelle.
         private bool isFastLabelingMode;
 
         // Ancre de navigation de la Calibration Queue, indépendante de
@@ -188,7 +190,7 @@ namespace BeatInsight
 
         // Détermine vers quelle file Validate avance automatiquement.
         // None lorsque la map affichée n'a été chargée par aucune des
-        // deux files (par exemple via tosu) : Validate ne navigue alors
+        // deux files (par exemple via le polling jeu) : Validate ne navigue alors
         // nulle part, comme avant l'introduction des files.
         private LabelingQueueKind activeLabelingQueue =
             LabelingQueueKind.None;
@@ -226,20 +228,10 @@ namespace BeatInsight
             mainViewModel.OsuApiSettings.ApplyResolution(
                 credentialResolution);
             overviewLoadCoordinator = new OverviewLoadCoordinator(mainViewModel.Overview);
-            DashboardViewHost.ChangeSongsFolderRequested +=
-                ChangeSongsFolder_Click;
-            DashboardViewHost.ScanLibraryRequested +=
-                ScanLibrary_Click;
-            DashboardViewHost.CancelLibraryScanRequested +=
-                CancelLibraryScan_Click;
-            DashboardViewHost.SaveOsuApiCredentialsRequested +=
-                SaveOsuApiCredentials_Click;
-            DashboardViewHost.TestOsuApiConnectionRequested +=
-                TestOsuApiConnection_Click;
-            DashboardViewHost.RemoveOsuApiCredentialsRequested +=
-                RemoveOsuApiCredentials_Click;
-            DashboardViewHost.CreateOsuOAuthApplicationRequested +=
-                CreateOsuOAuthApplication_Click;
+            InitializeMapOverviewOverlay();
+            InitializeTrayLifecycle();
+            InitializeUpdateLifecycle();
+            DashboardViewHost.SettingsRequested += OpenSettings_Click;
 
             techHumanLabelingCandidateSelector =
                 new TechHumanLabelingCandidateSelector(
@@ -259,7 +251,7 @@ namespace BeatInsight
             beatmapImportService = new BeatmapImportService(
                 new ProcessBeatmapImportShell(),
                 new SongsFolderBeatmapInstallationProbe(
-                    () => songsPathResolver.Resolve(lastTosuSongsPath)));
+                    () => songsPathResolver.Resolve(lastGameSongsPath)));
 
             SetActiveWorkspace(ActiveWorkspace.Analyzer);
             ApplyDiscoveryFilterVisuals();
@@ -277,6 +269,20 @@ namespace BeatInsight
             mapTimer.Tick += MapTimer_Tick;
             mapTimer.Start();
 
+            shutdownCoordinator = new ShutdownCoordinator(
+            [
+                new("updates disposed", DisposeUpdateLifecycle),
+                new("timers stopped", StopShutdownTimersAndBackgroundWork),
+                new("settings closed", CloseSettingsWindow),
+                new("community overlays stopped", StopManagedCommunityOverlays),
+                new("edit mode cancelled", CancelOverlayEditForWindowHide),
+                new("overlays disposed", DisposeOverlayLifecycle),
+                new("tray disposed", DisposeTrayLifecycle),
+                new("game providers disposed", gameStateService.Dispose)
+            ],
+            DebugLogger.Info,
+            DebugLogger.Warning);
+
             RefreshSongsFolderDisplay();
             RefreshDatasetStatistics();
             RefreshFastLabelingProgress();
@@ -293,7 +299,7 @@ namespace BeatInsight
                 isAnalyzer ? Visibility.Visible : Visibility.Collapsed;
             AnalyzerLibraryPanel.Visibility =
                 isAnalyzer ? Visibility.Visible : Visibility.Collapsed;
-            TosuStatusText.Visibility =
+            GameStateStatusText.Visibility =
                 isAnalyzer ? Visibility.Visible : Visibility.Collapsed;
             AnalyzerWorkspacePanel.Visibility =
                 isAnalyzer ? Visibility.Visible : Visibility.Collapsed;
@@ -307,6 +313,9 @@ namespace BeatInsight
 
         private async void MapTimer_Tick(object? sender, EventArgs e)
         {
+            if (shutdownCoordinator.State != ShutdownState.Running)
+                return;
+
             long tickTimestamp = Stopwatch.GetTimestamp();
             long tickSequence = ++mapTimerTickSequence;
             TimeSpan tickGap = lastMapTimerTickTimestamp == 0
@@ -322,6 +331,8 @@ namespace BeatInsight
                 $"Gap={tickGap.TotalMilliseconds:F1} ms | " +
                 $"IsUpdating={isUpdating} | " +
                 $"BackgroundWork={IsBackgroundLibraryWorkRunning}");
+
+            RefreshOverlayForeground(currentGameState ?? gameStateService.Current);
 
             if (isUpdating || IsBackgroundLibraryWorkRunning)
             {
@@ -354,6 +365,37 @@ namespace BeatInsight
                     $"MAP SWITCH E2E TICK COMPLETE | " +
                     $"Sequence={tickSequence} | SW={completedTimestamp} | " +
                     $"Duration={Stopwatch.GetElapsedTime(tickTimestamp, completedTimestamp).TotalMilliseconds:F1} ms");
+            }
+        }
+
+        internal ShutdownResult BeginShutdown() => shutdownCoordinator.BeginShutdown();
+
+        private void StopShutdownTimersAndBackgroundWork()
+        {
+            mapTimer.Stop();
+            mapTimer.Tick -= MapTimer_Tick;
+            overviewLoadCoordinator?.Invalidate();
+            CancelForShutdown(mapEnrichmentCancellation);
+            CancelForShutdown(discoveryCancellation);
+            CancelForShutdown(libraryScanCancellation);
+            CancelForShutdown(datasetBuildCancellation);
+            CancelForShutdown(beatmapIdBackfillCancellation);
+            foreach (CancellationTokenSource cancellation in
+                discoveryDownloadCancellationsByBeatmapId.Values.ToArray())
+            {
+                CancelForShutdown(cancellation);
+            }
+            discoveryDownloadCancellationsByBeatmapId.Clear();
+        }
+
+        private static void CancelForShutdown(CancellationTokenSource? cancellation)
+        {
+            try
+            {
+                cancellation?.Cancel();
+            }
+            catch (ObjectDisposedException)
+            {
             }
         }
 
@@ -657,12 +699,12 @@ namespace BeatInsight
         }
 
         // Met à jour l'affichage du dossier Songs résolu (préférence
-        // manuelle prioritaire, sinon chemin tosu). N'écrit jamais la
+        // manuelle prioritaire, sinon chemin du provider actif). N'écrit jamais la
         // préférence : cette méthode ne fait que lire et afficher.
         private void RefreshSongsFolderDisplay()
         {
             string? resolved =
-                songsPathResolver.Resolve(lastTosuSongsPath);
+                songsPathResolver.Resolve(lastGameSongsPath);
 
             SongsFolderText.Text = resolved ?? "Not set";
             mainViewModel.Library.SetSongsFolder(resolved);
@@ -688,7 +730,7 @@ namespace BeatInsight
             };
 
             string? current =
-                songsPathResolver.Resolve(lastTosuSongsPath);
+                songsPathResolver.Resolve(lastGameSongsPath);
 
             if (!string.IsNullOrWhiteSpace(current)
                 && Directory.Exists(current))
@@ -716,7 +758,7 @@ namespace BeatInsight
                 return;
 
             string? songsFolder =
-                songsPathResolver.Resolve(lastTosuSongsPath);
+                songsPathResolver.Resolve(lastGameSongsPath);
 
             // Aucun chemin résolu : on ouvre directement le
             // sélecteur plutôt que d'afficher une confirmation vide.
@@ -726,7 +768,7 @@ namespace BeatInsight
                     return;
 
                 songsFolder =
-                    songsPathResolver.Resolve(lastTosuSongsPath);
+                    songsPathResolver.Resolve(lastGameSongsPath);
             }
 
             if (string.IsNullOrWhiteSpace(songsFolder))
@@ -763,9 +805,9 @@ namespace BeatInsight
 
             try
             {
-                // Une mise à jour Tosu déjà lancée termine avant le
+                // Une mise à jour game-state déjà lancée termine avant le
                 // scan. La garde isLibraryScanRunning bloque ensuite
-                // tout nouvel appel Tosu ou Community Tags.
+                // tout nouveau polling jeu ou appel Community Tags.
                 while (isUpdating)
                     await Task.Delay(50);
 
@@ -1201,12 +1243,13 @@ namespace BeatInsight
                     return;
                 }
 
+                currentGameState = null;
                 currentMapPath = target.SourceFilePath;
                 BackgroundImage.Source = null;
                 currentBeatmap = beatmap;
                 await UpdateOverviewFromSourceAsync(target.SourceFilePath);
 
-                // Même isolation anti-tosu que les files ML, mais cette
+                // Même isolation anti-polling que les files ML, mais cette
                 // source n'a aucune navigation automatique. RefreshHuman...
                 // réinitialise volontairement les sélections humaines.
                 activeLabelingQueue = LabelingQueueKind.DiscoveryReview;
@@ -1659,6 +1702,7 @@ namespace BeatInsight
                     return;
                 }
 
+                currentGameState = null;
                 currentMapPath = candidate.Sample.SourceFilePath;
                 BackgroundImage.Source = null;
                 currentBeatmap = beatmap;
@@ -1733,6 +1777,7 @@ namespace BeatInsight
                 if (IsBackgroundLibraryWorkRunning)
                     return;
 
+                currentGameState = null;
                 currentMapPath = sample.SourceFilePath;
                 BackgroundImage.Source = null;
 
@@ -1755,7 +1800,7 @@ namespace BeatInsight
 
         /// <summary>
         /// Active ou désactive le gel de la beatmap affichée face au
-        /// polling tosu. La sortie est toujours explicite (bouton Exit
+        /// polling jeu. La sortie est toujours explicite (bouton Exit
         /// Fast Labeling) : aucune navigation ne désactive le mode
         /// elle-même.
         /// </summary>
@@ -1769,7 +1814,7 @@ namespace BeatInsight
         }
 
         /// <summary>
-        /// Même gel anti-tosu que les files Fast/Calibration, avec un libellé
+        /// Même gel anti-polling que les files Fast/Calibration, avec un libellé
         /// explicite pour éviter de faire croire qu'une revue Discovery est
         /// entrée dans la Fast Unlabeled Queue.
         /// </summary>
@@ -1894,7 +1939,7 @@ namespace BeatInsight
         /// <summary>
         /// Avance ou recule dans la Calibration Queue, en ignorant
         /// toujours les échantillons déjà validés. Réutilise le même gel
-        /// anti-tosu que la Fast Unlabeled Queue, mais avec sa propre
+        /// anti-polling que la Fast Unlabeled Queue, mais avec sa propre
         /// ancre de position (<see cref="currentCalibrationSampleId"/>) :
         /// les deux files restent des modes de navigation distincts.
         /// </summary>
@@ -1947,6 +1992,7 @@ namespace BeatInsight
                 if (IsBackgroundLibraryWorkRunning)
                     return;
 
+                currentGameState = null;
                 currentMapPath = sample.SourceFilePath;
                 BackgroundImage.Source = null;
 
@@ -2245,7 +2291,7 @@ namespace BeatInsight
 
                 // La file active (si on y est entré via Next/Previous/
                 // Space/auto-advance) détermine où Validate avance
-                // automatiquement. Hors de toute file (map tosu normale),
+                // automatiquement. Hors de toute file (map jeu normale),
                 // Validate ne navigue nulle part.
                 if (LabelingQueueNavigationPolicy
                     .ShouldAutoAdvanceAfterSuccessfulValidation(
@@ -2492,14 +2538,14 @@ namespace BeatInsight
                 return;
 
             string? songsFolder =
-                songsPathResolver.Resolve(lastTosuSongsPath);
+                songsPathResolver.Resolve(lastGameSongsPath);
 
             if (songsFolder is null)
             {
                 if (!PromptForManualSongsFolder())
                     return;
 
-                songsFolder = songsPathResolver.Resolve(lastTosuSongsPath);
+                songsFolder = songsPathResolver.Resolve(lastGameSongsPath);
             }
 
             if (string.IsNullOrWhiteSpace(songsFolder))
@@ -2563,9 +2609,9 @@ namespace BeatInsight
 
             try
             {
-                // Une mise à jour Tosu déjà lancée termine avant le backfill.
+                // Une mise à jour game-state déjà lancée termine avant le backfill.
                 // La garde IsBackgroundLibraryWorkRunning bloque ensuite tout
-                // nouvel appel Tosu et donc tout appel Community/API.
+                // nouveau polling jeu et donc tout appel Community/API.
                 while (isUpdating)
                     await Task.Delay(50);
 
@@ -2801,7 +2847,7 @@ namespace BeatInsight
 
             try
             {
-                // Une mise à jour Tosu déjà lancée termine avant le backfill,
+                // Une mise à jour game-state déjà lancée termine avant le backfill,
                 // exactement comme pour StartDatasetBuildAsync : aucun appel
                 // Community/API concurrent pendant l'écriture SQLite.
                 while (isUpdating)
@@ -2962,29 +3008,11 @@ namespace BeatInsight
             BeatmapIdBackfillCurrentFileText.ToolTip = exception.ToString();
         }
 
-        private async Task<bool> IsTosuAvailable()
+        private void SetGameStateStatus(GameStateSnapshot snapshot)
         {
-            try
-            {
-                using HttpResponseMessage response =
-                    await client.GetAsync(
-                        "http://127.0.0.1:24050/json",
-                        HttpCompletionOption.ResponseHeadersRead);
-
-                return response.IsSuccessStatusCode;
-            }
-            catch
-            {
-                return false;
-            }
+            mainViewModel.ApplyGameState(snapshot);
         }
 
-        private void SetTosuStatus(bool connected)
-        {
-            TosuStatusText.Text = connected
-                ? "● Tosu connecté"
-                : "● En attente de Tosu...";
-        }
         private async Task UpdateMap(
             TimeSpan timerTickGap = default,
             long tickSequence = 0,
@@ -2999,238 +3027,59 @@ namespace BeatInsight
             if (IsBackgroundLibraryWorkRunning || isFastLabelingMode)
                 return;
 
-            // ============================================================
-            // TOSU CONNECTION
-            // ============================================================
+            Stopwatch gameStateWatch = Stopwatch.StartNew();
+            GameStateSnapshot snapshot = await Task.Run(gameStateService.Refresh);
+            gameStateWatch.Stop();
+            performance.GameStateRefresh = gameStateWatch.Elapsed;
+            long gameStateTimestamp = Stopwatch.GetTimestamp();
 
-            long tosuRequestStartTimestamp = Stopwatch.GetTimestamp();
-            Stopwatch tosuWatch = Stopwatch.StartNew();
-            if (!await IsTosuAvailable())
+            SetGameStateStatus(snapshot);
+            RefreshOverlayDisplayCompatibility(snapshot);
+            RefreshOverlayForeground(snapshot);
+            if (snapshot.IsAvailable)
             {
-                tosuWatch.Stop();
-                long unavailableTimestamp = Stopwatch.GetTimestamp();
-                DebugLogger.Log(
-                    $"MAP SWITCH E2E TOSU UNAVAILABLE | " +
-                    $"Sequence={tickSequence} | " +
-                    $"RequestStartSW={tosuRequestStartTimestamp} | " +
-                    $"RequestEndSW={unavailableTimestamp} | " +
-                    $"Duration={tosuWatch.Elapsed.TotalMilliseconds:F1} ms");
-                if (tosuConnected)
+                if (!string.Equals(
+                        lastLoggedGameStateProvider,
+                        snapshot.ProviderName,
+                        StringComparison.Ordinal))
                 {
-                    tosuConnected = false;
-
                     DebugLogger.Log(
-                        "TOSU | Déconnecté.");
+                        $"GAME STATE PROVIDER = {snapshot.ProviderName}");
+                    lastLoggedGameStateProvider = snapshot.ProviderName;
                 }
+            }
+            else
+            {
+                lastLoggedGameStateProvider = null;
+                DebugLogger.Log($"GAME STATE = {snapshot.Availability}");
+            }
 
+            if (!snapshot.IsAvailable ||
+                string.IsNullOrWhiteSpace(snapshot.CurrentBeatmapPath))
+            {
                 ResetPolledBeatmapState();
-
                 return;
             }
 
-            // Tosu vient d'être détecté.
-            if (!tosuConnected)
-            {
-                tosuConnected = true;
-
-                DebugLogger.Log(
-                    "TOSU | Connecté.");
-
-                SetTosuStatus(true);
-            }
-
-            // ============================================================
-            // RÉCUPÉRATION DES DONNÉES TOSU
-            // ============================================================
-
-            long tosuSnapshotRequestStartTimestamp = Stopwatch.GetTimestamp();
-            string json = await client.GetStringAsync(
-                $"http://127.0.0.1:24050/json?t={DateTime.UtcNow.Ticks}"
-            );
-            long tosuRequestEndTimestamp = Stopwatch.GetTimestamp();
-            tosuWatch.Stop();
-            performance.TosuRequest = tosuWatch.Elapsed;
-
-            // On récupère le dossier racine dans lequel osu! stocke ses beatmaps.
-            Stopwatch jsonWatch = Stopwatch.StartNew();
-            JsonDocument document = JsonDocument.Parse(json);
-
-            int debugBeatmapId = document.RootElement
-                .GetProperty("menu")
-                .GetProperty("bm")
-                .GetProperty("id")
-                .GetInt32();
-
-            string? debugFile = document.RootElement
-                .GetProperty("menu")
-                .GetProperty("bm")
-                .GetProperty("path")
-                .GetProperty("file")
-                .GetString();
-
-            string? folder =
-                document.RootElement
-                .GetProperty("menu")
-                .GetProperty("bm")
-                .GetProperty("path")
-                .GetProperty("folder")
-                // On récupère le nom du fichier .osu actuellement sélectionné.
-                .GetString();
-
-            string? songs =
-                document.RootElement
-                .GetProperty("settings")
-                .GetProperty("folders")
-                .GetProperty("songs")
-                .GetString();
-
-            lastTosuSongsPath = string.IsNullOrWhiteSpace(songs)
+            lastGameSongsPath = string.IsNullOrWhiteSpace(snapshot.SongsDirectory)
                 ? null
-                : songs;
+                : snapshot.SongsDirectory;
             RefreshSongsFolderDisplay();
 
-            // On récupère le chemin du background associé à la difficulté actuelle.
-
-            string? file =
-                document.RootElement
-                .GetProperty("menu")
-                .GetProperty("bm")
-                .GetProperty("path")
-                .GetProperty("file")
-                .GetString();
-
-            // On assemble le dossier Songs, le dossier de la beatmap et le fichier .osu pour obtenir son chemin complet.
-
-            string? bg = null;
-
-            if (document.RootElement
-                .GetProperty("menu")
-                .GetProperty("bm")
-                .GetProperty("path")
-                .TryGetProperty("bg", out JsonElement bgElement))
+            bool isSameMap = GameStateBeatmapIdentity.AreSame(
+                currentGameState,
+                snapshot);
+            if (isSameMap)
             {
-                bg = bgElement.GetString();
-            }
-
-            int beatmapId =
-    document.RootElement
-    .GetProperty("menu")
-    .GetProperty("bm")
-    .GetProperty("id")
-    .GetInt32();
-
-            jsonWatch.Stop();
-            performance.JsonParse = jsonWatch.Elapsed;
-
-
-
-            string? rawPath = TosuBeatmapPollingGuard.ResolvePath(
-                songs,
-                folder,
-                file);
-            bool isSameMap = string.Equals(
-                rawPath,
-                currentMapPath,
-                StringComparison.OrdinalIgnoreCase);
-            bool fileExistsAtResponse = rawPath is not null
-                && File.Exists(rawPath);
-            long tosuParsedTimestamp = Stopwatch.GetTimestamp();
-
-            DebugLogger.Log(
-                $"MAP SWITCH E2E TOSU RESPONSE | " +
-                $"Sequence={tickSequence} | Utc={DateTime.UtcNow:O} | " +
-                $"TickSW={tickTimestamp} | " +
-                $"RequestStartSW={tosuRequestStartTimestamp} | " +
-                $"SnapshotRequestStartSW={tosuSnapshotRequestStartTimestamp} | " +
-                $"RequestEndSW={tosuRequestEndTimestamp} | " +
-                $"ParsedSW={tosuParsedTimestamp} | " +
-                $"RequestDuration={Stopwatch.GetElapsedTime(tosuRequestStartTimestamp, tosuRequestEndTimestamp).TotalMilliseconds:F1} ms | " +
-                $"BeatmapId={beatmapId} | SameMap={isSameMap} | " +
-                $"FileExists={fileExistsAtResponse} | " +
-                $"Path={rawPath ?? "<null>"}");
-
-            if (!isSameMap)
-            {
-                if (rawPath is not null
-                    && !string.Equals(
-                        pendingTosuMapPath,
-                        rawPath,
-                        StringComparison.OrdinalIgnoreCase))
-                {
-                    pendingTosuMapPath = rawPath;
-                    pendingTosuMapFirstSeenTimestamp = tosuParsedTimestamp;
-                    pendingTosuMapFileAvailableTimestamp = 0;
-                }
-
-                if (fileExistsAtResponse
-                    && pendingTosuMapFileAvailableTimestamp == 0)
-                {
-                    pendingTosuMapFileAvailableTimestamp =
-                        Stopwatch.GetTimestamp();
-                }
-
-                DebugLogger.Log(
-                    $"MAP SWITCH E2E NEW TOSU DATA | " +
-                    $"Sequence={tickSequence} | SW={tosuParsedTimestamp} | " +
-                    $"BeatmapId={beatmapId} | " +
-                    $"FileExists={fileExistsAtResponse} | " +
-                    $"Path={rawPath ?? "<null>"}");
-            }
-
-            Stopwatch pathWatch = Stopwatch.StartNew();
-            string? chemin = TosuBeatmapPollingGuard.ResolveExistingPath(
-                songs,
-                folder,
-                file
-            );
-            pathWatch.Stop();
-            performance.PathResolve = pathWatch.Elapsed;
-
-            if (chemin is not null)
-            {
-                DebugLogger.Log(
-                    $"MAP SWITCH E2E FILE AVAILABLE | " +
-                    $"Sequence={tickSequence} | SW={Stopwatch.GetTimestamp()} | " +
-                    $"Path={chemin}");
-            }
-
-            if (chemin is null)
-            {
-                if (currentMapPath is not null || currentBeatmap is not null)
-                {
-                    DebugLogger.Log(
-                        $"TOSU MAP WAITING | File unavailable | " +
-                        $"Songs={songs ?? "<null>"} | " +
-                        $"Folder={folder ?? "<null>"} | " +
-                        $"File={file ?? debugFile ?? "<null>"}");
-                }
-
-                ResetPolledBeatmapState();
+                currentGameState = snapshot;
+                RefreshLiveGameplayOverlay(snapshot);
                 return;
             }
 
-            SetTosuStatus(true);
-
-            // ============================================================
-            // MÊME MAP → ON NE FAIT RIEN
-            // ============================================================
-
-            if (chemin == currentMapPath)
-            {
-                return;
-            }
-
-            performance.FirstNewTosuDataTimestamp =
-                string.Equals(
-                    pendingTosuMapPath,
-                    chemin,
-                    StringComparison.OrdinalIgnoreCase)
-                    ? pendingTosuMapFirstSeenTimestamp
-                    : tosuParsedTimestamp;
-            performance.FileAvailableTimestamp =
-                pendingTosuMapFileAvailableTimestamp != 0
-                    ? pendingTosuMapFileAvailableTimestamp
-                    : Stopwatch.GetTimestamp();
+            string path = snapshot.CurrentBeatmapPath;
+            _ = int.TryParse(snapshot.CurrentBeatmapId, out int beatmapId);
+            performance.FirstNewGameStateTimestamp = gameStateTimestamp;
+            performance.FileAvailableTimestamp = gameStateTimestamp;
             performance.DetectedDifferentPathTimestamp =
                 Stopwatch.GetTimestamp();
             performance.TickTimestamp = tickTimestamp;
@@ -3244,26 +3093,23 @@ namespace BeatInsight
             performance.CommunityTagsDeferred = true;
             long overviewRequest = overviewLoadCoordinator!.Begin(
                 "Analyzing the selected beatmap...");
-            currentMapPath = chemin;
+            currentGameState = snapshot;
+            currentMapPath = path;
             currentBeatmap = null;
+            ClearMapOverviewOverlay();
             BackgroundImage.Source = null;
-            pendingTosuMapPath = null;
-            pendingTosuMapFirstSeenTimestamp = 0;
-            pendingTosuMapFileAvailableTimestamp = 0;
             mapEnrichmentCancellation?.Cancel();
             var cancellation = new CancellationTokenSource();
             mapEnrichmentCancellation = cancellation;
             _ = LoadSelectedMapAsync(
-                chemin, beatmapId, songs, folder, bg,
+                path, beatmapId, snapshot.CurrentBackgroundPath,
                 overviewRequest, performance, cancellation);
         }
 
         private async Task LoadSelectedMapAsync(
             string sourcePath,
             int beatmapId,
-            string? songs,
-            string? folder,
-            string? backgroundFile,
+            string? backgroundPath,
             long request,
             MapChangePerformance performance,
             CancellationTokenSource cancellation)
@@ -3284,7 +3130,7 @@ namespace BeatInsight
                 // aucun de ces traitements ne retient l'overlay Overview.
                 performance.V1StartTimestamp = Stopwatch.GetTimestamp();
                 BeatmapAnalysisOutcome? outcome = null;
-                Beatmap? beatmap = await TosuBeatmapPollingGuard.TryLoadAsync(
+                Beatmap? beatmap = await BeatmapPollingGuard.TryLoadAsync(
                     sourcePath,
                     async path =>
                     {
@@ -3307,26 +3153,20 @@ namespace BeatInsight
                 currentBeatmap = beatmap;
                 RefreshHumanLabelPanel(beatmap, sourcePath);
 
-                if (!string.IsNullOrWhiteSpace(songs)
-                    && !string.IsNullOrWhiteSpace(folder)
-                    && !string.IsNullOrWhiteSpace(backgroundFile))
+                if (!string.IsNullOrWhiteSpace(backgroundPath)
+                    && File.Exists(backgroundPath))
                 {
-                    string backgroundPath = Path.Combine(
-                        songs, folder, backgroundFile);
-                    if (File.Exists(backgroundPath))
+                    try
                     {
-                        try
-                        {
-                            BackgroundImage.Source =
-                                new BitmapImage(new Uri(backgroundPath));
-                            mainViewModel.Overview.BackgroundPath =
-                                backgroundPath;
-                        }
-                        catch (Exception ex)
-                        {
-                            DebugLogger.Log(
-                                $"OVERVIEW BACKGROUND ERROR | {ex.Message}");
-                        }
+                        BackgroundImage.Source =
+                            new BitmapImage(new Uri(backgroundPath));
+                        mainViewModel.Overview.BackgroundPath =
+                            backgroundPath;
+                    }
+                    catch (Exception ex)
+                    {
+                        DebugLogger.Log(
+                            $"OVERVIEW BACKGROUND ERROR | {ex.Message}");
                     }
                 }
 
@@ -3369,7 +3209,7 @@ namespace BeatInsight
                 if (!osuApi.IsConfigured)
                 {
                     if (ReferenceEquals(currentBeatmap, beatmap)
-                        && TosuBeatmapPollingGuard.ShouldApplyDeferredResult(
+                        && BeatmapPollingGuard.ShouldApplyDeferredResult(
                             sourcePath,
                             currentMapPath,
                             cancellationToken.IsCancellationRequested))
@@ -3387,7 +3227,7 @@ namespace BeatInsight
                         cancellationToken);
 
                 if (!ReferenceEquals(currentBeatmap, beatmap)
-                    || !TosuBeatmapPollingGuard.ShouldApplyDeferredResult(
+                    || !BeatmapPollingGuard.ShouldApplyDeferredResult(
                         sourcePath,
                         currentMapPath,
                         cancellationToken.IsCancellationRequested))
@@ -3481,6 +3321,7 @@ namespace BeatInsight
         private void ResetPolledBeatmapState()
         {
             overviewLoadCoordinator?.Invalidate();
+            ClearMapOverviewOverlay();
             bool shouldClearOverview =
                 currentMapPath is not null
                 || currentBeatmap is not null
@@ -3489,6 +3330,7 @@ namespace BeatInsight
                 || mainViewModel.Overview.HasError;
 
             currentMapPath = null;
+            currentGameState = null;
             currentBeatmap = null;
             mapEnrichmentCancellation?.Cancel();
             mapEnrichmentCancellation = null;
@@ -3499,7 +3341,7 @@ namespace BeatInsight
                 mainViewModel.Overview.Clear();
             }
 
-            SetTosuStatus(false);
+            SetGameStateStatus(gameStateService.Current);
         }
 
         // ============================================================
@@ -3585,6 +3427,8 @@ namespace BeatInsight
                 if (!loaded)
                     return;
 
+                PublishMapOverviewOverlay(sourceFilePath, result.Snapshot);
+
                 if (performance is not null)
                     performance.ViewModelEndTimestamp =
                         Stopwatch.GetTimestamp();
@@ -3626,6 +3470,7 @@ namespace BeatInsight
                 if (string.Equals(sourceFilePath, currentMapPath,
                         StringComparison.OrdinalIgnoreCase))
                 {
+                    ClearMapOverviewOverlay();
                     overviewLoadCoordinator!.Fail(
                         request,
                         "Unable to analyze this beatmap for the Overview panel.");
@@ -3691,9 +3536,7 @@ namespace BeatInsight
             }
 
             internal TimeSpan TimerTickGap { get; }
-            internal TimeSpan TosuRequest { get; set; }
-            internal TimeSpan JsonParse { get; set; }
-            internal TimeSpan PathResolve { get; set; }
+            internal TimeSpan GameStateRefresh { get; set; }
             internal TimeSpan V1Load { get; set; }
             internal TimeSpan CommunityTags { get; set; }
             internal TimeSpan V2Snapshot { get; set; }
@@ -3706,7 +3549,7 @@ namespace BeatInsight
             internal bool CommunityTagsDeferred { get; set; }
             internal long TickSequence { get; set; }
             internal long TickTimestamp { get; set; }
-            internal long FirstNewTosuDataTimestamp { get; set; }
+            internal long FirstNewGameStateTimestamp { get; set; }
             internal long DetectedDifferentPathTimestamp { get; set; }
             internal long FileAvailableTimestamp { get; set; }
             internal long V1StartTimestamp { get; set; }
@@ -3768,17 +3611,15 @@ namespace BeatInsight
                 DebugLogger.Log(
                     "MAP SWITCH E2E | " +
                     $"BeatmapId={beatmapId} | Path={path} | " +
-                    $"FirstNewTosuSW={FirstNewTosuDataTimestamp} | " +
+                    $"FirstNewGameStateSW={FirstNewGameStateTimestamp} | " +
                     $"FinalUiSW={uiRenderTimestamp} | " +
                     $"Timer interval=500.0 ms | " +
                     $"Tick delay={TimerTickGap.TotalMilliseconds:F1} ms | " +
-                    $"Tosu request={TosuRequest.TotalMilliseconds:F1} ms | " +
-                    $"JSON parse={JsonParse.TotalMilliseconds:F1} ms | " +
-                    $"Path resolve={PathResolve.TotalMilliseconds:F1} ms | " +
-                    $"Tosu new-map visibility delay=" +
-                    $"{Stopwatch.GetElapsedTime(FirstNewTosuDataTimestamp, DetectedDifferentPathTimestamp).TotalMilliseconds:F1} ms | " +
+                    $"Game-state refresh={GameStateRefresh.TotalMilliseconds:F1} ms | " +
+                    $"Game-state visibility delay=" +
+                    $"{Stopwatch.GetElapsedTime(FirstNewGameStateTimestamp, DetectedDifferentPathTimestamp).TotalMilliseconds:F1} ms | " +
                     $"Path/File availability delay=" +
-                    $"{Stopwatch.GetElapsedTime(FirstNewTosuDataTimestamp, FileAvailableTimestamp).TotalMilliseconds:F1} ms | " +
+                    $"{Stopwatch.GetElapsedTime(FirstNewGameStateTimestamp, FileAvailableTimestamp).TotalMilliseconds:F1} ms | " +
                     $"V1 cache/load=" +
                     (V1EndTimestamp == 0
                         ? "deferred | "
@@ -3792,8 +3633,8 @@ namespace BeatInsight
                     $"Overview LoadSnapshot={OverviewLoadSnapshot.TotalMilliseconds:F1} ms | " +
                     $"UI dispatch/render=" +
                     $"{Stopwatch.GetElapsedTime(uiDispatchStartTimestamp, uiRenderTimestamp).TotalMilliseconds:F1} ms | " +
-                    $"Total from first new tosu data=" +
-                    $"{Stopwatch.GetElapsedTime(FirstNewTosuDataTimestamp, uiRenderTimestamp).TotalMilliseconds:F1} ms | " +
+                    $"Total from first new game state=" +
+                    $"{Stopwatch.GetElapsedTime(FirstNewGameStateTimestamp, uiRenderTimestamp).TotalMilliseconds:F1} ms | " +
                     $"CacheHit V1={V1CacheHit?.ToString() ?? "unknown"} | " +
                     $"CacheHit V2={V2CacheHit?.ToString() ?? "unknown"} | " +
                     $"DisplayMatches={overviewDisplayed}");

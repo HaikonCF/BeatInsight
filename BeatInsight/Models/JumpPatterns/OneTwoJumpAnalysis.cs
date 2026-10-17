@@ -43,4 +43,10 @@ public sealed record OneTwoJumpAnalysis(
     public int OneTwoPointCount => Points.Count;
     public int SequenceCount => Matches.Count;
     public double Coverage => TotalObjects == 0 ? 0 : (double)OneTwoObjectCount / TotalObjects;
+    public int CandidateBlockCount { get; init; }
+    public int AcceptedBlockCount { get; init; }
+    public int AcceptedRepeatedBlockGroupCount => Matches.Count;
+    public int RejectedIsolatedBlockCount { get; init; }
+    public int RejectedInconsistentBlockGroupCount { get; init; }
+    public IReadOnlyList<int> ResetObjectIndices { get; init; } = [];
 }

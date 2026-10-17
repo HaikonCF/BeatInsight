@@ -2,6 +2,7 @@ using BeatInsight.Analysis.Rating;
 using BeatInsight.Diagnostics;
 using BeatInsight.Models;
 using BeatInsight.Models.Fusion;
+using BeatInsight.Models.Identity;
 using BeatInsight.Models.Rating;
 using BeatInsight.Models.Sections;
 using BeatInsight.Models.SkillPressure;
@@ -137,6 +138,53 @@ public sealed class BeatInsightRatingV2AnalyzerTests
     public void MultipleStrongFamiliesIncreasePatternContribution() => Assert.True(
         Analyze(Input(100, skills: 50, sections: Sections(50), patterns: Patterns(.8, 3))).PatternContribution
         > Analyze(Input(100, skills: 50, sections: Sections(50), patterns: Patterns(.8))).PatternContribution);
+
+    [Fact]
+    public void PreparedRatingUsesMainPatternsAndIgnoresAllPatternsPresentationDataset()
+    {
+        var main = new GameplayIdentityV3Pattern(
+            "MainJump", FusionPatternFamily.Jump, 80, .8, .8, null);
+        var context = new GameplayIdentityV3SectionContext(
+            1, 0, 0, 0, 1, 0, 0, 0, [GameplayStructureKind.Jump]);
+        var identity = new GameplayIdentityV3Profile(
+            80, 10, 10, 10, GameplayStructureKind.Jump, null, [], [main], context,
+            .8, .8, .8, .8, [])
+        {
+            AllPatterns = [main]
+        };
+        GameplayIdentityV3Profile expandedPresentation = identity with
+        {
+            AllPatterns =
+            [
+                main,
+                new("ExtraTech", FusionPatternFamily.Tech, 100, 1, 1, 1),
+                new("ExtraStream", FusionPatternFamily.Stream, 100, 1, 1, 1)
+            ]
+        };
+        var beatmap = new Beatmap
+        {
+            HitObjects = Enumerable.Range(0, 100)
+                .Select(index => new HitObject { Type = 1, Time = index * 100 })
+                .ToList()
+        };
+        var gameplay = new GameplayProfile
+        {
+            AimScore = 50,
+            SpeedScore = 50,
+            ReadScore = 50,
+            TechScore = 50
+        };
+        SkillPressureProfile pressure = Pressure(50);
+        SectionAnalysisResult sections = Sections(50, 50);
+
+        BeatInsightRatingV2 baseline = BeatInsightRatingV2Analyzer.Analyze(
+            beatmap, gameplay, sections, pressure, identity);
+        BeatInsightRatingV2 expanded = BeatInsightRatingV2Analyzer.Analyze(
+            beatmap, gameplay, sections, pressure, expandedPresentation);
+
+        Assert.Equal(baseline.PatternContribution, expanded.PatternContribution);
+        Assert.Equal(baseline.Score, expanded.Score);
+    }
 
     [Fact]
     public void PatternContributionIsBounded() => Assert.InRange(Analyze(Input(100, skills: 50, sections: Sections(50), patterns: Patterns(10, 3))).PatternContribution, 0, 100);

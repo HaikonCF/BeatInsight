@@ -1,0 +1,87 @@
+<Window x:Class="BeatInsight.Overlay.UpNext.UpNextOverlayWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:converters="clr-namespace:BeatInsight.Converters"
+        Title="BeatInsight Up Next"
+        WindowStyle="None"
+        ResizeMode="NoResize"
+        WindowStartupLocation="Manual"
+        AllowsTransparency="True"
+        Background="Transparent"
+        Topmost="True"
+        ShowInTaskbar="False"
+        ShowActivated="False"
+        Focusable="False">
+    <Window.Resources>
+        <converters:NullOrEmptyToVisibilityConverter x:Key="TextVisibility"/>
+    </Window.Resources>
+
+    <Border Background="{Binding Background}"
+            CornerRadius="16"
+            Padding="4">
+        <Border Background="{Binding CardBackground}"
+                BorderBrush="{Binding Border}"
+                BorderThickness="1"
+                CornerRadius="12"
+                Padding="14,11">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <Border Grid.Row="0"
+                        Height="3"
+                        Margin="0,0,0,7"
+                        Background="{Binding Accent}"
+                        CornerRadius="2"/>
+
+                <Grid Grid.Row="1">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="UP NEXT"
+                               Foreground="{Binding SecondaryForeground}"
+                               FontSize="9"
+                               FontWeight="SemiBold"/>
+                    <TextBlock Grid.Column="1"
+                               Text="{Binding CountdownText, Mode=OneWay}"
+                               Foreground="{Binding Accent}"
+                               FontSize="11"
+                               FontWeight="SemiBold"/>
+                </Grid>
+
+                <StackPanel Grid.Row="2"
+                            Margin="0,3,0,0"
+                            Orientation="Horizontal">
+                    <TextBlock Text="{Binding DominantStructure}"
+                               Foreground="{Binding Foreground}"
+                               FontSize="18"
+                               FontWeight="Bold"/>
+                    <TextBlock Text="  +  "
+                               Foreground="{Binding SecondaryForeground}"
+                               FontSize="13"
+                               VerticalAlignment="Center"
+                               Visibility="{Binding SecondaryStructure, Converter={StaticResource TextVisibility}}"/>
+                    <TextBlock Text="{Binding SecondaryStructure}"
+                               Foreground="{Binding Accent}"
+                               FontSize="13"
+                               FontWeight="SemiBold"
+                               VerticalAlignment="Center"
+                               Visibility="{Binding SecondaryStructure, Converter={StaticResource TextVisibility}}"/>
+                </StackPanel>
+
+                <TextBlock Grid.Row="3"
+                           Margin="0,5,0,0"
+                           Text="{Binding Summary}"
+                           Foreground="{Binding SecondaryForeground}"
+                           FontSize="10"
+                           TextTrimming="CharacterEllipsis"
+                           Visibility="{Binding Summary, Converter={StaticResource TextVisibility}}"/>
+            </Grid>
+        </Border>
+    </Border>
+</Window>

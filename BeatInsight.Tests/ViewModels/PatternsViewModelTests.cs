@@ -41,9 +41,9 @@ public sealed class PatternsViewModelTests
         Assert.DoesNotContain('%', longStream.ConfidenceDisplay);
 
         Assert.Equal(
-            ["Long Stream", "Spaced Jump", "Sharp Jump", "Flow Stream", "Slider Chain"],
+            ["Long Stream", "Flow Stream"],
             overview.Patterns.DominantPatterns.Select(pattern => pattern.Name));
-        Assert.Equal(PatternsViewModel.MaximumDominantPatternCount, overview.Patterns.DominantPatterns.Count);
+        Assert.Equal(2, overview.Patterns.DominantPatterns.Count);
 
         MainPatternChipViewModel identityPattern = Assert.Single(overview.Identity.MainPatterns);
         Assert.Equal("Flow Stream", identityPattern.Name);
@@ -103,6 +103,80 @@ public sealed class PatternsViewModelTests
         Assert.False(viewModel.IsDifficultyTabActive);
         Assert.Same(identity, viewModel.Overview.Identity);
         Assert.Same(dominant, Assert.Single(viewModel.Overview.Patterns.DominantPatterns));
+    }
+
+    [Theory]
+    [InlineData(GameplayStructureKind.Jump, "Spaced Jump")]
+    [InlineData(GameplayStructureKind.Stream, "Long Stream")]
+    [InlineData(GameplayStructureKind.Tech, "Slider Chain")]
+    public void OverviewPatternsPreferThePrimaryStructuralFamily(
+        GameplayStructureKind primary,
+        string expected)
+    {
+        var overview = new OverviewViewModel();
+        GameplayIdentityV3Pattern[] patterns =
+        [
+            Pattern("SliderChain", FusionPatternFamily.Tech, .90, .9),
+            Pattern("LongStream", FusionPatternFamily.Stream, .70, .8),
+            Pattern("Spaced", FusionPatternFamily.Jump, .50, .7)
+        ];
+        BeatInsight.Models.AnalysisCache.BeatmapAnalysisSnapshot snapshot =
+            OverviewViewModelTests.BuildSnapshot(primary: primary) with
+            {
+                PatternSummaries = patterns
+            };
+
+        overview.LoadSnapshot(snapshot);
+
+        Assert.Equal([expected], overview.Patterns.DominantPatterns.Select(pattern => pattern.Name));
+        Assert.Single(overview.Patterns.JumpPatterns);
+        Assert.Single(overview.Patterns.StreamPatterns);
+        Assert.Single(overview.Patterns.TechPatterns);
+    }
+
+    [Fact]
+    public void ClassicMixedOverviewUsesDeterministicCrossFamilyRanking()
+    {
+        var overview = new OverviewViewModel();
+        GameplayIdentityV3Pattern[] patterns =
+        [
+            Pattern("Spaced", FusionPatternFamily.Jump, .50, .7),
+            Pattern("SliderChain", FusionPatternFamily.Tech, .90, .9),
+            Pattern("LongStream", FusionPatternFamily.Stream, .70, .8)
+        ];
+        var snapshot = OverviewViewModelTests.BuildSnapshot(
+            primary: GameplayStructureKind.ClassicMixed,
+            secondary: null) with
+        {
+            PatternSummaries = patterns
+        };
+
+        overview.LoadSnapshot(snapshot);
+
+        Assert.Equal(
+            ["Slider Chain", "Long Stream", "Spaced Jump"],
+            overview.Patterns.DominantPatterns.Select(pattern => pattern.Name));
+    }
+
+    [Fact]
+    public void OneTwoSummaryReachesJumpPresentationAsOneTwoJump()
+    {
+        var overview = new OverviewViewModel();
+        var snapshot = OverviewViewModelTests.BuildSnapshot(primary: GameplayStructureKind.Jump) with
+        {
+            PatternSummaries =
+            [
+                Pattern("OneTwo", FusionPatternFamily.Jump, .22, .81),
+                Pattern("SliderChain", FusionPatternFamily.Tech, .80, .95)
+            ]
+        };
+
+        overview.LoadSnapshot(snapshot);
+
+        PatternDisplayItemViewModel oneTwo = Assert.Single(overview.Patterns.JumpPatterns);
+        Assert.Equal("1-2 Jump", oneTwo.Name);
+        Assert.Equal("Coverage 22.0%", oneTwo.CoverageDisplay);
+        Assert.Equal(["1-2 Jump"], overview.Patterns.DominantPatterns.Select(pattern => pattern.Name));
     }
 
     private static GameplayIdentityV3Pattern Pattern(

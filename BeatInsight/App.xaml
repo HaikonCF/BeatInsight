@@ -1,8 +1,8 @@
 ﻿<Application x:Class="BeatInsight.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:converters="clr-namespace:BeatInsight.Converters"
-             StartupUri="MainWindow.xaml">
+             xmlns:sys="clr-namespace:System;assembly=System.Runtime"
+             xmlns:converters="clr-namespace:BeatInsight.Converters">
     <Application.Resources>
         <!-- ========================================================= -->
         <!-- COLOR PALETTE                                             -->
@@ -14,7 +14,7 @@
 
         <Color x:Key="TextPrimaryColor">#FFFFFF</Color>
         <Color x:Key="TextSecondaryColor">#A0A5B5</Color>
-        <Color x:Key="TextMutedColor">#5C6070</Color>
+        <Color x:Key="TextMutedColor">#7B8192</Color>
 
         <Color x:Key="BorderSubtleColor">#272836</Color>
         <Color x:Key="BorderAccentColor">#66FF2E93</Color>
@@ -36,6 +36,22 @@
         <SolidColorBrush x:Key="BorderAccentBrush" Color="{StaticResource BorderAccentColor}"/>
 
         <SolidColorBrush x:Key="StatusErrorBrush" Color="{StaticResource StatusErrorColor}"/>
+        <SolidColorBrush x:Key="AppBackgroundBrush" Color="#0B0C10"/>
+        <SolidColorBrush x:Key="AppSurfaceBrush" Color="#171820"/>
+        <SolidColorBrush x:Key="AppSurfaceAltBrush" Color="#20222C"/>
+        <SolidColorBrush x:Key="AppCardBrush" Color="#EE161722"/>
+        <SolidColorBrush x:Key="AppBorderBrush" Color="#272836"/>
+        <SolidColorBrush x:Key="AppBorderAccentBrush" Color="#66FF2E93"/>
+        <SolidColorBrush x:Key="AppTextPrimaryBrush" Color="#FFFFFF"/>
+        <SolidColorBrush x:Key="AppTextSecondaryBrush" Color="#A0A5B5"/>
+        <SolidColorBrush x:Key="AppTextMutedBrush" Color="#7B8192"/>
+        <SolidColorBrush x:Key="AppAccentBrush" Color="#FF2E93"/>
+        <SolidColorBrush x:Key="AppAccentSoftBrush" Color="#2A1320"/>
+        <SolidColorBrush x:Key="AppDangerBrush" Color="#EF4444"/>
+        <SolidColorBrush x:Key="AppSuccessBrush" Color="#10B981"/>
+        <sys:String x:Key="AppThemeIdentityLabel">BEATINSIGHT</sys:String>
+        <Visibility x:Key="AppThemeCharacterVisibility">Collapsed</Visibility>
+        <Visibility x:Key="AppThemeNeutralIdentityVisibility">Visible</Visibility>
 
         <!-- ========================================================= -->
         <!-- CONVERTERS                                                -->
@@ -45,6 +61,7 @@
         <converters:StructureToBrushConverter x:Key="StructureToBrushConverter"/>
         <converters:TabActiveConverter x:Key="TabActiveConverter"/>
         <converters:InvertedBoolToVisibilityConverter x:Key="InvertedBoolToVisibilityConverter"/>
+        <converters:NarrowWidthConverter x:Key="NarrowWidthConverter" Threshold="1200"/>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
 
         <!-- ========================================================= -->

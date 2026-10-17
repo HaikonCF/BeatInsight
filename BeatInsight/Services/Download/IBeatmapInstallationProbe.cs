@@ -10,7 +10,7 @@ namespace BeatInsight.Services.Download;
 ///
 /// AUDIT (V2.4.3a) : un import osu! réussi place les fichiers dans Songs
 /// immédiatement, mais n'écrit rien dans l'index d'analyse persistant de
-/// BeatInsight (celui-ci n'est peuplé que par tosu, une revue Discovery,
+/// BeatInsight (celui-ci n'est peuplé que par le suivi runtime, une revue Discovery,
 /// ou un Scan Library explicite). Confirmer un import via
 /// <c>BeatmapAnalysisRepository</c> produisait donc un faux négatif
 /// permanent ("Waiting for osu! import..." qui ne se résout jamais).

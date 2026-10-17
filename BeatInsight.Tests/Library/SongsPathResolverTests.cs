@@ -19,7 +19,7 @@ public sealed class SongsPathResolverTests : IDisposable
     private readonly string directory;
     private readonly string preferenceFilePath;
     private readonly string validSavedFolder;
-    private readonly string validTosuFolder;
+    private readonly string validProviderFolder;
 
     public SongsPathResolverTests()
     {
@@ -36,8 +36,8 @@ public sealed class SongsPathResolverTests : IDisposable
         validSavedFolder = Path.Combine(directory, "saved-songs");
         Directory.CreateDirectory(validSavedFolder);
 
-        validTosuFolder = Path.Combine(directory, "tosu-songs");
-        Directory.CreateDirectory(validTosuFolder);
+        validProviderFolder = Path.Combine(directory, "provider-songs");
+        Directory.CreateDirectory(validProviderFolder);
     }
 
     public void Dispose()
@@ -62,41 +62,41 @@ public sealed class SongsPathResolverTests : IDisposable
 
 
     // ============================================================
-    // PRIORITÉ : SAVED > TOSU > NULL
+    // PRIORITÉ : SAVED > PROVIDER > NULL
     // ============================================================
 
     [Fact]
-    public void Resolve_SavedValid_BeatsTosu()
+    public void Resolve_SavedValid_BeatsProviderPath()
     {
         SongsPathResolver resolver = CreateResolver();
         resolver.SaveManualPath(validSavedFolder);
 
-        string? result = resolver.Resolve(validTosuFolder);
+        string? result = resolver.Resolve(validProviderFolder);
 
         Assert.Equal(validSavedFolder, result);
     }
 
     [Fact]
-    public void Resolve_SavedInvalid_FallsBackToTosu()
+    public void Resolve_SavedInvalid_FallsBackToProviderPath()
     {
         SongsPathResolver resolver = CreateResolver();
 
         string missingFolder = Path.Combine(directory, "does-not-exist");
         resolver.SaveManualPath(missingFolder);
 
-        string? result = resolver.Resolve(validTosuFolder);
+        string? result = resolver.Resolve(validProviderFolder);
 
-        Assert.Equal(validTosuFolder, result);
+        Assert.Equal(validProviderFolder, result);
     }
 
     [Fact]
-    public void Resolve_NoSavedPath_ReturnsValidTosuPath()
+    public void Resolve_NoSavedPath_ReturnsValidProviderPath()
     {
         SongsPathResolver resolver = CreateResolver();
 
-        string? result = resolver.Resolve(validTosuFolder);
+        string? result = resolver.Resolve(validProviderFolder);
 
-        Assert.Equal(validTosuFolder, result);
+        Assert.Equal(validProviderFolder, result);
     }
 
     [Fact]
@@ -114,7 +114,7 @@ public sealed class SongsPathResolverTests : IDisposable
     }
 
     [Fact]
-    public void Resolve_NoSavedPathAndNullTosuPath_ReturnsNull()
+    public void Resolve_NoSavedPathAndNullProviderPath_ReturnsNull()
     {
         SongsPathResolver resolver = CreateResolver();
 
@@ -122,7 +122,7 @@ public sealed class SongsPathResolverTests : IDisposable
     }
 
     [Fact]
-    public void Resolve_SavedInvalidAndTosuNull_ReturnsNull()
+    public void Resolve_SavedInvalidAndProviderPathNull_ReturnsNull()
     {
         SongsPathResolver resolver = CreateResolver();
 
@@ -133,12 +133,12 @@ public sealed class SongsPathResolverTests : IDisposable
     }
 
     [Fact]
-    public void Resolve_NoSavedPathAndTosuInvalid_ReturnsNull()
+    public void Resolve_NoSavedPathAndProviderPathInvalid_ReturnsNull()
     {
         SongsPathResolver resolver = CreateResolver();
 
         string? result = resolver.Resolve(
-            Path.Combine(directory, "missing-tosu-path"));
+            Path.Combine(directory, "missing-provider-path"));
 
         Assert.Null(result);
     }
@@ -158,7 +158,7 @@ public sealed class SongsPathResolverTests : IDisposable
 
         Assert.Equal(
             validSavedFolder,
-            reloaded.Resolve(validTosuFolder));
+            reloaded.Resolve(validProviderFolder));
     }
 
     [Fact]
@@ -177,10 +177,10 @@ public sealed class SongsPathResolverTests : IDisposable
         SongsPathResolver resolver = CreateResolver();
 
         resolver.SaveManualPath(validSavedFolder);
-        resolver.SaveManualPath(validTosuFolder);
+        resolver.SaveManualPath(validProviderFolder);
 
         Assert.Equal(
-            validTosuFolder,
+            validProviderFolder,
             resolver.Resolve(null));
     }
 
@@ -197,10 +197,10 @@ public sealed class SongsPathResolverTests : IDisposable
 
         resolver.ClearManualPath();
 
-        // La préférence disparue, tosu redevient la source.
+        // La préférence disparue, le provider redevient la source.
         Assert.Equal(
-            validTosuFolder,
-            resolver.Resolve(validTosuFolder));
+            validProviderFolder,
+            resolver.Resolve(validProviderFolder));
     }
 
     [Fact]
@@ -233,16 +233,16 @@ public sealed class SongsPathResolverTests : IDisposable
         SongsPathResolver resolver = CreateResolver();
         resolver.SaveManualPath(validSavedFolder);
 
-        // Plusieurs résolutions successives avec un chemin tosu
+        // Plusieurs résolutions successives avec un chemin provider
         // différent ne doivent jamais modifier la préférence.
-        resolver.Resolve(validTosuFolder);
-        resolver.Resolve(validTosuFolder);
+        resolver.Resolve(validProviderFolder);
+        resolver.Resolve(validProviderFolder);
 
         SongsPathResolver reloaded = CreateResolver();
 
         Assert.Equal(
             validSavedFolder,
-            reloaded.Resolve(validTosuFolder));
+            reloaded.Resolve(validProviderFolder));
     }
 
 
@@ -296,12 +296,12 @@ public sealed class SongsPathResolverTests : IDisposable
         resolver.SaveManualPath(filePath);
 
         Assert.Equal(
-            validTosuFolder,
-            resolver.Resolve(validTosuFolder));
+            validProviderFolder,
+            resolver.Resolve(validProviderFolder));
     }
 
     [Fact]
-    public void Resolve_EmptyStringTosuPath_IsTreatedAsInvalid()
+    public void Resolve_EmptyStringProviderPath_IsTreatedAsInvalid()
     {
         SongsPathResolver resolver = CreateResolver();
 

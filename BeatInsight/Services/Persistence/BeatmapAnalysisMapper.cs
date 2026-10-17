@@ -82,7 +82,7 @@ internal static class BeatmapAnalysisMapper
     /// <param name="analysedAtUtc">Date UTC de production de l'analyse.</param>
     /// <param name="beatmapId">
     /// Identifiant osu! lorsqu'il est connu. Absent de Beatmap : il
-    /// provient de tosu et doit donc être transmis par l'appelant.
+    /// provient du provider et doit donc être transmis par l'appelant.
     /// </param>
     /// <param name="md5">Empreinte MD5, réservée et non alimentée.</param>
     internal static BeatmapAnalysisRecord ToRecord(

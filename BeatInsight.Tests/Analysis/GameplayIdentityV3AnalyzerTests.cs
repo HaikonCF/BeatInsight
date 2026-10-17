@@ -235,6 +235,40 @@ public sealed class GameplayIdentityV3AnalyzerTests
     }
 
     [Fact]
+    public void AllPatternsPreservesSummariesOutsideMainPatternSelection()
+    {
+        GameplayIdentityV3Profile result = Analyze(Input(100, 20, 20, 90,
+            patterns:
+            [
+                new("TechStrong", FusionPatternFamily.Tech, 1, 1, 1),
+                new("JumpDetected", FusionPatternFamily.Jump, .45, .45, .45),
+                new("StreamDetected", FusionPatternFamily.Stream, .30, .30, .30)
+            ]));
+
+        Assert.Equal(["TechStrong"], result.MainPatterns.Select(pattern => pattern.Name));
+        Assert.Equal(
+            ["TechStrong", "JumpDetected", "StreamDetected"],
+            result.AllPatterns.Select(pattern => pattern.Name));
+    }
+
+    [Fact]
+    public void OneTwoRemainsAvailableWhenNotSelectedAsMainPattern()
+    {
+        GameplayIdentityV3Profile result = Analyze(Input(100, 80, 10, 60,
+            patterns:
+            [
+                new("TechStrong", FusionPatternFamily.Tech, 1, 1, 1),
+                new("OneTwo", FusionPatternFamily.Jump, .20, .20)
+            ]));
+
+        Assert.DoesNotContain(result.MainPatterns, pattern => pattern.Name == "OneTwo");
+        GameplayIdentityV3Pattern oneTwo = Assert.Single(
+            result.AllPatterns, pattern => pattern.Name == "OneTwo");
+        Assert.Equal(FusionPatternFamily.Jump, oneTwo.Family);
+        Assert.True(oneTwo.Coverage > 0);
+    }
+
+    [Fact]
     public void NoSignificantPatternProducesEmptySelection()
     {
         GameplayIdentityV3Profile result = Analyze(Input(100, 80, 10, 5,
@@ -534,7 +568,8 @@ public sealed class GameplayIdentityV3AnalyzerTests
         profile.JumpStructureScore, profile.StreamStructureScore, profile.TechStructureScore, profile.ClassicMixedScore,
         profile.PrimaryStructure, profile.SecondaryStructure, profile.StructureConfidence, profile.SkillConfidence,
         profile.PatternConfidence, profile.GlobalIdentityConfidence,
-        string.Join(',', profile.MainSkills), string.Join(',', profile.MainPatterns), string.Join(',', profile.Flags));
+        string.Join(',', profile.MainSkills), string.Join(',', profile.MainPatterns),
+        string.Join(',', profile.AllPatterns), string.Join(',', profile.Flags));
 
     private static string FusionSnapshot(BeatInsight.Models.Fusion.GameplayFusionProfile profile) => string.Join('|',
         profile.FinalAim, profile.FinalSpeed, profile.FinalReading, profile.FinalTech,

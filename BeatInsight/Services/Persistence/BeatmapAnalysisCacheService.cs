@@ -64,7 +64,7 @@ internal sealed class BeatmapAnalysisCacheService
     /// <param name="filePath">Chemin du fichier .osu.</param>
     /// <param name="beatmapId">
     /// Identifiant osu! lorsqu'il est connu. Absent de Beatmap, il
-    /// provient de tosu et n'est stocké qu'à titre de clé secondaire :
+    /// provient du provider et n'est stocké qu'à titre de clé secondaire :
     /// il ne participe pas à la validité en V2.1.
     /// </param>
     /// <returns>

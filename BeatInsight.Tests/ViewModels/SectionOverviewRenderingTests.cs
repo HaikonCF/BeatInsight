@@ -29,6 +29,20 @@ public sealed class SectionOverviewRenderingTests(ITestOutputHelper output)
         {
             var app = new App();
             app.InitializeComponent();
+            var constrainedSkillBar = new SkillBarControl();
+            constrainedSkillBar.Measure(new Size(171.45, 31));
+            constrainedSkillBar.Arrange(new Rect(0, 0, 171.45, 31));
+            constrainedSkillBar.UpdateLayout();
+            ProgressBar constrainedProgressBar = Descendants(constrainedSkillBar)
+                .OfType<ProgressBar>()
+                .Single();
+            constrainedProgressBar.ApplyTemplate();
+            constrainedProgressBar.UpdateLayout();
+            var constrainedTrack = Assert.IsAssignableFrom<FrameworkElement>(
+                constrainedProgressBar.Template.FindName("PART_Track", constrainedProgressBar));
+            Assert.InRange(constrainedSkillBar.DesiredSize.Height, 28, 30);
+            Assert.Equal(31, constrainedSkillBar.ActualHeight, precision: 6);
+            Assert.True(constrainedTrack.ActualHeight > 0);
             var bindingErrors = new BindingErrorTraceListener();
             PresentationTraceSources.DataBindingSource.Switch.Level = SourceLevels.Error;
             PresentationTraceSources.DataBindingSource.Listeners.Add(bindingErrors);
@@ -36,6 +50,67 @@ public sealed class SectionOverviewRenderingTests(ITestOutputHelper output)
             var view = new DashboardView { DataContext = vm };
             var coordinator = new OverviewLoadCoordinator(vm.Overview);
             var source = OverviewViewModelTests.BuildSnapshot();
+
+            long responsiveRequest = coordinator.Begin("responsive layout test");
+            Assert.True(coordinator.Complete(
+                responsiveRequest,
+                source,
+                loadTime: TimeSpan.Zero));
+
+            Grid overviewResponsiveGrid = Descendants(view)
+                .OfType<Grid>()
+                .Single(grid => grid.Name == "OverviewResponsiveGrid");
+            StackPanel dashboardNavigationPanel = Descendants(view)
+                .OfType<StackPanel>()
+                .Single(panel => panel.Name == "DashboardNavigationPanel");
+            Grid skillIdentityGrid = Descendants(view)
+                .OfType<Grid>()
+                .Single(grid => grid.Name == "SkillIdentityGrid");
+            Border themeIdentityCard = Descendants(view)
+                .OfType<Border>()
+                .Single(border => border.Name == "ThemeIdentityCard");
+
+            Layout(view, new Size(1360, 820));
+            Assert.Equal(GridUnitType.Star, overviewResponsiveGrid.RowDefinitions[0].Height.GridUnitType);
+            Assert.Equal(GridUnitType.Star, overviewResponsiveGrid.RowDefinitions[1].Height.GridUnitType);
+            Assert.Equal(0, Grid.GetRow(dashboardNavigationPanel));
+            Assert.Equal(1, Grid.GetColumn(dashboardNavigationPanel));
+            Assert.Equal(1, Grid.GetColumnSpan(dashboardNavigationPanel));
+            Assert.Equal(GridUnitType.Star, skillIdentityGrid.RowDefinitions[0].Height.GridUnitType);
+            Assert.True(skillIdentityGrid.RowDefinitions[1].Height.IsAuto);
+            double landscapeTopHeight = overviewResponsiveGrid.RowDefinitions[0].ActualHeight;
+            double landscapeBottomHeight = overviewResponsiveGrid.RowDefinitions[1].ActualHeight;
+
+            Layout(view, new Size(1080, 1900));
+            Assert.Equal(GridUnitType.Star, overviewResponsiveGrid.RowDefinitions[0].Height.GridUnitType);
+            Assert.Equal(GridUnitType.Star, overviewResponsiveGrid.RowDefinitions[1].Height.GridUnitType);
+            Assert.Equal(
+                overviewResponsiveGrid.RowDefinitions[0].ActualHeight,
+                overviewResponsiveGrid.RowDefinitions[1].ActualHeight,
+                1);
+            Assert.True(skillIdentityGrid.RowDefinitions[0].Height.IsAuto);
+            Assert.Equal(GridUnitType.Star, skillIdentityGrid.RowDefinitions[1].Height.GridUnitType);
+            Assert.Equal(VerticalAlignment.Top, themeIdentityCard.VerticalAlignment);
+            Assert.True(themeIdentityCard.ActualHeight <= 440);
+            CaptureIfRequested(view, new Size(1080, 1900), "qa-overview-1080x1900.png");
+
+            Layout(view, new Size(820, 1360));
+            Assert.Equal(GridUnitType.Star, overviewResponsiveGrid.RowDefinitions[0].Height.GridUnitType);
+            Assert.Equal(GridUnitType.Star, overviewResponsiveGrid.RowDefinitions[1].Height.GridUnitType);
+            Assert.Equal(
+                overviewResponsiveGrid.RowDefinitions[0].ActualHeight,
+                overviewResponsiveGrid.RowDefinitions[1].ActualHeight,
+                1);
+            Assert.Equal(1, Grid.GetRow(dashboardNavigationPanel));
+            Assert.Equal(0, Grid.GetColumn(dashboardNavigationPanel));
+            Assert.Equal(4, Grid.GetColumnSpan(dashboardNavigationPanel));
+            Assert.True(overviewResponsiveGrid.RowDefinitions[0].ActualHeight < 700);
+            Assert.True(overviewResponsiveGrid.RowDefinitions[1].ActualHeight > 400);
+            CaptureIfRequested(view, new Size(820, 1360), "qa-overview-820x1360.png");
+
+            Layout(view, new Size(1360, 820));
+            Assert.Equal(landscapeTopHeight, overviewResponsiveGrid.RowDefinitions[0].ActualHeight, 1);
+            Assert.Equal(landscapeBottomHeight, overviewResponsiveGrid.RowDefinitions[1].ActualHeight, 1);
 
             Layout(view, new Size(1400, 900));
             Border dashboardHeader = Descendants(view)
@@ -63,34 +138,33 @@ public sealed class SectionOverviewRenderingTests(ITestOutputHelper output)
             Button settingsButton = Descendants(dashboardHeader)
                 .OfType<Button>()
                 .Single(button => button.Name == "SettingsButton");
-            Border settingsPanel = Descendants(view)
-                .OfType<Border>()
-                .Single(element => element.Name == "SettingsPanel");
-            Assert.Equal(Visibility.Collapsed, settingsPanel.Visibility);
+            bool settingsRequested = false;
+            view.SettingsRequested += (_, _) => settingsRequested = true;
             settingsButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-            Assert.Equal(Visibility.Visible, settingsPanel.Visibility);
+            Assert.True(settingsRequested);
 
-            TextBox clientIdBox = Descendants(settingsPanel)
+            var settingsViewModel = new SettingsWindowViewModel(vm)
+            {
+                SelectedCategory = SettingsCategory.OsuApi
+            };
+            var settingsWindow = new SettingsWindow(settingsViewModel);
+
+            TextBox clientIdBox = Descendants(settingsWindow)
                 .OfType<TextBox>()
                 .Single(textBox => textBox.Name == "OsuClientIdTextBox");
-            PasswordBox clientSecretBox = Descendants(settingsPanel)
+            PasswordBox clientSecretBox = Descendants(settingsWindow)
                 .OfType<PasswordBox>()
                 .Single(passwordBox =>
                     passwordBox.Name == "OsuClientSecretPasswordBox");
-            Button saveCredentialsButton = Descendants(settingsPanel)
+            Button saveCredentialsButton = Descendants(settingsWindow)
                 .OfType<Button>()
-                .Single(button =>
-                    button.Name == "SaveOsuApiCredentialsButton");
+                .Single(button => Equals(button.Content, "Save credentials"));
             OsuApiCredentialsSaveRequestedEventArgs? savedCredentials = null;
-            view.SaveOsuApiCredentialsRequested += (_, eventArgs) =>
+            settingsWindow.SaveOsuApiCredentialsRequested += (_, eventArgs) =>
                 savedCredentials = eventArgs;
             clientIdBox.Text = "12345";
             clientSecretBox.Password = "ui-only-secret";
-            Layout(view, new Size(1400, 900));
-            CaptureIfRequested(
-                view,
-                new Size(1400, 900),
-                "oauth-settings-panel-1400.png");
+            Layout(settingsWindow, new Size(1100, 760));
 
             saveCredentialsButton.RaiseEvent(
                 new RoutedEventArgs(Button.ClickEvent));
@@ -100,11 +174,8 @@ public sealed class SectionOverviewRenderingTests(ITestOutputHelper output)
             Assert.Equal("ui-only-secret", savedCredentials.ClientSecret);
             Assert.Empty(clientSecretBox.Password);
             Assert.Contains(
-                Descendants(settingsPanel),
+                Descendants(settingsWindow),
                 descendant => descendant is ScrollViewer);
-
-            settingsButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-            Assert.Equal(Visibility.Collapsed, settingsPanel.Visibility);
 
             StackPanel navigationPanel = Descendants(dashboardHeader).OfType<StackPanel>()
                 .Single(panel => panel.Children.OfType<Button>()

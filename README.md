@@ -6,7 +6,7 @@ characteristics rather than reducing a map to one number. Analysis runs locally
 on the user's computer; BeatInsight does not upload beatmap files or diagnostic
 logs.
 
-> **Beta:** The current release is **2.0.0-beta.1**. Analysis and
+> **Release candidate:** the current source version is **3.0.0-rc.1**. Analysis and
 > classification are still being calibrated, so results may change and user
 > feedback is welcome.
 
@@ -14,12 +14,13 @@ logs.
 
 - Windows x64.
 - The self-contained public build; no separate .NET installation is required.
-- [Tosu](https://github.com/tosuapp/tosu) for automatic detection of the map
-  currently selected in osu!.
+- Microsoft Edge WebView2 Runtime for Community Overlays.
+- osu!stable or osu!lazer for supported live game-state features.
 
-Tosu and osu! should be running before BeatInsight when current-map tracking is
-needed. If Tosu is unavailable, BeatInsight remains open and reports that it is
-waiting/disconnected, but it cannot automatically follow the current osu! map.
+osu! should be running before BeatInsight when current-map tracking is needed.
+If osu! is unavailable, BeatInsight remains open and reports that it is waiting,
+without retaining stale map state. Native helpers are packaged with BeatInsight;
+they are not separate downloads.
 Local library data, cached results, settings, and explicit library actions remain
 local; osu! API credentials are not required for local analysis.
 
@@ -27,12 +28,16 @@ Discord: https://discord.gg/DC3xZevRds
 
 ## Install and use
 
-1. Download the Windows x64 release ZIP.
-2. Extract the complete archive to a writable folder. Keep its native DLLs and
-   legal directories beside `BeatInsight.exe`.
-3. Start Tosu and osu!, then run `BeatInsight.exe`.
-4. Select a beatmap in osu!. BeatInsight reads the local map through the Tosu
-   integration and displays the completed analysis.
+1. Download and run the Windows x64 BeatInsight installer.
+2. Keep the installed `NativeLazer`, `LazerKeys`, and `CommunityOverlays`
+   directories beside the main application files.
+3. Start osu!stable or osu!lazer, then run BeatInsight.
+4. Select a beatmap in osu!. BeatInsight reads the local map through the native
+   game-state integration and displays the completed analysis.
+
+The per-user installer, automatic updater, and application data use separate
+locations. Updating or uninstalling the application must preserve the user data
+under `%LOCALAPPDATA%\BeatInsight`.
 
 The public beta is not code-signed. Windows SmartScreen may show an
 "unrecognized app" warning on first launch because the executable has no
@@ -96,14 +101,87 @@ what you were doing, and reproducible steps in the issue report. Review logs
 before sharing them; crash reports are local and are never uploaded
 automatically.
 
+## 🤖 AI in BeatInsight — Development & Transparency
+
+BeatInsight is an independent project developed with the assistance of AI tools.
+
+AI plays a role in both the project's development process and its long-term technical direction. I believe it's important to be transparent about how these tools are used and what remains under human responsibility.
+
+### 💜 How BeatInsight is developed
+
+BeatInsight is not a project where AI is simply asked to generate an entire application without supervision.
+
+Development follows a collaborative, human-directed workflow:
+
+1. **Vision & Design** — I define the project's goals, features, requirements, priorities and expected behavior.
+2. **Technical Research** — AI assists with code analysis, architecture reviews, debugging and exploring possible implementations.
+3. **Implementation** — AI coding assistants help write, modify and refactor code within defined constraints.
+4. **Testing & Diagnostics** — Changes are checked through automated tests, builds, logs and targeted diagnostics.
+5. **Real-world Validation** — I personally test features in osu!stable and osu!lazer, verify results and report unexpected behavior.
+6. **Iteration** — When something doesn't work as expected, we investigate the root cause, correct the implementation and validate it again.
+
+AI-generated code is not automatically considered correct. Successful compilation is not enough: important features must also work in real gameplay conditions.
+
+### 🛠️ Tools & Responsibilities
+
+AI assistants, including **ChatGPT, OpenAI Codex and Claude**, have been used throughout development for technical discussions, implementation assistance, debugging and code reviews.
+
+Their contributions vary depending on the task. Some features require only small changes, while others involve multiple iterations of investigation, implementation and validation.
+
+**My responsibilities include:**
+- Defining the project's direction and requirements.
+- Making architectural and product decisions.
+- Evaluating suggested solutions.
+- Testing BeatInsight during actual osu! gameplay.
+- Reporting bugs and validating corrections.
+- Deciding when a feature is ready for release.
+
+AI assists with development, but **the project's direction, acceptance criteria and release decisions remain human-controlled**.
+
+### 🧠 AI Features & Future Direction
+
+BeatInsight currently relies heavily on deterministic analysis of osu! beatmaps and gameplay-related data.
+
+The long-term direction includes exploring machine learning for more advanced pattern recognition and difficulty analysis.
+
+Any AI-powered functionality should be distinguished from deterministic analysis and documented according to what it actually does.
+
+**Using AI to develop BeatInsight does not mean that every analysis result is generated by AI.**
+
+### 🔍 Transparency & Quality
+
+The development process prioritizes:
+
+- Reproducible bugs and evidence-based diagnostics.
+- Minimal, targeted fixes instead of speculative changes.
+- Automated regression testing.
+- Validation against real osu!stable and osu!lazer behavior.
+- Preserving data integrity and avoiding fabricated gameplay statistics.
+- Clear acknowledgment of known limitations.
+
+AI is a development tool, not a substitute for testing, engineering judgment or accountability.
+
+---
+
+*BeatInsight is a human-directed project built with AI assistance, extensive iteration and real-world testing.*
+
+*Made with curiosity, determination, a lot of debugging, and a little help from AI. 💜*
+
 ## Known beta limitations
 
 - Only Windows x64 is supported by this public build.
-- Automatic current-map tracking depends on Tosu.
+- Live support differs between osu!stable and osu!lazer when the game does not
+  expose an equivalent trustworthy native value; unavailable values remain
+  fail-closed rather than being invented.
+- Community Overlays require the Microsoft Edge WebView2 Runtime.
 - Community Tags and Discovery require each user to provide their own osu! API
   application credentials.
 - Analysis labels and calibration may evolve during the beta.
 - The application is not currently code-signed.
+- Bia-chan and the BeatInsight logo were generated with ChatGPT / OpenAI image
+  generation at the project owner's request. Their provenance and the remaining
+  non-exclusivity and third-party-rights caveats are documented in
+  `ASSET-NOTICES.md`.
 
 ## Licence and notices
 

@@ -1,0 +1,113 @@
+<Window x:Class="BeatInsight.Overlay.CurrentSection.CurrentSectionOverlayWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:converters="clr-namespace:BeatInsight.Converters"
+        Title="BeatInsight Current Section"
+        WindowStyle="None"
+        ResizeMode="NoResize"
+        WindowStartupLocation="Manual"
+        AllowsTransparency="True"
+        Background="Transparent"
+        Topmost="True"
+        ShowInTaskbar="False"
+        ShowActivated="False"
+        Focusable="False">
+    <Window.Resources>
+        <converters:NullOrEmptyToVisibilityConverter x:Key="TextVisibility"/>
+    </Window.Resources>
+
+    <Border Background="{Binding Background}"
+            CornerRadius="16"
+            Padding="4">
+        <Border Background="{Binding CardBackground}"
+                BorderBrush="{Binding Border}"
+                BorderThickness="1"
+                CornerRadius="12"
+                Padding="14">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <Border Grid.Row="0"
+                        Height="3"
+                        Margin="0,0,0,9"
+                        Background="{Binding Accent}"
+                        CornerRadius="2"/>
+
+                <TextBlock Grid.Row="1"
+                           Text="CURRENT SECTION"
+                           Foreground="{Binding SecondaryForeground}"
+                           FontSize="9"
+                           FontWeight="SemiBold"/>
+
+                <StackPanel Grid.Row="2"
+                            Margin="0,3,0,0"
+                            Orientation="Horizontal">
+                    <TextBlock Text="{Binding DominantStructure}"
+                               Foreground="{Binding Foreground}"
+                               FontSize="19"
+                               FontWeight="Bold"/>
+                    <TextBlock Text="  /  "
+                               Foreground="{Binding SecondaryForeground}"
+                               FontSize="14"
+                               VerticalAlignment="Center"
+                               Visibility="{Binding SecondaryStructure, Converter={StaticResource TextVisibility}}"/>
+                    <TextBlock Text="{Binding SecondaryStructure}"
+                               Foreground="{Binding Accent}"
+                               FontSize="14"
+                               FontWeight="SemiBold"
+                               VerticalAlignment="Center"
+                               Visibility="{Binding SecondaryStructure, Converter={StaticResource TextVisibility}}"/>
+                </StackPanel>
+
+                <Grid Grid.Row="3" Margin="0,8,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="42"/>
+                    </Grid.ColumnDefinitions>
+                    <ProgressBar Grid.Column="0"
+                                 Height="7"
+                                 Margin="0,0,9,0"
+                                 Minimum="0"
+                                 Maximum="100"
+                                 Value="{Binding ProgressValue, Mode=OneWay}"
+                                 Background="{Binding Border}"
+                                 Foreground="{Binding Accent}"
+                                 BorderThickness="0"
+                                 VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="1"
+                               Text="{Binding ProgressText}"
+                               Foreground="{Binding Foreground}"
+                               FontSize="11"
+                               FontWeight="SemiBold"
+                               TextAlignment="Right"/>
+                </Grid>
+
+                <Grid Grid.Row="4" Margin="0,7,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0"
+                               Text="{Binding RemainingText}"
+                               Foreground="{Binding Accent}"
+                               FontSize="11"
+                               FontWeight="SemiBold"/>
+                    <TextBlock Grid.Column="1"
+                               Margin="12,0,0,0"
+                               Text="{Binding Summary}"
+                               Foreground="{Binding SecondaryForeground}"
+                               FontSize="10"
+                               TextAlignment="Right"
+                               TextTrimming="CharacterEllipsis"
+                               Visibility="{Binding Summary, Converter={StaticResource TextVisibility}}"/>
+                </Grid>
+            </Grid>
+        </Border>
+    </Border>
+</Window>

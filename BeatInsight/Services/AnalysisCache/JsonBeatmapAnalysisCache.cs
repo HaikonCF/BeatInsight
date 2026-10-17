@@ -60,12 +60,14 @@ public sealed class JsonBeatmapAnalysisCache : IBeatmapAnalysisCache
                 64 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan);
             BeatmapAnalysisCacheEntry? entry = await JsonSerializer.DeserializeAsync<BeatmapAnalysisCacheEntry>(stream, JsonOptions, cancellationToken).ConfigureAwait(false);
             long size = stream.Length;
-            if (entry is null || !HasRequiredData(entry))
+            if (entry is null)
                 return Result(AnalysisCacheResultKind.Invalid, AnalysisCacheMissReason.MissingRequiredData, cacheKey, contentHash, cachePath, null, stopwatch.Elapsed, size);
             if (entry.SchemaVersion != SchemaVersion)
                 return Result(AnalysisCacheResultKind.Invalid, AnalysisCacheMissReason.SchemaVersionMismatch, cacheKey, contentHash, cachePath, null, stopwatch.Elapsed, size);
             if (!string.Equals(entry.AnalyzerVersion, AnalyzerVersion, StringComparison.Ordinal))
                 return Result(AnalysisCacheResultKind.Invalid, AnalysisCacheMissReason.AnalyzerVersionMismatch, cacheKey, contentHash, cachePath, null, stopwatch.Elapsed, size);
+            if (!HasRequiredData(entry))
+                return Result(AnalysisCacheResultKind.Invalid, AnalysisCacheMissReason.MissingRequiredData, cacheKey, contentHash, cachePath, null, stopwatch.Elapsed, size);
             if (!string.Equals(entry.Source.ContentHash, contentHash, StringComparison.OrdinalIgnoreCase))
                 return Result(AnalysisCacheResultKind.Invalid, AnalysisCacheMissReason.HashMismatch, cacheKey, contentHash, cachePath, null, stopwatch.Elapsed, size);
             return Result(AnalysisCacheResultKind.Hit, AnalysisCacheMissReason.None, cacheKey, contentHash, cachePath, entry, stopwatch.Elapsed, size);
@@ -182,7 +184,8 @@ public sealed class JsonBeatmapAnalysisCache : IBeatmapAnalysisCache
         entry.Analysis.Metadata is not null && entry.Analysis.GameplayProfile is not null &&
         entry.Analysis.IdentityV3 is not null && entry.Analysis.SkillPressureV2 is not null &&
         entry.Analysis.SectionAnalysisV2 is not null && entry.Analysis.RatingV2 is not null &&
-        entry.Analysis.GlobalTripletSpeed is not null && entry.Analysis.PatternSummaries is not null &&
+        entry.Analysis.GlobalTripletSpeed is not null && entry.Analysis.LocalSpeedPressure is not null &&
+        entry.Analysis.PatternSummaries is not null &&
         !string.IsNullOrWhiteSpace(entry.Source.ContentHash) && !string.IsNullOrWhiteSpace(entry.AnalyzerVersion);
 
     private static long SafeLength(string path) { try { return new FileInfo(path).Length; } catch { return 0; } }

@@ -83,6 +83,7 @@ public sealed record BeatmapAnalysisSnapshot(
     SectionAnalysisResult SectionAnalysisV2,
     BeatInsightRatingV2 RatingV2,
     GlobalTripletSpeedAnalysis GlobalTripletSpeed,
+    LocalSpeedPressureAnalysis LocalSpeedPressure,
     IReadOnlyList<GameplayIdentityV3Pattern> PatternSummaries);
 
 public sealed record BeatmapAnalysisCacheEntry(

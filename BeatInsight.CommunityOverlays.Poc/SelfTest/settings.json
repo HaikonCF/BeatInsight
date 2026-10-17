@@ -1,0 +1,5 @@
+[
+    { "uniqueID": "section", "type": "header", "title": "Self-test", "value": "" },
+    { "uniqueID": "answer", "type": "number", "title": "Answer", "value": "42" },
+    { "uniqueID": "enabled", "type": "checkbox", "title": "Enabled", "value": "true" }
+]

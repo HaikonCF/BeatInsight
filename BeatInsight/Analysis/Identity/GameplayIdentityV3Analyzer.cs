@@ -184,7 +184,10 @@ public static class GameplayIdentityV3Analyzer
             skillConfidence,
             patternConfidence,
             globalConfidence,
-            flags);
+            flags)
+        {
+            AllPatterns = allPatterns
+        };
     }
 
     private static GameplayIdentityV3SectionContext BuildSectionContext(SectionAnalysisResult result)

@@ -49,6 +49,8 @@ public static class BeatmapAnalysisSnapshotFactory
         Record("RatingV2");
         var tripletSpeed = GlobalTripletSpeedAnalyzer.Analyze(map);
         Record("GlobalTripletSpeed");
+        var localSpeedPressure = LocalSpeedPressureAnalyzer.Analyze(map);
+        Record("LocalSpeedPressure");
         (int? beatmapId, int? beatmapSetId) = ReadStableIds(sourcePath);
         Record("ReadStableIds");
 
@@ -72,7 +74,8 @@ public static class BeatmapAnalysisSnapshotFactory
             sections,
             rating,
             tripletSpeed,
-            identity.MainPatterns.ToArray());
+            localSpeedPressure,
+            identity.AllPatterns.ToArray());
         Record("SnapshotBuild");
         DebugLogger.Log($"ANALYZE ASYNC PERF | Map={sourcePath} | {string.Join(" | ", stages)} | Sections={sections.Sections.Count} | FactoryTotal={perf.Elapsed.TotalMilliseconds:F1} ms");
         return snapshot;

@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="utf-8">
+    <title>BeatInsight — self-test bridge</title>
+    <script>
+        // Premier script de la page : le shim et COUNTER_PATH doivent déjà exister.
+        window.__earlyCheck = {
+            bridge: typeof window.__beatInsightTosuBridge === 'object',
+            counterPath: window.COUNTER_PATH,
+            webSocketPatched: String(window.WebSocket).indexOf('native code') === -1,
+        };
+    </script>
+</head>
+<body>
+    <!-- Page de non-régression du shim et du confinement (option --smoke). Pas un overlay. -->
+    <pre id="out">self-test en cours…</pre>
+    <script src="selftest.js"></script>
+</body>
+</html>

@@ -28,9 +28,6 @@ TestResults/
 Thumbs.db
 .DS_Store
 
-# Publish
-publish/
-
 # Temporary files
 *.tmp
 *.temp
@@ -39,8 +36,10 @@ publish/
 OsuSecrets.cs
 
 # Builds / releases
-publish/
-test-release/
+/publish/
+/test-release/
+/release/
+/scan-build/
 *.zip
 .aider*
 

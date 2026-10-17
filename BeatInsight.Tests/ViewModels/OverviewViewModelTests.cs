@@ -20,6 +20,7 @@ public sealed class OverviewViewModelTests
         double ratingScore = 5.4,
         double ratingConfidence = 0.82,
         double tripletSpeedPercent = 63.0,
+        double localSpeedPressurePercent = 59.0,
         GameplayStructureKind primary = GameplayStructureKind.Stream,
         GameplayStructureKind? secondary = GameplayStructureKind.Jump)
     {
@@ -94,10 +95,12 @@ public sealed class OverviewViewModelTests
         var tripletSpeed = new GlobalTripletSpeedAnalysis(
             tripletSpeedPercent, 150, 300, 298, 298, 0,
             80, 400, 150, 0.9, 200, 0.85, []);
+        var localSpeedPressure = new LocalSpeedPressureAnalysis(
+            localSpeedPressurePercent, 6, 1, []);
 
         return new BeatmapAnalysisSnapshot(
             metadata, gameplayProfile, identity, skillPressure,
-            sectionAnalysis, rating, tripletSpeed, identity.MainPatterns);
+            sectionAnalysis, rating, tripletSpeed, localSpeedPressure, identity.MainPatterns);
     }
 
     [Fact]
@@ -110,6 +113,18 @@ public sealed class OverviewViewModelTests
 
         SkillMetricViewModel speed = overview.SkillMetrics.Single(m => m.Name == "Speed");
         Assert.Equal(91.0, speed.Value, 5);
+    }
+
+    [Fact]
+    public void LoadSnapshot_LocalSpeedPressureIsSeparateFromGlobalSpeed()
+    {
+        var overview = new OverviewViewModel();
+        var snapshot = BuildSnapshot(tripletSpeedPercent: 17.0, localSpeedPressurePercent: 64.0);
+
+        overview.LoadSnapshot(snapshot);
+
+        Assert.Equal(17.0, overview.SkillMetrics.Single(metric => metric.Name == "Speed").Value, 5);
+        Assert.Equal(64.0, overview.SkillMetrics.Single(metric => metric.Name == "Local Speed Pressure").Value, 5);
     }
 
     [Fact]
@@ -214,6 +229,22 @@ public sealed class OverviewViewModelTests
         Assert.Equal(7.26, overview.BeatInsightRatingScore, 5);
         Assert.Equal(0.61, overview.BeatInsightRatingConfidence, 5);
         Assert.Equal("7.3", overview.BeatInsightRatingDisplay);
+    }
+
+    [Fact]
+    public void LoadSnapshot_AssistantCommentaryIsPlainReadableText()
+    {
+        var overview = new OverviewViewModel();
+
+        overview.LoadSnapshot(BuildSnapshot(
+            ratingScore: 28.8,
+            tripletSpeedPercent: 63.0,
+            primary: GameplayStructureKind.Jump));
+
+        Assert.DoesNotContain("**", overview.Assistant.Message);
+        Assert.Contains("Jump gameplay", overview.Assistant.Message);
+        Assert.Contains("BeatInsight Rating is 28.8", overview.Assistant.Message);
+        Assert.Contains("63% Triplet Speed demand", overview.Assistant.Message);
     }
 
     [Fact]

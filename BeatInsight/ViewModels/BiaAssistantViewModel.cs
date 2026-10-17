@@ -87,13 +87,24 @@ internal static class BiaVisualAssetMap
 
 public sealed class BiaAssistantViewModel : ViewModelBase
 {
-    private string name = "Bia-chan";
+    private readonly Func<BiaVisualState, ImageSource> imageLoader;
+    private string name = "BeatInsight";
     private string title = "Your Analysis Assistant";
     private string message = "Select or play a beatmap to see my detailed analytical breakdown!";
     private string statusBadge = "Ready";
     private BiaVisualState state = BiaVisualState.Idle;
-    private ImageSource imageSource = BiaVisualAssetMap.GetImage(
-        BiaVisualState.Idle);
+    private ImageSource imageSource = new DrawingImage();
+    private bool visualAssetsEnabled;
+
+    public BiaAssistantViewModel()
+        : this(BiaVisualAssetMap.GetImage)
+    {
+    }
+
+    internal BiaAssistantViewModel(Func<BiaVisualState, ImageSource> imageLoader)
+    {
+        this.imageLoader = imageLoader ?? throw new ArgumentNullException(nameof(imageLoader));
+    }
 
     public string Name
     {
@@ -124,9 +135,9 @@ public sealed class BiaAssistantViewModel : ViewModelBase
         get => state;
         set
         {
-            if (SetProperty(ref state, value))
+            if (SetProperty(ref state, value) && visualAssetsEnabled)
             {
-                ImageSource = BiaVisualAssetMap.GetImage(value);
+                ImageSource = imageLoader(value);
             }
         }
     }
@@ -135,6 +146,21 @@ public sealed class BiaAssistantViewModel : ViewModelBase
     {
         get => imageSource;
         private set => SetProperty(ref imageSource, value);
+    }
+
+    internal bool VisualAssetsEnabled => visualAssetsEnabled;
+
+    internal void SetVisualAssetsEnabled(bool enabled)
+    {
+        if (visualAssetsEnabled != enabled)
+        {
+            visualAssetsEnabled = enabled;
+            ImageSource = enabled
+                ? imageLoader(state)
+                : new DrawingImage();
+        }
+
+        Name = enabled ? "Bia-chan" : "BeatInsight";
     }
 
     public void SetState(
