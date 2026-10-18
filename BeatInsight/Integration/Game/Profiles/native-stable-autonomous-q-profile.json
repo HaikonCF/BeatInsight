@@ -1,0 +1,590 @@
+{
+  "SchemaVersion": 1,
+  "Backing": "Private",
+  "Protection": 4,
+  "Type": 131072,
+  "Alignment": 0,
+  "RegionSize": 30310400,
+  "ObservedAllocationOffsets": [
+    16795408
+  ],
+  "ObservedRegionOffsets": [
+    16795408
+  ],
+  "Neighborhood": {
+    "Radius": 128,
+    "Cells": [
+      {
+        "RelativeOffset": -128,
+        "Kind": "ReadablePointerCandidate",
+        "PointerTarget": {
+          "RegionSize": 16777216,
+          "Protection": 4,
+          "Type": 131072,
+          "Backing": "Private",
+          "ModuleName": null,
+          "OffsetFromModuleBase": null
+        }
+      },
+      {
+        "RelativeOffset": -124,
+        "Kind": "ReadablePointerCandidate",
+        "PointerTarget": {
+          "RegionSize": 16777216,
+          "Protection": 4,
+          "Type": 131072,
+          "Backing": "Private",
+          "ModuleName": null,
+          "OffsetFromModuleBase": null
+        }
+      },
+      {
+        "RelativeOffset": -120,
+        "Kind": "ReadablePointerCandidate",
+        "PointerTarget": {
+          "RegionSize": 16777216,
+          "Protection": 4,
+          "Type": 131072,
+          "Backing": "Private",
+          "ModuleName": null,
+          "OffsetFromModuleBase": null
+        }
+      },
+      {
+        "RelativeOffset": -116,
+        "Kind": "Zero",
+        "PointerTarget": null
+      },
+      {
+        "RelativeOffset": -112,
+        "Kind": "Zero",
+        "PointerTarget": null
+      },
+      {
+        "RelativeOffset": -108,
+        "Kind": "ReadablePointerCandidate",
+        "PointerTarget": {
+          "RegionSize": 16777216,
+          "Protection": 4,
+          "Type": 131072,
+          "Backing": "Private",
+          "ModuleName": null,
+          "OffsetFromModuleBase": null
+        }
+      },
+      {
+        "RelativeOffset": -104,
+        "Kind": "Zero",
+        "PointerTarget": null
+      },
+      {
+        "RelativeOffset": -100,
+        "Kind": "Zero",
+        "PointerTarget": null
+      },
+      {
+        "RelativeOffset": -96,
+        "Kind": "Zero",
+        "PointerTarget": null
+      },
+      {
+        "RelativeOffset": -92,
+        "Kind": "ReadablePointerCandidate",
+        "PointerTarget": {
+          "RegionSize": 16777216,
+          "Protection": 4,
+          "Type": 131072,
+          "Backing": "Private",
+          "ModuleName": null,
+          "OffsetFromModuleBase": null
+        }
+      },
+      {
+        "RelativeOffset": -88,
+        "Kind": "Zero",
+        "PointerTarget": null
+      },
+      {
+        "RelativeOffset": -84,
+        "Kind": "Zero",
+        "PointerTarget": null
+      },
+      {
+        "RelativeOffset": -80,
+        "Kind": "ReadablePointerCandidate",
+        "PointerTarget": {
+          "RegionSize": 16777216,
+          "Protection": 4,
+          "Type": 131072,
+          "Backing": "Private",
+          "ModuleName": null,
+          "OffsetFromModuleBase": null
+        }
+      },
+      {
+        "RelativeOffset": -76,
+        "Kind": "Zero",
+        "PointerTarget": null
+      },
+      {
+        "RelativeOffset": -72,
+        "Kind": "Zero",
+        "PointerTarget": null
+      },
+      {
+        "RelativeOffset": -68,
+        "Kind": "Zero",
+        "PointerTarget": null
+      },
+      {
+        "RelativeOffset": -64,
+        "Kind": "ReadablePointerCandidate",
+        "PointerTarget": {
+          "RegionSize": 16777216,
+          "Protection": 4,
+          "Type": 131072,
+          "Backing": "Private",
+          "ModuleName": null,
+          "OffsetFromModuleBase": null
+        }
+      },
+      {
+        "RelativeOffset": -60,
+        "Kind": "Zero",
+        "PointerTarget": null
+      },
+      {
+        "RelativeOffset": -56,
+        "Kind": "Zero",
+        "PointerTarget": null
+      },
+      {
+        "RelativeOffset": -52,
+        "Kind": "Zero",
+        "PointerTarget": null
+      },
+      {
+        "RelativeOffset": -48,
+        "Kind": "ReadablePointerCandidate",
+        "PointerTarget": {
+          "RegionSize": 30310400,
+          "Protection": 4,
+          "Type": 131072,
+          "Backing": "Private",
+          "ModuleName": null,
+          "OffsetFromModuleBase": null
+        }
+      },
+      {
+        "RelativeOffset": -44,
+        "Kind": "Zero",
+        "PointerTarget": null
+      },
+      {
+        "RelativeOffset": -40,
+        "Kind": "ReadablePointerCandidate",
+        "PointerTarget": {
+          "RegionSize": 30310400,
+          "Protection": 4,
+          "Type": 131072,
+          "Backing": "Private",
+          "ModuleName": null,
+          "OffsetFromModuleBase": null
+        }
+      },
+      {
+        "RelativeOffset": -36,
+        "Kind": "ReadablePointerCandidate",
+        "PointerTarget": {
+          "RegionSize": 30310400,
+          "Protection": 4,
+          "Type": 131072,
+          "Backing": "Private",
+          "ModuleName": null,
+          "OffsetFromModuleBase": null
+        }
+      },
+      {
+        "RelativeOffset": -32,
+        "Kind": "ReadablePointerCandidate",
+        "PointerTarget": {
+          "RegionSize": 16777216,
+          "Protection": 4,
+          "Type": 131072,
+          "Backing": "Private",
+          "ModuleName": null,
+          "OffsetFromModuleBase": null
+        }
+      },
+      {
+        "RelativeOffset": -28,
+        "Kind": "ReadablePointerCandidate",
+        "PointerTarget": {
+          "RegionSize": 16777216,
+          "Protection": 4,
+          "Type": 131072,
+          "Backing": "Private",
+          "ModuleName": null,
+          "OffsetFromModuleBase": null
+        }
+      },
+      {
+        "RelativeOffset": -24,
+        "Kind": "ReadablePointerCandidate",
+        "PointerTarget": {
+          "RegionSize": 30310400,
+          "Protection": 4,
+          "Type": 131072,
+          "Backing": "Private",
+          "ModuleName": null,
+          "OffsetFromModuleBase": null
+        }
+      },
+      {
+        "RelativeOffset": -20,
+        "Kind": "ReadablePointerCandidate",
+        "PointerTarget": {
+          "RegionSize": 30310400,
+          "Protection": 4,
+          "Type": 131072,
+          "Backing": "Private",
+          "ModuleName": null,
+          "OffsetFromModuleBase": null
+        }
+      },
+      {
+        "RelativeOffset": -16,
+        "Kind": "ReadablePointerCandidate",
+        "PointerTarget": {
+          "RegionSize": 30310400,
+          "Protection": 4,
+          "Type": 131072,
+          "Backing": "Private",
+          "ModuleName": null,
+          "OffsetFromModuleBase": null
+        }
+      },
+      {
+        "RelativeOffset": -12,
+        "Kind": "ReadablePointerCandidate",
+        "PointerTarget": {
+          "RegionSize": 16777216,
+          "Protection": 4,
+          "Type": 131072,
+          "Backing": "Private",
+          "ModuleName": null,
+          "OffsetFromModuleBase": null
+        }
+      },
+      {
+        "RelativeOffset": -8,
+        "Kind": "Zero",
+        "PointerTarget": null
+      },
+      {
+        "RelativeOffset": -4,
+        "Kind": "ReadablePointerCandidate",
+        "PointerTarget": {
+          "RegionSize": 30310400,
+          "Protection": 4,
+          "Type": 131072,
+          "Backing": "Private",
+          "ModuleName": null,
+          "OffsetFromModuleBase": null
+        }
+      },
+      {
+        "RelativeOffset": 0,
+        "Kind": "ReadablePointerCandidate",
+        "PointerTarget": {
+          "RegionSize": 16777216,
+          "Protection": 4,
+          "Type": 131072,
+          "Backing": "Private",
+          "ModuleName": null,
+          "OffsetFromModuleBase": null
+        }
+      },
+      {
+        "RelativeOffset": 4,
+        "Kind": "ReadablePointerCandidate",
+        "PointerTarget": {
+          "RegionSize": 30310400,
+          "Protection": 4,
+          "Type": 131072,
+          "Backing": "Private",
+          "ModuleName": null,
+          "OffsetFromModuleBase": null
+        }
+      },
+      {
+        "RelativeOffset": 8,
+        "Kind": "Zero",
+        "PointerTarget": null
+      },
+      {
+        "RelativeOffset": 12,
+        "Kind": "Zero",
+        "PointerTarget": null
+      },
+      {
+        "RelativeOffset": 16,
+        "Kind": "Zero",
+        "PointerTarget": null
+      },
+      {
+        "RelativeOffset": 20,
+        "Kind": "ReadablePointerCandidate",
+        "PointerTarget": {
+          "RegionSize": 30310400,
+          "Protection": 4,
+          "Type": 131072,
+          "Backing": "Private",
+          "ModuleName": null,
+          "OffsetFromModuleBase": null
+        }
+      },
+      {
+        "RelativeOffset": 24,
+        "Kind": "ReadablePointerCandidate",
+        "PointerTarget": {
+          "RegionSize": 16777216,
+          "Protection": 4,
+          "Type": 131072,
+          "Backing": "Private",
+          "ModuleName": null,
+          "OffsetFromModuleBase": null
+        }
+      },
+      {
+        "RelativeOffset": 28,
+        "Kind": "Zero",
+        "PointerTarget": null
+      },
+      {
+        "RelativeOffset": 32,
+        "Kind": "ReadablePointerCandidate",
+        "PointerTarget": {
+          "RegionSize": 30310400,
+          "Protection": 4,
+          "Type": 131072,
+          "Backing": "Private",
+          "ModuleName": null,
+          "OffsetFromModuleBase": null
+        }
+      },
+      {
+        "RelativeOffset": 36,
+        "Kind": "Zero",
+        "PointerTarget": null
+      },
+      {
+        "RelativeOffset": 40,
+        "Kind": "ReadablePointerCandidate",
+        "PointerTarget": {
+          "RegionSize": 30310400,
+          "Protection": 4,
+          "Type": 131072,
+          "Backing": "Private",
+          "ModuleName": null,
+          "OffsetFromModuleBase": null
+        }
+      },
+      {
+        "RelativeOffset": 44,
+        "Kind": "ReadablePointerCandidate",
+        "PointerTarget": {
+          "RegionSize": 30310400,
+          "Protection": 4,
+          "Type": 131072,
+          "Backing": "Private",
+          "ModuleName": null,
+          "OffsetFromModuleBase": null
+        }
+      },
+      {
+        "RelativeOffset": 48,
+        "Kind": "ReadablePointerCandidate",
+        "PointerTarget": {
+          "RegionSize": 16777216,
+          "Protection": 4,
+          "Type": 131072,
+          "Backing": "Private",
+          "ModuleName": null,
+          "OffsetFromModuleBase": null
+        }
+      },
+      {
+        "RelativeOffset": 52,
+        "Kind": "ReadablePointerCandidate",
+        "PointerTarget": {
+          "RegionSize": 16777216,
+          "Protection": 4,
+          "Type": 131072,
+          "Backing": "Private",
+          "ModuleName": null,
+          "OffsetFromModuleBase": null
+        }
+      },
+      {
+        "RelativeOffset": 56,
+        "Kind": "ReadablePointerCandidate",
+        "PointerTarget": {
+          "RegionSize": 30310400,
+          "Protection": 4,
+          "Type": 131072,
+          "Backing": "Private",
+          "ModuleName": null,
+          "OffsetFromModuleBase": null
+        }
+      },
+      {
+        "RelativeOffset": 60,
+        "Kind": "ReadablePointerCandidate",
+        "PointerTarget": {
+          "RegionSize": 16777216,
+          "Protection": 4,
+          "Type": 131072,
+          "Backing": "Private",
+          "ModuleName": null,
+          "OffsetFromModuleBase": null
+        }
+      },
+      {
+        "RelativeOffset": 64,
+        "Kind": "ReadablePointerCandidate",
+        "PointerTarget": {
+          "RegionSize": 16777216,
+          "Protection": 4,
+          "Type": 131072,
+          "Backing": "Private",
+          "ModuleName": null,
+          "OffsetFromModuleBase": null
+        }
+      },
+      {
+        "RelativeOffset": 68,
+        "Kind": "Zero",
+        "PointerTarget": null
+      },
+      {
+        "RelativeOffset": 72,
+        "Kind": "Zero",
+        "PointerTarget": null
+      },
+      {
+        "RelativeOffset": 76,
+        "Kind": "Zero",
+        "PointerTarget": null
+      },
+      {
+        "RelativeOffset": 80,
+        "Kind": "Zero",
+        "PointerTarget": null
+      },
+      {
+        "RelativeOffset": 84,
+        "Kind": "Zero",
+        "PointerTarget": null
+      },
+      {
+        "RelativeOffset": 88,
+        "Kind": "Zero",
+        "PointerTarget": null
+      },
+      {
+        "RelativeOffset": 92,
+        "Kind": "Zero",
+        "PointerTarget": null
+      },
+      {
+        "RelativeOffset": 96,
+        "Kind": "Zero",
+        "PointerTarget": null
+      },
+      {
+        "RelativeOffset": 100,
+        "Kind": "Zero",
+        "PointerTarget": null
+      },
+      {
+        "RelativeOffset": 104,
+        "Kind": "ReadablePointerCandidate",
+        "PointerTarget": {
+          "RegionSize": 30310400,
+          "Protection": 4,
+          "Type": 131072,
+          "Backing": "Private",
+          "ModuleName": null,
+          "OffsetFromModuleBase": null
+        }
+      },
+      {
+        "RelativeOffset": 108,
+        "Kind": "ReadablePointerCandidate",
+        "PointerTarget": {
+          "RegionSize": 30310400,
+          "Protection": 4,
+          "Type": 131072,
+          "Backing": "Private",
+          "ModuleName": null,
+          "OffsetFromModuleBase": null
+        }
+      },
+      {
+        "RelativeOffset": 112,
+        "Kind": "ReadablePointerCandidate",
+        "PointerTarget": {
+          "RegionSize": 30310400,
+          "Protection": 4,
+          "Type": 131072,
+          "Backing": "Private",
+          "ModuleName": null,
+          "OffsetFromModuleBase": null
+        }
+      },
+      {
+        "RelativeOffset": 116,
+        "Kind": "ReadablePointerCandidate",
+        "PointerTarget": {
+          "RegionSize": 16777216,
+          "Protection": 4,
+          "Type": 131072,
+          "Backing": "Private",
+          "ModuleName": null,
+          "OffsetFromModuleBase": null
+        }
+      },
+      {
+        "RelativeOffset": 120,
+        "Kind": "ReadablePointerCandidate",
+        "PointerTarget": {
+          "RegionSize": 16777216,
+          "Protection": 4,
+          "Type": 131072,
+          "Backing": "Private",
+          "ModuleName": null,
+          "OffsetFromModuleBase": null
+        }
+      },
+      {
+        "RelativeOffset": 124,
+        "Kind": "ReadablePointerCandidate",
+        "PointerTarget": {
+          "RegionSize": 16777216,
+          "Protection": 4,
+          "Type": 131072,
+          "Backing": "Private",
+          "ModuleName": null,
+          "OffsetFromModuleBase": null
+        }
+      },
+      {
+        "RelativeOffset": 128,
+        "Kind": "Zero",
+        "PointerTarget": null
+      }
+    ]
+  },
+  "MinimumNeighborhoodSimilarity": 0.8
+}

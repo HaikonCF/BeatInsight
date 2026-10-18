@@ -17,7 +17,6 @@ public sealed class NativeStableGameProvider :
     IDisposable
 {
     public const string ProviderName = "NativeStable";
-    private const string ProfileFileName = "native-stable-autonomous-q-profile.json";
     private readonly INativeStableGameRuntime runtime;
     private readonly INativeStableGameLocator locator;
     private readonly INativeStableLiveStateReader liveStateReader;
@@ -41,7 +40,7 @@ public sealed class NativeStableGameProvider :
     public NativeStableGameProvider(string profilePath)
         : this(new NativeStableGameRuntime(), new NativeStableGameLocator(),
             new NativeStableLiveStateReader(), new NativeStableBeatmapIdentityReader(),
-            NativeStableGameProfileLoader.TryLoad(profilePath))
+            NativeStableGameProfileLoader.ResolveAndLog(profilePath))
     {
     }
 
@@ -93,7 +92,7 @@ public sealed class NativeStableGameProvider :
 
     public static string DefaultProfilePath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "BeatInsight", "NativeStable", ProfileFileName);
+        "BeatInsight", "NativeStable", NativeStableGameProfileLoader.ProfileFileName);
 
     public string Name => ProviderName;
 
@@ -766,29 +765,173 @@ internal sealed class NativeStableGameProcessContext : IDisposable
     }
 }
 
+internal enum NativeStableProfileSource { None, Local, Embedded }
+
+internal enum NativeStableProfileLoadState { NotChecked, Missing, Invalid, Loaded }
+
+internal sealed record NativeStableProfileResolution(
+    NativeStableAutonomousQProfile? Profile,
+    NativeStableProfileSource Source,
+    NativeStableProfileLoadState LocalState,
+    NativeStableProfileLoadState EmbeddedState)
+{
+    // Nom de fichier seul : aucun chemin utilisateur dans le journal.
+    internal string Describe() =>
+        $"NATIVESTABLE | profile source={Source} local={LocalState} " +
+        $"embedded={EmbeddedState} file={NativeStableGameProfileLoader.ProfileFileName}";
+}
+
+// Dédoublonne la ligne de journal : une seule écriture tant que la résolution ne change pas.
+internal sealed class NativeStableProfileLogGate
+{
+    internal static NativeStableProfileLogGate Default { get; } = new();
+
+    private string? lastMessage;
+
+    internal bool TryLog(
+        NativeStableProfileResolution resolution,
+        Action<string> info,
+        Action<string> warning)
+    {
+        string message = resolution.Describe();
+        if (string.Equals(
+            Interlocked.Exchange(ref lastMessage, message),
+            message,
+            StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        if (resolution.Source == NativeStableProfileSource.None ||
+            resolution.LocalState == NativeStableProfileLoadState.Invalid)
+        {
+            warning(message);
+        }
+        else
+        {
+            info(message);
+        }
+        return true;
+    }
+}
+
 internal static class NativeStableGameProfileLoader
 {
+    internal const string ProfileFileName = "native-stable-autonomous-q-profile.json";
+    internal const string EmbeddedResourceName =
+        "BeatInsight.NativeStable.native-stable-autonomous-q-profile.json";
+
     private static readonly JsonSerializerOptions Options = new()
     {
         Converters = { new JsonStringEnumConverter() }
     };
 
-    internal static NativeStableAutonomousQProfile? TryLoad(string? path)
+    internal static NativeStableAutonomousQProfile? TryLoad(string? path) =>
+        TryLoadFile(path, out _);
+
+    internal static NativeStableAutonomousQProfile? ResolveAndLog(string? localPath)
+    {
+        NativeStableProfileResolution resolution = Resolve(localPath);
+        NativeStableProfileLogGate.Default.TryLog(
+            resolution,
+            Diagnostics.DebugLogger.Info,
+            Diagnostics.DebugLogger.Warning);
+        return resolution.Profile;
+    }
+
+    internal static NativeStableProfileResolution Resolve(string? localPath) =>
+        Resolve(localPath, OpenEmbeddedProfile);
+
+    // Priorité : profil local valide, puis profil embarqué validé, sinon aucun profil
+    // (le provider reste ProviderUnavailable). Un profil local invalide replie sur
+    // l'embarqué. Aucune écriture n'est faite dans les données utilisateur.
+    internal static NativeStableProfileResolution Resolve(
+        string? localPath,
+        Func<Stream?> openEmbedded)
+    {
+        NativeStableAutonomousQProfile? local = TryLoadFile(
+            localPath,
+            out NativeStableProfileLoadState localState);
+        if (local is not null)
+        {
+            return new(
+                local,
+                NativeStableProfileSource.Local,
+                localState,
+                NativeStableProfileLoadState.NotChecked);
+        }
+
+        NativeStableAutonomousQProfile? embedded = TryLoadEmbedded(
+            openEmbedded,
+            out NativeStableProfileLoadState embeddedState);
+        return new(
+            embedded,
+            embedded is null
+                ? NativeStableProfileSource.None
+                : NativeStableProfileSource.Embedded,
+            localState,
+            embeddedState);
+    }
+
+    internal static Stream? OpenEmbeddedProfile() =>
+        typeof(NativeStableGameProfileLoader).Assembly
+            .GetManifestResourceStream(EmbeddedResourceName);
+
+    private static NativeStableAutonomousQProfile? TryLoadFile(
+        string? path,
+        out NativeStableProfileLoadState state)
     {
         try
         {
             if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
             {
+                state = NativeStableProfileLoadState.Missing;
                 return null;
             }
-            NativeStableAutonomousQProfile? profile = JsonSerializer.Deserialize<
-                NativeStableAutonomousQProfile>(File.ReadAllText(path), Options);
-            profile?.Validate();
-            return profile;
+            return Deserialize(File.ReadAllText(path), out state);
         }
         catch (Exception)
         {
+            state = NativeStableProfileLoadState.Invalid;
             return null;
         }
+    }
+
+    private static NativeStableAutonomousQProfile? TryLoadEmbedded(
+        Func<Stream?> openEmbedded,
+        out NativeStableProfileLoadState state)
+    {
+        try
+        {
+            using Stream? stream = openEmbedded();
+            if (stream is null)
+            {
+                state = NativeStableProfileLoadState.Missing;
+                return null;
+            }
+            using var reader = new StreamReader(stream);
+            return Deserialize(reader.ReadToEnd(), out state);
+        }
+        catch (Exception)
+        {
+            state = NativeStableProfileLoadState.Invalid;
+            return null;
+        }
+    }
+
+    private static NativeStableAutonomousQProfile? Deserialize(
+        string json,
+        out NativeStableProfileLoadState state)
+    {
+        NativeStableAutonomousQProfile? profile = JsonSerializer.Deserialize<
+            NativeStableAutonomousQProfile>(json, Options);
+        if (profile is null)
+        {
+            state = NativeStableProfileLoadState.Invalid;
+            return null;
+        }
+        profile.Validate();
+        state = NativeStableProfileLoadState.Loaded;
+        return profile;
     }
 }

@@ -9,10 +9,10 @@
     <StartupObject>BeatInsight.App</StartupObject>
     <DefaultItemExcludes>$(DefaultItemExcludes);Diagnostics\NativeLazer\**\bin\**;Diagnostics\NativeLazer\**\obj\**;Diagnostics\NativeMcOsu\**\bin\**;Diagnostics\NativeMcOsu\**\obj\**;Diagnostics\NativeStable\**\bin\**;Diagnostics\NativeStable\**\obj\**</DefaultItemExcludes>
 
-    <BeatInsightVersion>3.0.0</BeatInsightVersion>
+    <BeatInsightVersion>3.0.1</BeatInsightVersion>
     <Version>$(BeatInsightVersion)</Version>
-    <AssemblyVersion>3.0.0.0</AssemblyVersion>
-    <FileVersion>3.0.0.0</FileVersion>
+    <AssemblyVersion>3.0.1.0</AssemblyVersion>
+    <FileVersion>3.0.1.0</FileVersion>
     <InformationalVersion>$(BeatInsightVersion)</InformationalVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <Product>BeatInsight</Product>
@@ -67,6 +67,12 @@
       <Link>Assets\BiaChan\%(Filename)%(Extension)</Link>
       <CopyToOutputDirectory>Never</CopyToOutputDirectory>
     </Resource>
+  </ItemGroup>
+
+  <!-- BUG-004 : profil structurel NativeStable validé, utilisé quand aucun profil local n'existe. -->
+  <ItemGroup>
+    <EmbeddedResource Include="Integration\Game\Profiles\native-stable-autonomous-q-profile.json"
+                      LogicalName="BeatInsight.NativeStable.native-stable-autonomous-q-profile.json" />
   </ItemGroup>
 
   <ItemGroup>

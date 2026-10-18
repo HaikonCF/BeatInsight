@@ -6,7 +6,7 @@ characteristics rather than reducing a map to one number. Analysis runs locally
 on the user's computer; BeatInsight does not upload beatmap files or diagnostic
 logs.
 
-> **Current version:** the current source version is **3.0.0**. Analysis and
+> **Current version:** the current source version is **3.0.1**. Analysis and
 > classification are still being calibrated, so results may change and user
 > feedback is welcome.
 

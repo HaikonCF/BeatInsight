@@ -28,11 +28,11 @@ public sealed class ReleaseHardeningTests : IDisposable
             .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
             .InformationalVersion;
 
-        Assert.Equal("3.0.0", informationalVersion);
-        Assert.Equal("3.0.0", ReleaseInfo.Version);
-        Assert.Equal("BeatInsight v3.0.0", ReleaseInfo.DisplayName);
+        Assert.Equal("3.0.1", informationalVersion);
+        Assert.Equal("3.0.1", ReleaseInfo.Version);
+        Assert.Equal("BeatInsight v3.0.1", ReleaseInfo.DisplayName);
         Assert.Equal(
-            "BeatInsight v3.0.0",
+            "BeatInsight v3.0.1",
             new MainWindowViewModel().AppVersionText);
     }
 
@@ -165,7 +165,7 @@ public sealed class ReleaseHardeningTests : IDisposable
             "test",
             isFatal: true);
 
-        Assert.Contains($"Version: 3.0.0{Environment.NewLine}", report, StringComparison.Ordinal);
+        Assert.Contains($"Version: 3.0.1{Environment.NewLine}", report, StringComparison.Ordinal);
         Assert.Contains("System.InvalidOperationException", report, StringComparison.Ordinal);
         Assert.Contains("Inner exception 1", report, StringComparison.Ordinal);
         Assert.DoesNotContain(secret, report, StringComparison.Ordinal);
