@@ -9,7 +9,7 @@
     <StartupObject>BeatInsight.App</StartupObject>
     <DefaultItemExcludes>$(DefaultItemExcludes);Diagnostics\NativeLazer\**\bin\**;Diagnostics\NativeLazer\**\obj\**;Diagnostics\NativeMcOsu\**\bin\**;Diagnostics\NativeMcOsu\**\obj\**;Diagnostics\NativeStable\**\bin\**;Diagnostics\NativeStable\**\obj\**</DefaultItemExcludes>
 
-    <BeatInsightVersion>3.0.0-rc.1</BeatInsightVersion>
+    <BeatInsightVersion>3.0.0</BeatInsightVersion>
     <Version>$(BeatInsightVersion)</Version>
     <AssemblyVersion>3.0.0.0</AssemblyVersion>
     <FileVersion>3.0.0.0</FileVersion>
@@ -20,7 +20,18 @@
     <Description>Beatmap analysis and live gameplay overlays for osu!</Description>
     <Company>BeatInsight</Company>
     <ApplicationIcon>Assets\Brand\BeatInsight.ico</ApplicationIcon>
+    <!-- Sentry arrive de manière transitive via osu.Game et n'est jamais initialisé par
+         BeatInsight : son générateur de sources n'embarque pas les propriétés de build. -->
+    <SentryDisableSourceGenerator>true</SentryDisableSourceGenerator>
   </PropertyGroup>
+
+  <!-- Sentry écrit AssemblyMetadata("Sentry.ProjectDirectory", $(ProjectDir)) sans option pour le
+       désactiver : le fichier généré est retiré de la compilation pour ne pas livrer de chemin local. -->
+  <Target Name="BeatInsightRemoveSentryProjectDirectory" AfterTargets="WriteSentryAttributes">
+    <ItemGroup>
+      <Compile Remove="$(IntermediateOutputPath)$(SentryAttributesFile)" />
+    </ItemGroup>
+  </Target>
 
   <ItemGroup>
     <ApplicationDefinition Remove="App.xaml" />

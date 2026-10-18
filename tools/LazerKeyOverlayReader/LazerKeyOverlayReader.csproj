@@ -14,6 +14,10 @@
     <RootNamespace>BeatInsight.Diagnostics.NativeLazer</RootNamespace>
     <NoWarn>$(NoWarn);CS1591</NoWarn>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <!-- Aucun chemin de PDB local dans la DLL publiée (le runner est publié avec DebugType=None). -->
+    <DebugType>none</DebugType>
+  </PropertyGroup>
   <ItemGroup>
     <Compile Include="*.cs" />
     <Compile Include="..\..\BeatInsight\Diagnostics\NativeLazer\NativeLazerFastRefreshLive.cs" Link="Linked\NativeLazerFastRefreshLive.cs" />
